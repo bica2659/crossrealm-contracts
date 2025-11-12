@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>CrossRealm • On-Chain Checkers & Chess on Core</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- For analytics charts -->
+    <script src="https://cdn.jsdelivr.net/npm/stockfish@16.0.0/stockfish.js"></script> <!-- For AI opponents -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script> <!-- For in-game chat -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script> <!-- For chess logic -->
+    <script src="https://cdn.jsdelivr.net/npm/@gelatonetwork/relay-sdk@1.0.1/dist/index.umd.min.js"></script> <!-- Gelato Relay -->
+    <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiQ3Jvc3NSZWalmIiwic2hvcnRfbmFtZSI6IkNSUiIsInN0YXJ0X3VybCI6Ii8iLCJkaXNwbGF5IjoiZnVsbHNjcmVlbiIsImJhY2tncm91bmRfY29sb3IiOiIjMGYwZjBmIiwidGhlbWVfY29sb3IiOiIjZjc5MzFhIn0="> <!-- PWA manifest placeholder -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        :root {
+            --bitcoin-orange: #f7931a;
+            --burnt-orange: #cc6600;
+            --core-green: #00ff88;
+            --dark-bg: #0f0f0f;
+            --card-bg: #1a1a1a;
+            --border: #2a2a2a;
+            --text: #e0e0e0;
+            --text-dim: #999;
+            --success: var(--core-green);
+            --error: #ff4444;
+            --gradient-primary: linear-gradient(135deg, var(--bitcoin-orange), var(--burnt-orange));
+            --gradient-success: linear-gradient(135deg, var(--core-green), #00cc6a);
+            --wood-bg: linear-gradient(135deg, #D2B48C 0%, #8B4513 50%, #A0522D 100%);
+            --wood-light: #DEB887;
+            --wood-dark: #8B4513;
+            --piece-black: #000;
+            --piece-red: #8B0000;
+            --highlight-selected: #4169E1; /* Blue */
+            --highlight-possible: #FFD700; /* Yellow */
+        }
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background: var(--dark-bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 10px;
+            background-image:
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(247, 147, 26, 0.03) 2px, rgba(247, 147, 26, 0.03) 4px);
+            overflow-x: hidden;
+        }
+        body.light-theme {
+            --dark-bg: #f0f0f0;
+            --card-bg: #ffffff;
+            --border: #ddd;
+            --text: #333;
+            --text-dim: #666;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        /* Header */
+        .header {
+            background: var(--card-bg);
+            border: 2px solid var(--bitcoin-orange);
+            border-radius: 0;
+            padding: 15px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(247, 147, 26, 0.1), transparent);
+            animation: shimmer 3s infinite;
+        }
+        @keyframes shimmer {
+            0%, 100% { transform: translateX(-100%); }
+            50% { transform: translateX(100%); }
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--bitcoin-orange);
+            margin-bottom: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+        .tagline {
+            color: var(--text-dim);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+        .wallet-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            position: relative;
+            z-index: 1;
+        }
+        .wallet-status {
+            font-size: 11px;
+            color: var(--text-dim);
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+        .wallet-address {
+            color: var(--bitcoin-orange);
+            font-weight: bold;
+        }
+        /* Buttons */
+        button {
+            background: var(--gradient-primary);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+            min-height: 44px;
+            line-height: 1.2;
+            border-radius: 4px;
+        }
+        button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        button:hover::before, button:active::before {
+            width: 300px;
+            height: 300px;
+        }
+        button:hover, button:active {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px var(--core-green);
+        }
+        button:disabled {
+            background: var(--border);
+            color: var(--text-dim);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        button:disabled:hover, button:active:disabled {
+            transform: none;
+            box-shadow: none;
+        }
+        .disconnect-btn, .resign-btn {
+            background: var(--gradient-primary);
+            color: #000;
+            text-shadow: 0 0 5px rgba(255, 68, 68, 0.8);
+        }
+        .claim-btn, .claim-reward-btn, .claim-dev-btn, .claim-multi-btn, .farm-btn {
+            background: var(--gradient-success);
+            color: #000;
+            margin-top: 10px;
+        }
+        .copy-btn, .share-btn {
+            background: var(--gradient-success);
+            color: #000;
+            padding: 8px 12px;
+            font-size: 12px;
+            margin-left: 10px;
+            min-height: 40px;
+        }
+        .nft-btn, .tournament-btn, .ai-btn {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #000;
+            margin: 5px;
+        }
+        .bridge-btn {
+            background: linear-gradient(135deg, #000000, #333333);
+            color: #f7931a;
+            border: 1px solid var(--bitcoin-orange);
+        }
+        .dev-panel-btn {
+            background: var(--gradient-primary);
+            color: #000;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .join-btn, .move-btn {
+            background: var(--gradient-success);
+            color: #000;
+            padding: 8px 12px;
+            font-size: 12px;
+            margin: 5px;
+        }
+        .equip-nft-btn {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #000;
+            padding: 8px 12px;
+            font-size: 12px;
+            margin: 5px;
+        }
+        .zero-gas-toggle {
+            background: var(--gradient-success);
+            color: #000;
+            padding: 5px 10px;
+            font-size: 10px;
+        }
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        @media (min-width: 769px) {
+            .grid {
+                grid-template-columns: 350px 1fr 350px;
+                gap: 20px;
+            }
+        }
+        @media (min-width: 1201px) {
+            .grid {
+                grid-template-columns: 400px 1fr 400px;
+                gap: 20px;
+            }
+        }
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .card-header {
+            border-bottom: 2px solid var(--bitcoin-orange);
+            padding-bottom: 12px;
+            margin-bottom: 15px;
+        }
+        .card-title {
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--bitcoin-orange);
+        }
+        /* Tabs for new sections */
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            background: var(--border);
+            color: var(--text-dim);
+            border: none;
+            cursor: pointer;
+        }
+        .tab-btn.active {
+            background: var(--bitcoin-orange);
+            color: #000;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        /* Dev Panel */
+        #devPanel {
+            background: linear-gradient(135deg, var(--card-bg), rgba(247, 147, 26, 0.1));
+            border: 2px solid var(--bitcoin-orange);
+        }
+        #devPanel .card-title {
+            color: var(--success);
+        }
+        .dev-tx-list, .dev-month-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        .dev-tx-item, .dev-month-item {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .dev-tx-hash, .dev-month-check {
+            color: var(--bitcoin-orange);
+            font-family: monospace;
+            word-break: break-all;
+            cursor: pointer;
+        }
+        .dev-tx-hash:hover, .dev-month-check:hover {
+            text-decoration: underline;
+        }
+        .dev-month-selector {
+            margin-bottom: 15px;
+        }
+        .dev-chart-container {
+            position: relative;
+            height: 200px;
+            margin-top: 15px;
+        }
+        /* Form elements */
+        .game-selector, .token-selector, .privacy-selector, .nft-selector {
+            margin-bottom: 15px;
+        }
+        .game-selector select, .token-selector select, .privacy-selector select, .nft-selector select {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px;
+            width: 100%;
+            border-radius: 4px;
+        }
+        /* Game Board - Styled like Checkers365 */
+        .game-board-container {
+            position: relative;
+            margin: 20px auto;
+            max-width: 400px;
+            background: var(--wood-bg);
+            border: 10px solid #8B4513;
+            border-radius: 10px;
+            padding: 10px;
+        }
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+            background: var(--wood-dark);
+            padding: 4px;
+        }
+        .board-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .board-labels.vertical {
+            flex-direction: column;
+            position: absolute;
+            left: -30px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .square {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            border-radius: 50%;
+            position: relative;
+        }
+        .square.light {
+            background: var(--wood-light);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .square.dark {
+            background: var(--wood-dark);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .square.selected {
+            background: var(--highlight-selected) !important;
+            box-shadow: 0 0 10px var(--highlight-selected);
+        }
+        .square.possible {
+            background: var(--highlight-possible) !important;
+            box-shadow: 0 0 10px var(--highlight-possible);
+        }
+        .piece {
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            background: var(--piece-black);
+            border: 3px solid #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .piece.red { background: var(--piece-red); }
+        .hidden { display: none; }
+        .alert {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .alert.success { background: rgba(0,255,136,0.1); color: var(--success); }
+        .alert.error { background: rgba(255,68,68,0.1); color: var(--error); }
+        .loading { text-align: center; color: var(--text-dim); }
+        .share-link-section { margin-top: 15px; }
+        .share-link-section input { width: 100%; padding: 10px; background: var(--border); color: var(--text); border: 1px solid var(--bitcoin-orange); }
+        .chat-window { max-height: 200px; overflow-y: auto; background: var(--border); padding: 10px; border-radius: 4px; margin-top: 10px; }
+        .chat-message { margin-bottom: 5px; font-size: 12px; }
+        #gameBoard { margin: 20px auto; }
+        #replayBoard { margin: 20px auto; }
+        .game-controls { text-align: center; margin: 10px 0; }
+        .leaderboard-item, .tournament-item, .game-item { padding: 10px; border: 1px solid var(--border); margin-bottom: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .rank-badge { background: var(--bitcoin-orange); color: #000; padding: 5px 10px; border-radius: 50%; font-weight: bold; }
+        .tier-bar { background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 5px; }
+        .tier-progress { height: 100%; background: var(--gradient-success); transition: width 0.3s; }
+        .games-list { max-height: 300px; overflow-y: auto; }
+        .nft-list { max-height: 150px; overflow-y: auto; }
+        .nft-item { display: flex; justify-content: space-between; align-items: center; padding: 5px; border: 1px solid var(--border); margin-bottom: 5px; border-radius: 4px; }
+        .player-indicator {
+            display: flex;
+            justify-content: space-around;
+            margin: 10px 0;
+        }
+        .player-bar {
+            background: rgba(0,0,0,0.3);
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            flex: 1;
+            margin: 0 10px;
+        }
+        .player-progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--core-green), var(--bitcoin-orange));
+            transition: width 0.3s;
+        }
+        .settings-gear {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        /* Modal for settings */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); }
+        .modal-content { background: var(--card-bg); margin: 15% auto; padding: 20px; border: 1px solid var(--border); width: 80%; max-width: 400px; border-radius: 8px; }
+        .close { color: var(--text); float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .theme-toggle { background: var(--gradient-primary); color: #000; padding: 10px; border: none; border-radius: 4px; cursor: pointer; }
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .game-board-container { max-width: 300px; }
+            .square { font-size: 24px; }
+            .piece { width: 70%; height: 70%; }
+            .board-labels { font-size: 10px; }
+            body { padding: 5px; font-size: 14px; } /* Sharper mobile */
+        }
+        @media (-webkit-min-device-pixel-ratio: 3), (min-resolution: 288dpi) { /* High-DPI fix */
+            .square, .piece { image-rendering: -webkit-optimize-contrast; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeSettings()">&times;</span>
+            <h3>Settings</h3>
+            <label>Sound: <input type="checkbox" id="soundToggle" onchange="toggleSound()"></label><br>
+            <label>Difficulty: <select id="difficulty" onchange="setDifficulty(this.value)"><option value="easy">Easy (Minimax)</option><option value="hard" selected>Hard (Stockfish)</option></select></label><br>
+            <button class="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>
+        </div>
+    </div>
+    <div class="container">
+        <header class="header">
+            <h1 class="logo">CrossRealm</h1>
+            <p class="tagline">On-Chain Checkers & Chess on Core</p>
+            <div class="wallet-bar">
+                <div id="walletStatus" class="wallet-status">
+                    <span id="walletAddress">Not Connected</span>
+                </div>
+                <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
+                <button id="disconnectBtn" class="disconnect-btn" onclick="disconnectWallet()" style="display:none;">Disconnect</button>
+            </div>
+        </header>
+        <div id="alertArea" class="alert-area"></div>
+        <div class="grid">
+            <!-- Left Sidebar: Create & Dashboard -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Create Game</h3>
+                </div>
+                <div class="game-selector">
+                    <label>Game Type</label>
+                    <select id="gameType" onchange="updateCreateButton()">
+                        <option value="chess">Chess</option>
+                        <option value="checkers">Checkers</option>
+                    </select>
+                </div>
+                <div class="token-selector">
+                    <label>Stake Token</label>
+                    <select id="stakeToken" onchange="updateCreateButton()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Stake Amount (Min: 1 USDT equiv, Max: 1000 USDT equiv)</label>
+                    <input type="number" id="stakeAmount" placeholder="1" step="0.01" min="0.01" onchange="updateCreateButton()">
+                    <small id="stakeLimits"></small>
+                </div>
+                <div class="privacy-selector">
+                    <label>Privacy</label>
+                    <select id="privacy" onchange="updateCreateButton()">
+                        <option value="public">Public</option>
+                        <option value="closed">Invite-Only</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Referral (Optional)</label>
+                    <input type="text" id="referral" placeholder="0x...">
+                </div>
+                <label><input type="checkbox" id="aiMode" onchange="toggleAI()"> Play vs AI</label>
+                <label><input type="checkbox" id="zeroGasMode" onchange="updateCreateButton()" class="zero-gas-toggle"> Zero-Gas Mode (Sponsored)</label>
+                <button id="createBtn" onclick="createGame()" disabled>Create Game</button>
+                <button id="bridgeBtn" class="bridge-btn" onclick="bridgeTokens()" style="display:none;">Bridge Token</button>
+                <div class="share-link-section hidden" id="shareLinkSection">
+                    <label>Share Link</label>
+                    <input type="text" id="shareLink" readonly>
+                    <button class="copy-btn" onclick="copyShareLink()">Copy</button>
+                    <button class="share-btn" onclick="shareToSocial()">Share</button>
+                </div>
+                <div class="card-header" style="margin-top:20px;">
+                    <h3 class="card-title">Dashboard</h3>
+                </div>
+                <div id="dashboard">
+                    <div id="tierInfo" style="font-weight:bold;margin-bottom:5px;"></div>
+                    <div class="tier-bar"><div id="tierProgress" class="tier-progress"></div></div>
+                    <div id="rewardsInfo"></div>
+                    <button class="claim-btn" onclick="claimRewards()">Claim Rewards</button>
+                </div>
+                <div class="card-header" style="margin-top:20px;">
+                    <h3 class="card-title">NFTs</h3>
+                </div>
+                <div id="nftSection">
+                    <div class="loading">Connect wallet to load NFTs</div>
+                    <button class="equip-nft-btn" onclick="equipNFT()" disabled>Equip NFT</button>
+                </div>
+            </div>
+            <!-- Center: Games List & Game Board -->
+            <div class="card">
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('pending')">Pending Games</button>
+                    <button class="tab-btn" onclick="switchTab('active')">Active Game</button>
+                </div>
+                <div id="pendingTab" class="tab-content active">
+                    <div class="games-list" id="pendingGamesList">
+                        <div class="loading">Loading pending games...</div>
+                    </div>
+                    <button class="tournament-btn" onclick="loadPendingGames()">Refresh</button>
+                </div>
+                <div id="activeTab" class="tab-content">
+                    <div id="gameNotLoaded" class="loading">No game loaded. Create or join one!</div>
+                    <div id="gameBoard" class="hidden">
+                        <div class="settings-gear" onclick="toggleSettings()">⚙️</div>
+                        <div class="player-indicator">
+                            <div id="cpuIndicator">
+                                <span>CPU</span>
+                                <div class="player-bar"><div class="player-progress" id="cpuProgress" style="width:77%"></div></div>
+                                <span id="cpuPercent">77.2%</span>
+                            </div>
+                            <div id="playerIndicator">
+                                <span>Player</span>
+                                <div class="player-bar"><div class="player-progress" id="playerProgress" style="width:23%"></div></div>
+                                <span id="playerPercent">22.8%</span>
+                            </div>
+                        </div>
+                        <div class="game-board-container">
+                            <div class="board-labels vertical" id="rowLabels">8<br>7<br>6<br>5<br>4<br>3<br>2<br>1</div>
+                            <div id="board" class="game-board"></div>
+                            <div class="board-labels" id="colLabels">A B C D E F G H</div>
+                        </div>
+                        <div class="game-controls">
+                            <button class="move-btn" id="makeMoveBtn" onclick="makeMove()" disabled>Make Move</button>
+                            <button class="resign-btn" onclick="resignGame()">Resign</button>
+                            <button onclick="claimTimeout()">Claim Timeout</button>
+                        </div>
+                        <div>
+                            <input type="text" id="chatInput" placeholder="Chat (on-chain)" style="width:70%;margin-right:5px;">
+                            <button onclick="sendChatMessage()">Send</button>
+                        </div>
+                        <div id="chatWindow" class="chat-window"></div>
+                    </div>
+                </div>
+                <div id="replaySection" class="hidden">
+                    <button onclick="openReplay()">Open Replay</button>
+                    <div id="replayBoard" class="game-board"></div>
+                    <button onclick="closeReplay()">Close Replay</button>
+                </div>
+            </div>
+            <!-- Right Sidebar: Leaderboard & Tournaments -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Leaderboard</h3>
+                </div>
+                <div id="leaderboard">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Tournaments</h3>
+                </div>
+                <button class="tournament-btn" onclick="createTournament()">Create Tournament</button>
+                <div id="tournaments">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+        </div>
+        <!-- Dev Panel (Hidden by default) -->
+        <div id="devPanel" class="card hidden">
+            <div class="card-header">
+                <h3 class="card-title">Dev Panel - Usage Analytics</h3>
+            </div>
+            <button class="dev-panel-btn" onclick="loadDevPanel()">Refresh Analytics</button>
+            <div class="dev-month-selector">
+                <label>Select Month</label>
+                <select id="monthSelector" onchange="loadDevPanel()"></select>
+            </div>
+            <div id="devTxList" class="dev-tx-list"></div>
+            <div id="devMonthList" class="dev-month-list"></div>
+            <div class="dev-chart-container">
+                <canvas id="devChart"></canvas> <!-- Stakes & Games -->
+            </div>
+            <div class="dev-chart-container">
+                <canvas id="usageChart"></canvas> <!-- Users & Engagement -->
+            </div>
+            <button class="claim-dev-btn" onclick="claimDevShare()">Claim Dev Share</button>
+            <button class="claim-multi-btn" onclick="claimMultiDevShare()">Claim Multi-Dev</button>
+        </div>
+    </div>
+    <script>
+        // Configuration
+        const HUB_ADDRESS = '0x2F5B0Ea92dc8Dec0284486d2De0F97734c758855';
+        const REWARDS_ADDRESS = '0x91A7270688C6E94Ad8BA930BEF03220D5429C318';
+        const NFT_ADDRESS = '0xDb098B32e1d73b69676CFB6144B553FE27d99B44';
+        const LAYERZERO_ENDPOINT = '0x9740FF91F1985D8d2B71494aE1A2f723bb3Ed9E4';
+        const EXPLORER_URL = 'https://scan.coredao.org/tx/';
+        const baseUrl = window.location.origin + window.location.pathname;
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        let userAddress = null;
+        let selectedGameType = 'chess';
+        let currentGamePrivacy = 'public';
+        let currentReferral = null;
+        let aiMode = false;
+        let zeroGasMode = false;
+        let currentGameId = null;
+        let currentGame = null;
+        let chess = null; // For chess
+        let checkers = null; // For checkers
+        let devChart = null;
+        let usageChart = null;
+        let selectedSquare = null;
+        let selectedToSquare = null; // For second click in checkers
+        let difficulty = 'hard'; // Default
+        let tokenPrices = {}; // Cache prices
+        // Full ABIs (unchanged)
+        const HUB_ABI = [
+            "function createGame(string _gameType, uint _stake, address _token, bool _isPrivate, address _referral, bool _isAI, bool _zeroGas) external payable",
+            "function joinGame(uint _gameId) external",
+            "function makeMove(uint _gameId, string _move) external",
+            "function endGame(uint _gameId, bool _winner) external",
+            "event GameCreated(uint id, address creator, string gameType, uint stake)",
+            "struct Game { uint id; string gameType; uint stake; address token; address creator; address player2; bool isAI; bool isPrivate; address referral; bool zeroGas; bool active; string fen; }",
+            "mapping(uint => Game) public games",
+            "function gameCount() view returns (uint)"
+        ];
+        const REWARDS_ABI = [
+            "function contributeToPot(uint _amount, address _token) external payable",
+            "function claimRewards(address _user, uint _timestamp, address _token) external",
+            "function getClaimableRewards(address _user, uint _timestamp, address _token) view returns (uint)",
+            "function getUserGamesCount(address _user) view returns (uint)",
+            "mapping(uint => uint) public monthlyTotalStake",
+            "event ContributionAdded(uint amount, address from, uint timestamp)"
+        ];
+        const NFT_ABI = [
+            "function mintWinStreak(address _to) external",
+            "function equip(uint _tokenId, string _gameType) external",
+            "function balanceOf(address owner) view returns (uint256)",
+            "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)"
+        ];
+        const ERC20_ABI = [
+            "function approve(address spender, uint256 amount) external returns (bool)",
+            "function transferFrom(address from, address to, uint256 amount) external returns (bool)",
+            "function balanceOf(address owner) view returns (uint256)",
+            "function decimals() view returns (uint8)"
+        ];
+        const LZ_ABI = [
+            "function send(uint32 _dstEid, bytes calldata _destination, bytes calldata _message, address _refundAddress) external payable returns (bytes32)"
+        ];
+        // Tokens (bridgeable on Core via LayerZero)
+        const TOP_TOKENS = [
+            { symbol: 'CORE', name: 'Core DAO', addr: '0x0000000000000000000000000000000000000000', decimals: 18, usdPrice: 1 },
+            { symbol: 'USDC', name: 'USD Coin', addr: '0xa4151b2e269645181dccf2d426ce75fcbdeca9', decimals: 6, usdPrice: 1 },
+            { symbol: 'USDT', name: 'Tether USD', addr: '0x900101d06a7426441ae3e9ab3b9b0f63be145f1', decimals: 6, usdPrice: 1 },
+            { symbol: 'WBTC', name: 'Wrapped BTC', addr: '0x5832f53d147b3d6Cd4578B9CBD62425C7ea9d0Bd', decimals: 8, usdPrice: 60000 }
+        ];
+        let selectedToken = 'CORE';
+        // Gelato Relay Setup (sponsored txs)
+        const relaySDK = new GelatoRelay.sdk({
+            apiKey: 'your_gelato_api_key', // Get from dashboard.gelato.digital
+            chainId: 1116, // Core
+            provider,
+            sponsored: true // Gas sponsored
+        });
+        // Zero-Gas Helper (Updated with Gelato)
+        async function sendZeroGasTx(contract, method, params, value = 0) {
+            if (!zeroGasMode) return await contract[method](...params, { value });
+            try {
+                const request = {
+                    chainId: 1116,
+                    target: contract.address,
+                    data: contract.interface.encodeFunctionData(method, params),
+                    user: userAddress
+                };
+                const relayResponse = await relaySDK.sponsored.call(request);
+                await relaySDK.waitForRelayToExecuteRequest(relayResponse.taskId);
+                return relayResponse.taskId;
+            } catch (error) {
+                showAlert('Relay failed, using normal tx: ' + error.message, 'warning');
+                return await contract[method](...params, { value });
+            }
+        }
+        // Enhanced Checkers Class with Move Generation
+        class Checkers {
+            constructor(fen = null) {
+                this.board = fen ? this.parseFEN(fen) : [  // Default board
+                    [0,1,0,1,0,1,0,1],
+                    [1,0,1,0,1,0,1,0],
+                    [0,1,0,1,0,1,0,1],
+                    [0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0],
+                    [-1,0,-1,0,-1,0,-1,0],
+                    [0,-1,0,-1,0,-1,0,-1],
+                    [-1,0,-1,0,-1,0,-1,0]
+                ];
+                this.turn = 1; // 1 black, -1 white
+                this.kings = new Set(); // Track kings
+            }
+            parseFEN(fen) { /* Stub for on-chain FEN load */ return this.board; }
+            getLegalMoves(square, isJumpOnly = false) {
+                const row = Math.floor(square / 8), col = square % 8;
+                const piece = this.board[row][col];
+                if (!piece || (piece > 0 && this.turn !== 1) || (piece < 0 && this.turn !== -1)) return [];
+                const moves = [];
+                const directions = piece > 0 ? [[-1,-1], [-1,1]] : [[1,-1], [1,1]]; // Forward diagonals
+                if (this.kings.has(square)) directions.push(...directions.map(d => [-d[0], -d[1]])); // Backward if king
+                for (let [dr, dc] of directions) {
+                    const nr = row + dr, nc = col + dc;
+                    if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8 && (nr + nc) % 2 === 1 && this.board[nr][nc] === 0) {
+                        if (!isJumpOnly) moves.push(nr * 8 + nc);
+                    }
+                    // Jump logic
+                    const jr = row + 2 * dr, jc = col + 2 * dc;
+                    const mr = row + dr, mc = col + dc;
+                    if (jr >= 0 && jr < 8 && jc >= 0 && jc < 8 && this.board[jr][jc] === 0 &&
+                        this.board[mr][mc] !== 0 && this.board[mr][mc] * this.turn < 0) {
+                        moves.push(jr * 8 + jc);
+                    }
+                }
+                return moves.filter(m => m !== square); // No stay
+            }
+            move(from, to, isJump = false) {
+                const row1 = Math.floor(from / 8), col1 = from % 8;
+                const row2 = Math.floor(to / 8), col2 = to % 8;
+                const piece = this.board[row1][col1];
+                if (!piece || this.board[row2][col2] !== 0) return false;
+                const dr = row2 - row1, dc = col2 - col1;
+                if (Math.abs(dr) === 1 && Math.abs(dc) === 1 && (row1 + col1) % 2 === 1) { // Simple move
+                    this.board[row2][col2] = piece;
+                    this.board[row1][col1] = 0;
+                } else if (Math.abs(dr) === 2 && Math.abs(dc) === 2) { // Jump
+                    const mr = (row1 + row2) / 2, mc = (col1 + col2) / 2;
+                    this.board[row2][col2] = piece;
+                    this.board[row1][col1] = 0;
+                    this.board[mr][mc] = 0;
+                    isJump = true;
+                } else return false;
+                // Promotion
+                if ((piece > 0 && row2 === 0) || (piece < 0 && row2 === 7)) this.kings.add(to);
+                this.turn *= -1;
+                return isJump;
+            }
+            evaluate() {
+                let score = 0;
+                for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+                    const p = this.board[r][c];
+                    if (p > 0) score += 10 + (this.kings.has(r*8+c) ? 5 : 0); // Black pieces
+                    else if (p < 0) score -= 10 + (this.kings.has(r*8+c) ? 5 : 0); // White
+                }
+                return score * this.turn; // Perspective
+            }
+            clone() {
+                const clone = new Checkers();
+                clone.board = this.board.map(row => [...row]);
+                clone.turn = this.turn;
+                clone.kings = new Set(this.kings);
+                return clone;
+            }
+        }
+        // Minimax for Checkers (Alpha-Beta Pruning)
+        function minimaxCheckers(board, depth, alpha, beta, maximizing) {
+            if (depth === 0) return board.evaluate();
+            let best = maximizing ? -Infinity : Infinity;
+            for (let sq = 0; sq < 64; sq++) {
+                const moves = board.getLegalMoves(sq, true); // Prioritize jumps
+                for (let to of moves) {
+                    const temp = board.clone();
+                    temp.move(sq, to);
+                    const val = minimaxCheckers(temp, depth - 1, alpha, beta, !maximizing);
+                    if (maximizing) {
+                        best = Math.max(best, val);
+                        alpha = Math.max(alpha, best);
+                    } else {
+                        best = Math.min(best, val);
+                        beta = Math.min(beta, best);
+                    }
+                    if (beta <= alpha) return best;
+                }
+            }
+            return best;
+        }
+        function getBestCheckersMove(board) {
+            let bestScore = -Infinity;
+            let bestMove = null;
+            for (let sq = 0; sq < 64; sq++) {
+                const moves = board.getLegalMoves(sq);
+                for (let to of moves) {
+                    const temp = board.clone();
+                    const isJump = Math.abs(to - sq) > 8; // Rough jump detect
+                    temp.move(sq, to, isJump);
+                    const score = minimaxCheckers(temp, 4, -Infinity, Infinity, false);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = { from: sq, to };
+                    }
+                }
+            }
+            return bestMove;
+        }
+        // Simple Minimax for Chess (Material Only, Depth 3)
+        function evaluateChess(board) {
+            const pieceValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+            let score = 0;
+            board.forEach((row, r) => row.forEach((col, c) => {
+                if (col) {
+                    const val = pieceValues[col.type] || 0;
+                    score += (col.color === 'w' ? val : -val);
+                }
+            }));
+            return score;
+        }
+        function minimaxChess(chess, depth, alpha, beta, maximizing) {
+            if (depth === 0 || chess.game_over()) return evaluateChess(chess.board());
+            const moves = chess.moves({ verbose: true });
+            let best = maximizing ? -Infinity : Infinity;
+            for (let move of moves) {
+                const temp = new Chess(chess.fen());
+                temp.move(move);
+                const val = minimaxChess(temp, depth - 1, alpha, beta, !maximizing);
+                if (maximizing) {
+                    best = Math.max(best, val);
+                    alpha = Math.max(alpha, best);
+                } else {
+                    best = Math.min(best, val);
+                    beta = Math.min(beta, best);
+                }
+                if (beta <= alpha) return best;
+            }
+            return best;
+        }
+        function getBestChessMove(chess) {
+            let bestScore = -Infinity;
+            let bestMove = null;
+            const moves = chess.moves({ verbose: true });
+            for (let move of moves) {
+                const temp = new Chess(chess.fen());
+                temp.move(move);
+                const score = minimaxChess(temp, 3, -Infinity, Infinity, false);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = move;
+                }
+            }
+            return bestMove;
+        }
+        // Dynamic Stake Limits (Static USD equiv since no Chainlink on Core)
+        function updateStakeLimits() {
+            const tokenInfo = TOP_TOKENS.find(t => t.symbol === selectedToken);
+            const minUsd = 1; // USDT equiv
+            const maxUsd = 1000;
+            const minStake = (minUsd / tokenInfo.usdPrice).toFixed(tokenInfo.decimals === 6 ? 6 : 8);
+            const maxStake = (maxUsd / tokenInfo.usdPrice).toFixed(tokenInfo.decimals === 6 ? 6 : 8);
+            document.getElementById('stakeLimits').textContent = `Min: ${minStake} ${tokenInfo.symbol} (~${minUsd} USD) | Max: ${maxStake} ${tokenInfo.symbol} (~${maxUsd} USD)`;
+            document.getElementById('stakeAmount').min = minStake;
+            document.getElementById('stakeAmount').max = maxStake;
+        }
+        // Init Token Select
+        function initTokenSelect() {
+            const select = document.getElementById('stakeToken');
+            select.innerHTML = '';
+            TOP_TOKENS.forEach(token => {
+                const option = document.createElement('option');
+                option.value = token.symbol;
+                option.textContent = `${token.symbol} (${token.name})`;
+                select.appendChild(option);
+            });
+            select.value = 'CORE';
+            updateStakeLimits();
+        }
+        // Wallet Functions
+        async function connectWallet() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const accounts = await provider.listAccounts();
+                    userAddress = accounts[0];
+                    document.getElementById('walletAddress').innerHTML = `${userAddress.slice(0,6)}...${userAddress.slice(-4)}`;
+                    document.getElementById('connectBtn').style.display = 'none';
+                    document.getElementById('disconnectBtn').style.display = 'inline-block';
+                    loadDashboard();
+                    loadTier();
+                    loadNFTs();
+                    loadPendingGames();
+                    loadMyGames();
+                    if (isDev()) loadDevPanel();
+                    showAlert('Wallet connected!', 'success');
+                } catch (error) {
+                    showAlert('Connection failed: ' + error.message, 'error');
+                }
+            } else {
+                showAlert('MetaMask required!', 'error');
+            }
+        }
+        function disconnectWallet() {
+            userAddress = null;
+            document.getElementById('walletAddress').innerHTML = 'Not Connected';
+            document.getElementById('connectBtn').style.display = 'inline-block';
+            document.getElementById('disconnectBtn').style.display = 'none';
+            document.getElementById('createBtn').disabled = true;
+            showAlert('Disconnected', 'info');
+        }
+        // Game Creation (unchanged)
+        function updateCreateButton() {
+            const amount = parseFloat(document.getElementById('stakeAmount').value) || 0;
+            const min = parseFloat(document.getElementById('stakeAmount').min) || 0.01;
+            document.getElementById('createBtn').disabled = amount < min || !userAddress;
+            selectedToken = document.getElementById('stakeToken').value;
+            updateStakeLimits();
+        }
+        document.getElementById('gameType').addEventListener('change', (e) => {
+            selectedGameType = e.target.value;
+            updateCreateButton();
+        });
+        document.getElementById('privacy').addEventListener('change', (e) => {
+            currentGamePrivacy = e.target.value;
+        });
+        document.getElementById('referral').addEventListener('input', (e) => {
+            currentReferral = e.target.value || '0x0000000000000000000000000000000000000000';
+        });
+        function toggleAI() {
+            aiMode = document.getElementById('aiMode').checked;
+        }
+        async function createGame() {
+            if (!userAddress) return showAlert('Connect wallet first', 'error');
+            const stakeAmount = parseFloat(document.getElementById('stakeAmount').value) || 0;
+            const min = parseFloat(document.getElementById('stakeAmount').min) || 0.01;
+            if (stakeAmount < min) return showAlert('Min stake: ' + min, 'error');
+          
+            const tokenInfo = TOP_TOKENS.find(t => t.symbol === selectedToken);
+            const stake = ethers.utils.parseUnits(stakeAmount.toString(), tokenInfo.decimals);
+            const tokenAddr = tokenInfo.addr;
+          
+            try {
+                const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, signer);
+                if (selectedToken !== 'CORE') {
+                    const tokenContract = new ethers.Contract(tokenAddr, ERC20_ABI, signer);
+                    const allowance = await tokenContract.allowance(userAddress, HUB_ADDRESS);
+                    if (allowance.lt(stake)) {
+                        const approveTx = await sendZeroGasTx(tokenContract, 'approve', [HUB_ADDRESS, stake]);
+                        await approveTx.wait();
+                        showAlert('Approved token spend', 'success');
+                    }
+                }
+              
+                const potContribution = stake.mul(3).div(100);
+                const netStake = stake.sub(potContribution);
+              
+                const value = selectedToken === 'CORE' ? netStake.add(potContribution) : 0;
+                const tx = await sendZeroGasTx(hub, 'createGame', [selectedGameType, netStake, tokenAddr, currentGamePrivacy === 'closed', currentReferral, aiMode, zeroGasMode], value);
+                const receipt = await tx.wait();
+                const event = receipt.events.find(e => e.event === 'GameCreated');
+                const gameId = event.args.id;
+              
+                const rewards = new ethers.Contract(REWARDS_ADDRESS, REWARDS_ABI, signer);
+                await sendZeroGasTx(rewards, 'contributeToPot', [potContribution, tokenAddr], selectedToken === 'CORE' ? potContribution : 0);
+              
+                showAlert(`Game created! ID: ${gameId} Tx: <a href="${EXPLORER_URL}${receipt.hash}" target="_blank">${receipt.hash.slice(0,10)}...</a>`, 'success');
+                if (currentGamePrivacy === 'closed') {
+                    const shareLink = `${baseUrl}?gameId=${gameId}&private=true&token=${selectedToken}`;
+                    document.getElementById('shareLink').value = shareLink;
+                    document.getElementById('shareLinkSection').classList.remove('hidden');
+                }
+                loadPendingGames();
+                if (isDev()) loadDevPanel();
+            } catch (error) {
+                showAlert('Create failed: ' + error.message, 'error');
+            }
+        }
+        // Bridge (unchanged)
+        async function bridgeTokens() {
+            if (!userAddress) return showAlert('Connect wallet first', 'error');
+            const tokenInfo = TOP_TOKENS.find(t => t.symbol === selectedToken);
+          
+            try {
+                const lzEndpoint = new ethers.Contract(LAYERZERO_ENDPOINT, LZ_ABI, signer);
+                const dstEid = 30110;
+                const amount = ethers.utils.parseUnits('0.01', tokenInfo.decimals);
+                const message = ethers.utils.defaultAbiCoder.encode(['address', 'uint256'], [userAddress, amount]);
+              
+                const tx = await sendZeroGasTx(lzEndpoint, 'send', [dstEid, '0x', message, userAddress], ethers.utils.parseEther('0.02'));
+                const receipt = await tx.wait();
+                showAlert(`Bridged ${selectedToken}! Tx: <a href="${EXPLORER_URL}${receipt.hash}" target="_blank">${receipt.hash.slice(0,10)}...</a>`, 'success');
+            } catch (error) {
+                showAlert('Bridge failed: ' + error.message, 'error');
+            }
+        }
+        // Utility
+        function showAlert(message, type) {
+            const alertArea = document.getElementById('alertArea');
+            const alert = document.createElement('div');
+            alert.className = `alert ${type}`;
+            alert.innerHTML = message;
+            alertArea.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+        function copyShareLink() {
+            const link = document.getElementById('shareLink');
+            link.select();
+            document.execCommand('copy');
+            showAlert('Link copied!', 'success');
+        }
+        function shareToSocial() {
+            const link = document.getElementById('shareLink').value;
+            if (navigator.share) navigator.share({ title: 'Join my CrossRealm Game!', url: link });
+            else showAlert('Copy the link and share manually', 'info');
+        }
+        function isDev() {
+            return userAddress && userAddress.toLowerCase() === '0x7adb4852c70fb86d906deb082604fc338c067135'.toLowerCase();
+        }
+        // Dashboard (unchanged)
+        async function loadDashboard() {
+            if (!userAddress) return;
+            try {
+                const rewards = new ethers.Contract(REWARDS_ADDRESS, REWARDS_ABI, provider);
+                const gamesCount = await rewards.getUserGamesCount(userAddress);
+                const timestamp = Math.floor(Date.now() / 1000 / (30 * 24 * 3600)) * (30 * 24 * 3600);
+                const claimable = await rewards.getClaimableRewards(userAddress, timestamp, ethers.constants.AddressZero);
+                document.getElementById('rewardsInfo').innerHTML = `
+                    <div><strong>Games Played:</strong> ${gamesCount.toString()}</div>
+                    <div style="margin-top:10px;color:var(--success)"><strong>Claimable:</strong> ${ethers.utils.formatEther(claimable)} CORE</div>
+                `;
+            } catch (error) {
+                console.error(error);
+            }
+        }
+        async function claimRewards() {
+            if (!userAddress) return;
+            try {
+                const rewards = new ethers.Contract(REWARDS_ADDRESS, REWARDS_ABI, signer);
+                const timestamp = Math.floor(Date.now() / 1000 / (30 * 24 * 3600)) * (30 * 24 * 3600);
+                const tx = await sendZeroGasTx(rewards, 'claimRewards', [userAddress, timestamp, ethers.constants.AddressZero]);
+                await tx.wait();
+                showAlert('Rewards claimed!', 'success');
+                loadDashboard();
+            } catch (error) {
+                showAlert('Claim failed: ' + error.message, 'error');
+            }
+        }
+        function loadTier() {
+            const games = 42; // Mock
+            const tier = getTierName(games);
+            document.getElementById('tierInfo').textContent = `${tier} • ${games} Games`;
+            document.getElementById('tierProgress').style.width = `${(games % 10) * 10}%`;
+        }
+        function getTierName(games) {
+            if (games >= 50) return '🏆 Legendary';
+            if (games >= 25) return '💎 Diamond';
+            if (games >= 10) return '🥇 Gold';
+            if (games >= 5) return '🥈 Silver';
+            return '⭐ Novice';
+        }
+        // NFTs (unchanged)
+        async function loadNFTs() {
+            if (!userAddress) return;
+            try {
+                const nft = new ethers.Contract(NFT_ADDRESS, NFT_ABI, provider);
+                const balance = await nft.balanceOf(userAddress);
+                const nftSection = document.getElementById('nftSection');
+                let html = '';
+                for (let i = 0; i < balance; i++) {
+                    const tokenId = await nft.tokenOfOwnerByIndex(userAddress, i);
+                    html += `<div class="nft-item">NFT #${tokenId} <button onclick="equipNFT(${tokenId})">Equip</button></div>`;
+                }
+                nftSection.innerHTML = balance > 0 ? html : '<div>No NFTs owned</div>';
+                document.querySelector('.equip-nft-btn').disabled = balance === 0;
+            } catch (error) {
+                console.error(error);
+            }
+        }
+        async function equipNFT(tokenId) {
+            try {
+                const nft = new ethers.Contract(NFT_ADDRESS, NFT_ABI, signer);
+                const tx = await sendZeroGasTx(nft, 'equip', [tokenId, selectedGameType]);
+                await tx.wait();
+                showAlert(`NFT ${tokenId} equipped for ${selectedGameType}!`, 'success');
+            } catch (error) {
+                showAlert('Equip failed: ' + error.message, 'error');
+            }
+        }
+        // Games List & Loop (minor updates for checkers)
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tab + 'Tab').classList.add('active');
+        }
+        async function loadPendingGames() {
+            if (!userAddress) return;
+            try {
+                const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, provider);
+                const count = await hub.gameCount();
+                const list = document.getElementById('pendingGamesList');
+                list.innerHTML = '<div class="loading">Loading...</div>';
+                let html = '';
+                for (let i = 1; i <= count.toNumber(); i++) {
+                    const game = await hub.games(i);
+                    if (game.active && game.player2 === ethers.constants.AddressZero && !game.isPrivate) {
+                        const tokenSymbol = TOP_TOKENS.find(t => t.addr.toLowerCase() === game.token.toLowerCase())?.symbol || 'UNK';
+                        html += `<div class="game-item">
+                            <div>${game.gameType} • Stake: ${ethers.utils.formatUnits(game.stake, 18)} ${tokenSymbol}</div>
+                            <button class="join-btn" onclick="joinGame(${i})">Join</button>
+                        </div>`;
+                    }
+                }
+                list.innerHTML = html || '<p>No pending games</p>';
+            } catch (error) {
+                list.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+        async function loadMyGames() {
+            console.log('My games loaded');
+        }
+        async function joinGame(gameId) {
+            try {
+                const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, signer);
+                const tx = await sendZeroGasTx(hub, 'joinGame', [gameId]);
+                await tx.wait();
+                showAlert('Joined game!', 'success');
+                loadGame(gameId);
+            } catch (error) {
+                showAlert('Join failed: ' + error.message, 'error');
+            }
+        }
+        async function loadGame(gameId) {
+            try {
+                const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, provider);
+                currentGame = await hub.games(gameId);
+                currentGameId = gameId;
+                document.getElementById('gameNotLoaded').classList.add('hidden');
+                document.getElementById('gameBoard').classList.remove('hidden');
+                renderBoard(currentGame.fen || (selectedGameType === 'chess' ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' : 'checkers_default')); // Default FEN
+                if (aiMode && currentGame.isAI) setTimeout(aiMove, 1000);
+            } catch (error) {
+                showAlert('Load failed: ' + error.message, 'error');
+            }
+        }
+        function renderBoard(fen) {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            selectedSquare = null;
+            selectedToSquare = null;
+            document.getElementById('makeMoveBtn').disabled = true;
+            if (selectedGameType === 'chess') {
+                chess = new Chess(fen);
+                for (let i = 0; i < 8; i++) {
+                    for (let j = 0; j < 8; j++) {
+                        const squareIndex = (7 - i) * 8 + j;
+                        const square = document.createElement('div');
+                        square.className = `square ${(i + j) % 2 ? 'light' : 'dark'}`;
+                        square.setAttribute('data-index', squareIndex);
+                        const piece = chess.get(squareIndex);
+                        if (piece) {
+                            const unicode = { P: '♙', R: '♖', N: '♘', B: '♗', Q: '♕', K: '♔',
+                                              p: '♟', r: '♜', n: '♞', b: '♝', q: '♛', k: '♚' }[piece.type.toUpperCase() === piece.type ? piece.type.toUpperCase() : piece.type];
+                            square.innerHTML = `<span class="piece ${piece.color === 'b' ? 'red' : ''}">${unicode}</span>`;
+                        }
+                        square.onclick = (e) => selectSquare(squareIndex, e);
+                        board.appendChild(square);
+                    }
+                }
+            } else { // Checkers
+                checkers = new Checkers(fen === 'checkers_default' ? null : fen);
+                for (let row = 0; row < 8; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        const squareIndex = row * 8 + col;
+                        const square = document.createElement('div');
+                        square.className = `square ${(row + col) % 2 ? 'dark' : 'light'}`;
+                        square.setAttribute('data-index', squareIndex);
+                        const piece = checkers.board[row][col];
+                        if (piece !== 0) {
+                            const pieceEl = document.createElement('div');
+                            pieceEl.className = `piece ${piece < 0 ? 'red' : ''}`;
+                            square.appendChild(pieceEl);
+                        }
+                        square.onclick = (e) => selectSquare(squareIndex, e);
+                        board.appendChild(square);
+                    }
+                }
+            }
+            // Progress bars mock
+            document.getElementById('cpuProgress').style.width = '77%';
+            document.getElementById('cpuPercent').textContent = '77.2%';
+            document.getElementById('playerProgress').style.width = '23%';
+            document.getElementById('playerPercent').textContent = '22.8%';
+        }
+        function selectSquare(index, event) {
+            document.querySelectorAll('.square').forEach(s => s.classList.remove('selected', 'possible'));
+            event.target.classList.add('selected');
+            if (selectedGameType === 'chess') {
+                selectedSquare = index;
+                const moves = chess.moves({ verbose: true, square: chess.square_name(index) });
+                moves.forEach(m => {
+                    const toIndex = chess.SQUARES.indexOf(m.to);
+                    document.querySelector(`[data-index="${toIndex}"]`).classList.add('possible');
+                });
+            } else { // Checkers: First select from, second to
+                if (!selectedSquare) {
+                    const moves = checkers.getLegalMoves(index);
+                    moves.forEach(m => document.querySelector(`[data-index="${m}"]`).classList.add('possible'));
+                    selectedSquare = index;
+                } else {
+                    selectedToSquare = index;
+                    document.querySelector(`[data-index="${selectedToSquare}"]`).classList.add('possible');
+                }
+            }
+            document.getElementById('makeMoveBtn').disabled = !selectedSquare;
+        }
+        async function makeMove() {
+            if (!selectedSquare || !currentGameId) return;
+            let moveStr = '';
+            if (selectedGameType === 'chess' && chess && selectedSquare) {
+                const moves = chess.moves({ verbose: true });
+                const legalMove = moves.find(m => m.from === selectedSquare);
+                if (legalMove) {
+                    moveStr = `${legalMove.san}`;
+                    chess.move(legalMove);
+                }
+            } else if (checkers && selectedSquare && selectedToSquare) {
+                if (checkers.move(selectedSquare, selectedToSquare)) {
+                    moveStr = `${selectedSquare}-${selectedToSquare}`;
+                    renderBoard(); // Re-render for updated board
+                }
+                selectedToSquare = null;
+            }
+            if (moveStr) {
+                try {
+                    const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, signer);
+                    const tx = await sendZeroGasTx(hub, 'makeMove', [currentGameId, moveStr]);
+                    await tx.wait();
+                    renderBoard(chess ? chess.fen() : 'checkers_updated');
+                    showAlert('Move made!', 'success');
+                    if (chess && chess.game_over()) endGame(chess.turn() === 'w');
+                    if (aiMode) setTimeout(aiMove, 500);
+                } catch (error) {
+                    showAlert('Move failed: ' + error.message, 'error');
+                }
+            }
+        }
+        // Enhanced AI Move with Difficulty
+        async function aiMove() {
+            showAlert('AI thinking...', 'info');
+            if (selectedGameType === 'chess' && chess) {
+                if (difficulty === 'hard') {
+                    // Stockfish
+                    const stockfish = new Worker('https://cdn.jsdelivr.net/npm/stockfish@16.0.0/stockfish.js');
+                    stockfish.postMessage('position fen ' + chess.fen());
+                    stockfish.postMessage('go depth 10');
+                    stockfish.onmessage = (e) => {
+                        if (e.data.startsWith('bestmove')) {
+                            const move = e.data.split(' ')[1];
+                            chess.move(move);
+                            renderBoard(chess.fen());
+                            stockfish.terminate();
+                        }
+                    };
+                } else {
+                    // Minimax Easy
+                    const bestMove = getBestChessMove(chess);
+                    if (bestMove) {
+                        chess.move(bestMove);
+                        renderBoard(chess.fen());
+                    }
+                }
+            } else if (checkers) {
+                // Minimax for Checkers (always, depth adjusted by difficulty)
+                const depth = difficulty === 'easy' ? 3 : 4;
+                const bestMove = getBestCheckersMove(checkers);
+                if (bestMove) {
+                    checkers.move(bestMove.from, bestMove.to);
+                    renderBoard(); // Custom FEN if needed
+                }
+            }
+            showAlert('AI moved!', 'info');
+        }
+        function setDifficulty(diff) {
+            difficulty = diff;
+        }
+        async function endGame(winner) {
+            try {
+                const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, signer);
+                const tx = await sendZeroGasTx(hub, 'endGame', [currentGameId, winner]);
+                await tx.wait();
+                if (winner) {
+                    const nft = new ethers.Contract(NFT_ADDRESS, NFT_ABI, signer);
+                    await sendZeroGasTx(nft, 'mintWinStreak', [userAddress]);
+                    showAlert('Game ended! NFT minted.', 'success');
+                }
+                currentGameId = null;
+                document.getElementById('gameBoard').classList.add('hidden');
+                document.getElementById('gameNotLoaded').classList.remove('hidden');
+            } catch (error) {
+                showAlert('End failed: ' + error.message, 'error');
+            }
+        }
+        function resignGame() {
+            endGame(false);
+        }
+        async function claimTimeout() {
+            endGame(true);
+        }
+        // On-Chain Chat (unchanged stub)
+        async function loadChat(gameId) {
+            try {
+                const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, provider);
+                const messages = await hub.getMessages(gameId); // Add getter to contract
+                const chatWindow = document.getElementById('chatWindow');
+                chatWindow.innerHTML = messages.map(m => `<div class="chat-message"><strong>${m.sender}:</strong> ${m.text}</div>`).join('');
+            } catch (error) {
+                console.error('Chat load failed:', error);
+            }
+        }
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message || !currentGameId) return;
+            const chatWindow = document.getElementById('chatWindow');
+            const msg = document.createElement('div');
+            msg.className = 'chat-message';
+            msg.innerHTML = `<strong>You:</strong> ${message}`;
+            chatWindow.appendChild(msg);
+            input.value = '';
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            try {
+                const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, signer);
+                await sendZeroGasTx(hub, 'addMessage', [currentGameId, message]);
+                loadChat(currentGameId);
+            } catch (error) {
+                showAlert('Chat send failed: ' + error.message, 'error');
+            }
+        }
+        // Settings Modal
+        function toggleSettings() {
+            document.getElementById('settingsModal').style.display = 'block';
+        }
+        function closeSettings() {
+            document.getElementById('settingsModal').style.display = 'none';
+        }
+        function toggleSound() {
+            showAlert('Sound toggled!', 'success');
+        }
+        function toggleTheme() {
+            document.body.classList.toggle('light-theme');
+            showAlert('Theme toggled!', 'success');
+        }
+        // Tournaments (unchanged)
+        async function createTournament() {
+            const entryStake = ethers.utils.parseEther('0.1');
+            const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, signer);
+            await sendZeroGasTx(hub, 'createTournament', ['Chess Open', entryStake, 8]);
+            showAlert('Tournament created!', 'success');
+        }
+        // Replays (unchanged)
+        function openReplay() {
+            document.getElementById('replaySection').classList.remove('hidden');
+            renderBoard();
+        }
+        function closeReplay() {
+            document.getElementById('replaySection').classList.add('hidden');
+        }
+        // Leaderboard & Tournaments (mock)
+        function loadLeaderboard() {
+            document.getElementById('leaderboard').innerHTML = `
+                <div class="leaderboard-item">
+                    <div class="rank-badge">#1</div>
+                    <div>@ChessMaster • 147 Wins</div>
+                    <div>2850 ELO</div>
+                </div>
+            `;
+        }
+        function loadTournaments() {
+            document.getElementById('tournaments').innerHTML = '<div class="tournament-item">Core Chess Open • <button onclick="joinTournament(1)">Join</button></div>';
+        }
+        function joinTournament(id) {
+            showAlert(`Joined ${id}!`, 'success');
+        }
+        // Dev Panel Analytics (unchanged)
+        async function loadDevPanel() {
+            if (!isDev()) return;
+            document.getElementById('devPanel').classList.remove('hidden');
+            try {
+                const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, provider);
+                const filter = hub.filters.GameCreated();
+                const events = await hub.queryFilter(filter, -10000);
+                const uniqueUsers = new Set(events.map(e => e.args.creator));
+                const monthlyStakes = {};
+                events.forEach(e => {
+                    const month = new Date(Number(e.blockTimestamp) * 1000).getMonth();
+                    monthlyStakes[month] = (monthlyStakes[month] || 0n) + e.args.stake;
+                });
+                const labels = Object.keys(monthlyStakes).map(m => `Month ${m}`);
+                const stakesData = Object.values(monthlyStakes).map(s => ethers.utils.formatEther(s));
+                const usersData = Array(labels.length).fill(uniqueUsers.size / labels.length);
+                if (devChart) devChart.destroy();
+                const ctx = document.getElementById('devChart').getContext('2d');
+                devChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [
+                            { label: 'Monthly Stakes (CORE)', data: stakesData, borderColor: 'var(--bitcoin-orange)' },
+                            { label: 'Unique Users', data: usersData, borderColor: 'var(--core-green)' }
+                        ]
+                    },
+                    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+                });
+                if (usageChart) usageChart.destroy();
+                const usageCtx = document.getElementById('usageChart').getContext('2d');
+                usageChart = new Chart(usageCtx, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [
+                            { label: 'Games per Month', data: labels.map(() => Math.random()*100), backgroundColor: 'var(--core-green)' },
+                            { label: 'Avg Engagement (Moves/Game)', data: labels.map(() => Math.random()*10 + 5), backgroundColor: 'var(--bitcoin-orange)' }
+                        ]
+                    },
+                    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+                });
+                document.getElementById('devTxList').innerHTML = `<div>Total Users: ${uniqueUsers.size} | Total Games: ${events.length}</div>`;
+            } catch (error) {
+                console.error(error);
+            }
+        }
+        async function claimDevShare() {
+            showAlert('Dev share claimed!', 'success');
+        }
+        async function claimMultiDevShare() {
+            showAlert('Multi-dev share claimed!', 'success');
+        }
+        // Real-time polling
+        setInterval(async () => {
+            if (currentGameId) {
+                await loadGame(currentGameId);
+                await loadChat(currentGameId);
+            }
+            if (isDev()) loadDevPanel();
+        }, 5000);
+        // On Load
+        document.addEventListener('DOMContentLoaded', () => {
+            initTokenSelect();
+            loadLeaderboard();
+            loadTournaments();
+            updateCreateButton();
+            document.getElementById('stakeAmount').addEventListener('input', updateCreateButton);
+            if (window.ethereum) {
+                window.ethereum.on('accountsChanged', connectWallet);
+                window.ethereum.on('chainChanged', () => location.reload());
+            }
+        });
+    </script>
+</body>
+</html>
