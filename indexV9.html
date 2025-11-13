@@ -235,27 +235,10 @@
             font-size: 10px;
         }
         .farm-card {
-            background: var(--card-bg); /* Matches main cards, no green wash */
-            border: 2px solid var(--gradient-success); /* Subtle green outline */
-            padding: 15px; /* Extra padding to prevent overlap */
-            border-radius: 8px; /* Softer corners */
-            margin-bottom: 10px;
-            position: relative; /* For potential shimmer later */
-        }
-        .farm-card::before {
-            content: ''; /* Optional: Faint green glow */
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
             background: var(--gradient-success);
-            border-radius: 8px;
-            z-index: -1;
-            opacity: 0.1;
-        }
-        .farm-card input, .farm-card button {
-            margin: 5px 0; /* Space out elements inside */
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
         }
         .coming-soon {
             text-align: center;
@@ -373,13 +356,6 @@
             padding: 10px;
             width: 100%;
             border-radius: 4px;
-            z-index: 10; /* Ensures dropdown pops over other elements */
-            appearance: menulist; /* Forces native dropdown */
-            min-height: 44px; /* Better mobile touch target */
-        }
-        .game-selector select:focus, .token-selector select:focus, .privacy-selector select:focus, .nft-selector select:focus {
-            outline: 2px solid var(--bitcoin-orange);
-            box-shadow: 0 0 5px rgba(247, 147, 26, 0.5);
         }
         /* Game Board - Styled like Checkers365 */
         .game-board-container {
@@ -1005,19 +981,15 @@
         // Init Token Select
         function initTokenSelect() {
             const select = document.getElementById('stakeToken');
-            if (!select) return; // Safety check
-            select.innerHTML = '<option value="">Loading tokens...</option>'; // Temp placeholder
-            setTimeout(() => { // Async-like for better UX
-                select.innerHTML = '';
-                TOP_TOKENS.forEach(token => {
-                    const option = document.createElement('option');
-                    option.value = token.symbol;
-                    option.textContent = `${token.symbol} (${token.name}) ~$${token.usdPrice}`;
-                    select.appendChild(option);
-                });
-                select.value = 'CORE';
-                updateStakeLimits();
-            }, 100);
+            select.innerHTML = '';
+            TOP_TOKENS.forEach(token => {
+                const option = document.createElement('option');
+                option.value = token.symbol;
+                option.textContent = `${token.symbol} (${token.name})`;
+                select.appendChild(option);
+            });
+            select.value = 'CORE';
+            updateStakeLimits();
         }
         document.getElementById('stakeToken').addEventListener('change', (e) => {
             selectedToken = e.target.value;
@@ -1040,7 +1012,6 @@
                     loadPendingGames();
                     loadMyGames();
                     loadFarmInfo();
-                    initTokenSelect(); // Re-init on connect for safety
                     if (isDev()) loadDevPanel();
                     showAlert('Wallet connected!', 'success');
                 } catch (error) {
@@ -1083,12 +1054,12 @@
             const min = parseFloat(document.getElementById('stakeAmount').min) || 0.01;
             if (stakeAmount < min) return showAlert('Below min stake', 'error');
             if (['fighting', 'carrace', 'soccerpenalty', 'snooker'].includes(selectedGameType)) return showAlert('Coming Soon! Stake & Beta Test.', 'info');
-         
+          
             const tokenInfo = TOP_TOKENS.find(t => t.symbol === selectedToken);
             const stake = ethers.utils.parseUnits(stakeAmount.toString(), tokenInfo.decimals);
             const tokenAddr = tokenInfo.addr;
             const verifier = VERIFIER_ADDRESSES[selectedGameType];
-         
+          
             try {
                 const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, signer);
                 if (selectedToken !== 'CORE') {
@@ -1100,19 +1071,19 @@
                         showAlert('Approved token spend', 'success');
                     }
                 }
-             
+              
                 const potContribution = stake.mul(3).div(100);
                 const netStake = stake.sub(potContribution);
-             
+              
                 const value = selectedToken === 'CORE' ? netStake.add(potContribution) : 0;
                 const tx = await sendZeroGasTx(hub, 'createGame', [selectedGameType, netStake, tokenAddr, currentGamePrivacy === 'closed', currentReferral, aiMode, zeroGasMode, verifier], value);
                 const receipt = await tx.wait();
                 const event = receipt.events.find(e => e.event === 'GameCreated');
                 const gameId = event.args.id;
-             
+              
                 const rewards = new ethers.Contract(REWARDS_ADDRESS, REWARDS_ABI, signer);
                 await sendZeroGasTx(rewards, 'contributeToPot', [potContribution, tokenAddr], selectedToken === 'CORE' ? potContribution : 0);
-             
+              
                 showAlert(`Game created! ID: ${gameId} Tx: <a href="${EXPLORER_URL}${receipt.hash}" target="_blank">${receipt.hash.slice(0,10)}...</a>`, 'success');
                 if (currentGamePrivacy === 'closed') {
                     const shareLink = `${baseUrl}?gameId=${gameId}&private=true&token=${selectedToken}`;
@@ -1129,13 +1100,13 @@
         async function bridgeTokens() {
             if (!userAddress) return showAlert('Connect wallet first', 'error');
             const tokenInfo = TOP_TOKENS.find(t => t.symbol === selectedToken);
-         
+          
             try {
                 const lzEndpoint = new ethers.Contract(LAYERZERO_ENDPOINT, LZ_ABI, signer);
                 const dstEid = 30110;
                 const amount = ethers.utils.parseUnits('0.01', tokenInfo.decimals);
                 const message = ethers.utils.defaultAbiCoder.encode(['address', 'uint256'], [userAddress, amount]);
-             
+              
                 const tx = await sendZeroGasTx(lzEndpoint, 'send', [dstEid, '0x', message, userAddress], ethers.utils.parseEther('0.02'));
                 const receipt = await tx.wait();
                 showAlert(`Bridged ${selectedToken}! Tx: <a href="${EXPLORER_URL}${receipt.hash}" target="_blank">${receipt.hash.slice(0,10)}...</a>`, 'success');

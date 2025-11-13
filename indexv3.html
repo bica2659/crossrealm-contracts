@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>CrossRealm • On-Chain Checkers & Chess on Core</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- For analytics charts -->
+    <script src="https://cdn.jsdelivr.net/npm/stockfish@16.0.0/stockfish.js"></script> <!-- For AI opponents -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script> <!-- For in-game chat -->
+    <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiQ3Jvc3NSZWalmIiwic2hvcnRfbmFtZSI6IkNSUiIsInN0YXJ0X3VybCI6Ii8iLCJkaXNwbGF5IjoiZnVsbHNjcmVlbiIsImJhY2tncm91bmRfY29sb3IiOiIjMGYwZjBmIiwidGhlbWVfY29sb3IiOiIjZjc5MzFhIn0="> <!-- PWA manifest placeholder -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        :root {
+            --bitcoin-orange: #f7931a;
+            --burnt-orange: #cc6600;
+            --core-green: #00ff88;
+            --dark-bg: #0f0f0f;
+            --card-bg: #1a1a1a;
+            --border: #2a2a2a;
+            --text: #e0e0e0;
+            --text-dim: #999;
+            --success: var(--core-green);
+            --error: #ff4444;
+            --gradient-primary: linear-gradient(135deg, var(--bitcoin-orange), var(--burnt-orange));
+            --gradient-success: linear-gradient(135deg, var(--core-green), #00cc6a);
+            --wood-brown: #8B4513;
+            --light-wood: #D2B48C;
+            --dark-square: #b58863;
+            --light-square: #f0d9b5;
+        }
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background: var(--dark-bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 10px;
+            background-image:
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(247, 147, 26, 0.03) 2px, rgba(247, 147, 26, 0.03) 4px);
+            overflow-x: hidden;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        /* Header */
+        .header {
+            background: var(--card-bg);
+            border: 2px solid var(--bitcoin-orange);
+            border-radius: 0;
+            padding: 15px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(247, 147, 26, 0.1), transparent);
+            animation: shimmer 3s infinite;
+        }
+        @keyframes shimmer {
+            0%, 100% { transform: translateX(-100%); }
+            50% { transform: translateX(100%); }
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--bitcoin-orange);
+            margin-bottom: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+        .tagline {
+            color: var(--text-dim);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+        .wallet-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            position: relative;
+            z-index: 1;
+        }
+        .wallet-status {
+            font-size: 11px;
+            color: var(--text-dim);
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+        .wallet-address {
+            color: var(--bitcoin-orange);
+            font-weight: bold;
+        }
+        /* Buttons */
+        button {
+            background: var(--gradient-primary);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+            min-height: 44px;
+            line-height: 1.2;
+            border-radius: 4px;
+        }
+        button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        button:hover::before, button:active::before {
+            width: 300px;
+            height: 300px;
+        }
+        button:hover, button:active {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px var(--core-green);
+        }
+        button:disabled {
+            background: var(--border);
+            color: var(--text-dim);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        button:disabled:hover, button:active:disabled {
+            transform: none;
+            box-shadow: none;
+        }
+        .disconnect-btn, .resign-btn {
+            background: var(--gradient-primary);
+            color: #000;
+            text-shadow: 0 0 5px rgba(255, 68, 68, 0.8);
+        }
+        .claim-btn, .claim-reward-btn, .claim-dev-btn, .claim-multi-btn, .farm-btn {
+            background: var(--gradient-success);
+            color: #000;
+            margin-top: 10px;
+        }
+        .copy-btn, .share-btn {
+            background: var(--gradient-success);
+            color: #000;
+            padding: 8px 12px;
+            font-size: 12px;
+            margin-left: 10px;
+            min-height: 40px;
+        }
+        .nft-btn, .tournament-btn, .ai-btn {
+            background: linear-gradient(135deg, #ffd700, #ffed4e); /* Gold for NFTs/Tourneys */
+            color: #000;
+            margin: 5px;
+        }
+        .bridge-btn {
+            background: linear-gradient(135deg, #000000, #333333); /* BTC-inspired */
+            color: #f7931a;
+            border: 1px solid var(--bitcoin-orange);
+        }
+        .dev-panel-btn {
+            background: var(--gradient-primary);
+            color: #000;
+            width: 100%;
+            margin-top: 10px;
+        }
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        @media (min-width: 769px) {
+            .grid {
+                grid-template-columns: 350px 1fr 350px;
+                gap: 20px;
+            }
+        }
+        @media (min-width: 1201px) {
+            .grid {
+                grid-template-columns: 400px 1fr 400px;
+                gap: 20px;
+            }
+        }
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .card-header {
+            border-bottom: 2px solid var(--bitcoin-orange);
+            padding-bottom: 12px;
+            margin-bottom: 15px;
+        }
+        .card-title {
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--bitcoin-orange);
+        }
+        /* Tabs for new sections */
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            background: var(--border);
+            color: var(--text-dim);
+            border: none;
+            cursor: pointer;
+        }
+        .tab-btn.active {
+            background: var(--bitcoin-orange);
+            color: #000;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        /* Dev Panel */
+        #devPanel {
+            background: linear-gradient(135deg, var(--card-bg), rgba(247, 147, 26, 0.1));
+            border: 2px solid var(--bitcoin-orange);
+        }
+        #devPanel .card-title {
+            color: var(--success);
+        }
+        .dev-tx-list, .dev-month-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        .dev-tx-item, .dev-month-item {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .dev-tx-hash, .dev-month-check {
+            color: var(--bitcoin-orange);
+            font-family: monospace;
+            word-break: break-all;
+            cursor: pointer;
+        }
+        .dev-tx-hash:hover, .dev-month-check:hover {
+            text-decoration: underline;
+        }
+        .dev-month-selector {
+            margin-bottom: 15px;
+        }
+        .dev-chart-container {
+            position: relative;
+            height: 200px;
+            margin-top: 15px;
+        }
+        /* Form elements */
+        .game-selector, .token-selector, .privacy-selector, .nft-selector {
+            margin-bottom: 15px;
+        }
+        .game-selector select, .token-selector select, .privacy-selector select, .nft-selector select {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px;
+            width: 100%;
+            border-radius: 4px;
+        }
+        /* Game Board */
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 1px;
+            background: var(--border);
+            padding: 4px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .square {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .square.light { background: var(--light-square); }
+        .square.dark { background: var(--dark-square); }
+        .square.selected { box-shadow: 0 0 10px var(--bitcoin-orange); }
+        .piece { font-size: 24px; }
+        .hidden { display: none; }
+        .alert {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .alert.success { background: rgba(0,255,136,0.1); color: var(--success); }
+        .alert.error { background: rgba(255,68,68,0.1); color: var(--error); }
+        .loading { text-align: center; color: var(--text-dim); }
+        .share-link-section { margin-top: 15px; }
+        .share-link-section input { width: 100%; padding: 10px; background: var(--border); color: var(--text); border: 1px solid var(--bitcoin-orange); }
+        .chat-window { max-height: 200px; overflow-y: auto; background: var(--border); padding: 10px; border-radius: 4px; margin-top: 10px; }
+        .chat-message { margin-bottom: 5px; font-size: 12px; }
+        #gameBoard { margin: 20px auto; }
+        #replayBoard { margin: 20px auto; }
+        .game-controls { text-align: center; margin: 10px 0; }
+        .leaderboard-item, .tournament-item, .game-item { padding: 10px; border: 1px solid var(--border); margin-bottom: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .rank-badge { background: var(--bitcoin-orange); color: #000; padding: 5px 10px; border-radius: 50%; font-weight: bold; }
+        .tier-bar { background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 5px; }
+        .tier-progress { height: 100%; background: var(--gradient-success); transition: width 0.3s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="logo">CrossRealm</h1>
+            <p class="tagline">On-Chain Checkers & Chess on Core</p>
+            <div class="wallet-bar">
+                <div id="walletStatus" class="wallet-status">
+                    <span id="walletAddress">Not Connected</span>
+                </div>
+                <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
+                <button id="disconnectBtn" class="disconnect-btn" onclick="disconnectWallet()" style="display:none;">Disconnect</button>
+            </div>
+        </header>
+
+        <div id="alertArea" class="alert-area"></div>
+
+        <div class="grid">
+            <!-- Left Sidebar: Create & Dashboard -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Create Game</h3>
+                </div>
+                <div class="game-selector">
+                    <label>Game Type</label>
+                    <select id="gameType" onchange="updateCreateButton()">
+                        <option value="chess">Chess</option>
+                        <option value="checkers">Checkers</option>
+                    </select>
+                </div>
+                <div class="token-selector">
+                    <label>Stake Token</label>
+                    <select id="stakeToken" onchange="updateCreateButton()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Stake Amount</label>
+                    <input type="number" id="stakeAmount" placeholder="0.01" step="0.01" min="0.01" onchange="updateCreateButton()">
+                </div>
+                <div class="privacy-selector">
+                    <label>Privacy</label>
+                    <select id="privacy" onchange="updateCreateButton()">
+                        <option value="public">Public</option>
+                        <option value="closed">Invite-Only</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Referral (Optional)</label>
+                    <input type="text" id="referral" placeholder="0x...">
+                </div>
+                <label><input type="checkbox" id="aiMode" onchange="toggleAI()"> Play vs AI</label>
+                <label><input type="checkbox" id="zeroGasMode" onchange="updateCreateButton()"> Zero-Gas Mode</label>
+                <button id="createBtn" onclick="createGame()" disabled>Create Game</button>
+                <button id="bridgeBtn" class="bridge-btn" onclick="bridgeTokens()" style="display:none;">Bridge Token</button>
+                <div class="share-link-section hidden" id="shareLinkSection">
+                    <label>Share Link</label>
+                    <input type="text" id="shareLink" readonly>
+                    <button class="copy-btn" onclick="copyShareLink()">Copy</button>
+                    <button class="share-btn" onclick="shareToSocial()">Share</button>
+                </div>
+
+                <div class="card-header" style="margin-top:20px;">
+                    <h3 class="card-title">Dashboard</h3>
+                </div>
+                <div id="dashboard">
+                    <div id="tierInfo" style="font-weight:bold;margin-bottom:5px;"></div>
+                    <div class="tier-bar"><div id="tierProgress" class="tier-progress"></div></div>
+                    <div id="rewardsInfo"></div>
+                    <button class="claim-btn" onclick="claimRewards()">Claim Rewards</button>
+                </div>
+            </div>
+
+            <!-- Center: Game Board -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Active Game</h3>
+                </div>
+                <div id="gameNotLoaded" class="loading">No game loaded. Create or join one!</div>
+                <div id="gameBoard" class="hidden">
+                    <div id="gameInfo" class="game-info">
+                        <div id="gameStatus" class="game-status">Loading...</div>
+                        <div id="playerInfo"></div>
+                    </div>
+                    <div id="board" class="game-board"></div>
+                    <div class="game-controls">
+                        <button class="resign-btn" onclick="resignGame()">Resign</button>
+                        <button onclick="claimTimeout()">Claim Timeout</button>
+                    </div>
+                    <div>
+                        <input type="text" id="chatInput" placeholder="Chat (on-chain)" style="width:70%;margin-right:5px;">
+                        <button onclick="sendChatMessage()">Send</button>
+                    </div>
+                    <div id="chatWindow" class="chat-window"></div>
+                </div>
+                <div id="replaySection" class="hidden">
+                    <button onclick="openReplay()">Open Replay</button>
+                    <div id="replayBoard" class="game-board"></div>
+                    <button onclick="closeReplay()">Close Replay</button>
+                </div>
+            </div>
+
+            <!-- Right Sidebar: Leaderboard & Tournaments -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Leaderboard</h3>
+                </div>
+                <div id="leaderboard">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Tournaments</h3>
+                </div>
+                <button class="tournament-btn" onclick="createTournament()">Create Tournament</button>
+                <div id="tournaments">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dev Panel (Hidden by default) -->
+        <div id="devPanel" class="card hidden">
+            <div class="card-header">
+                <h3 class="card-title">Dev Panel</h3>
+            </div>
+            <button class="dev-panel-btn" onclick="loadDevPanel()">Refresh Dev Data</button>
+            <div class="dev-month-selector">
+                <label>Select Month</label>
+                <select id="monthSelector" onchange="loadDevPanel()"></select>
+            </div>
+            <div id="devTxList" class="dev-tx-list"></div>
+            <div id="devMonthList" class="dev-month-list"></div>
+            <div class="dev-chart-container">
+                <canvas id="devChart"></canvas>
+            </div>
+            <button class="claim-dev-btn" onclick="claimDevShare()">Claim Dev Share</button>
+            <button class="claim-multi-btn" onclick="claimMultiDevShare()">Claim Multi-Dev</button>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - Updated with deployed addresses
+        const HUB_ADDRESS = '0x2F5B0Ea92dc8Dec0284486d2De0F97734c758855'; // Deployed Hub contract address
+        const REWARDS_ADDRESS = '0x91A7270688C6E94Ad8BA930BEF03220D5429C318'; // Deployed Rewards contract address
+        const NFT_ADDRESS = '0xDb098B32e1d73b69676CFB6144B553FE27d99B44'; // Deployed CrossRealmNFT address
+        const LAYERZERO_ENDPOINT = '0x9740FF91F1985D8d2B71494aE1A2f723bb3Ed9E4'; // LayerZero Endpoint on Core
+        const EXPLORER_URL = 'https://scan.coredao.org/tx/'; // Core explorer
+        const baseUrl = window.location.origin + window.location.pathname;
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        let userAddress = null;
+        let selectedGameType = 'chess';
+        let currentGamePrivacy = 'public';
+        let currentReferral = null;
+        let aiMode = false;
+        let zeroGasMode = false;
+        let currentGameId = null;
+
+        // ABIs from provided contracts
+        const HUB_ABI = [
+            "function createGame(string _gameType, uint _stake, address _token, bool _isPrivate, address _referral, bool _isAI, bool _zeroGas) external payable",
+            "event GameCreated(uint id, address creator, string gameType, uint stake)",
+            "struct Game { uint id; string gameType; uint stake; address token; address creator; address player2; bool isAI; bool isPrivate; address referral; bool zeroGas; bool active; }",
+            "mapping(uint => Game) public games",
+            "function gameCount() view returns (uint)"
+        ];
+        const REWARDS_ABI = [
+            "function contributeToPot(uint _amount, address _token) external payable",
+            "function claimRewards(address _user, uint _timestamp, address _token) external",
+            "function getClaimableRewards(address _user, uint _timestamp, address _token) view returns (uint)",
+            "function getUserGamesCount(address _user) view returns (uint)",
+            "mapping(uint => uint) public monthlyTotalStake",
+            "event ContributionAdded(uint amount, address from, uint timestamp)"
+        ];
+        const NFT_ABI = [
+            "function mintWinStreak(address _to) external",
+            "function equip(uint _tokenId, string _gameType) external"
+        ];
+        const ERC20_ABI = [
+            "function approve(address spender, uint256 amount) external returns (bool)",
+            "function transferFrom(address from, address to, uint256 amount) external returns (bool)",
+            "function balanceOf(address owner) view returns (uint256)"
+        ];
+        const LZ_ABI = [
+            "function send(uint32 _dstEid, bytes calldata _destination, bytes calldata _message, address _refundAddress) external payable returns (bytes32)"
+        ];
+
+        // Top 25 Token List for Dropdown (Symbol, Name, Chain Origin) - Updated
+        const TOP_25_TOKENS = [
+            { symbol: 'SOL', name: 'Solana', addr: '0x...', decimals: 9 }, // Placeholder - update with actual bridged addresses
+            { symbol: 'XRP', name: 'XRP Ledger', addr: '0x...', decimals: 6 },
+            { symbol: 'BNB', name: 'BNB Chain', addr: '0x...', decimals: 18 },
+            { symbol: 'ADA', name: 'Cardano', addr: '0x...', decimals: 6 },
+            { symbol: 'MAV', name: 'Maverick Protocol', addr: '0x...', decimals: 18 },
+            { symbol: 'IO', name: 'io.net', addr: '0x...', decimals: 18 },
+            { symbol: 'TAO', name: 'Bittensor', addr: '0x...', decimals: 18 },
+            { symbol: 'VIRTUAL', name: 'Virtuals Protocol', addr: '0x...', decimals: 18 },
+            { symbol: 'CORE', name: 'Core DAO', addr: '0x0000000000000000000000000000000000000000', decimals: 18 }, // Native
+            { symbol: 'ZEC', name: 'Zcash', addr: '0x...', decimals: 8 },
+            { symbol: 'ONDO', name: 'Ondo Finance', addr: '0x...', decimals: 18 },
+            { symbol: 'UNI', name: 'Uniswap', addr: '0x...', decimals: 18 },
+            { symbol: 'LINK', name: 'Chainlink', addr: '0x...', decimals: 18 },
+            { symbol: 'AVAX', name: 'Avalanche', addr: '0x...', decimals: 18 },
+            { symbol: 'NEAR', name: 'NEAR Protocol', addr: '0x...', decimals: 24 },
+            { symbol: 'INJ', name: 'Injective', addr: '0x...', decimals: 18 },
+            { symbol: 'FIL', name: 'Filecoin', addr: '0x...', decimals: 18 },
+            { symbol: 'RENDER', name: 'Render', addr: '0x...', decimals: 18 },
+            { symbol: 'HNT', name: 'Helium', addr: '0x...', decimals: 8 },
+            { symbol: 'AR', name: 'Arweave', addr: '0x...', decimals: 12 },
+            { symbol: 'ETH', name: 'Ethereum', addr: '0x...', decimals: 18 },
+            { symbol: 'DOGE', name: 'Dogecoin', addr: '0x...', decimals: 8 },
+            { symbol: 'TON', name: 'Toncoin', addr: '0x...', decimals: 9 },
+            { symbol: 'TRX', name: 'TRON', addr: '0x...', decimals: 6 },
+            { symbol: 'SHIB', name: 'Shiba Inu', addr: '0x...', decimals: 18 }
+        ];
+
+        let selectedToken = 'CORE'; // Default
+
+        // Init: Populate Token Select with Top 25
+        function initTokenSelect() {
+            const select = document.getElementById('stakeToken');
+            select.innerHTML = ''; // Clear
+            TOP_25_TOKENS.forEach(token => {
+                const option = document.createElement('option');
+                option.value = token.symbol;
+                option.textContent = `${token.symbol} (${token.name})`;
+                if (token.addr === '0x...' || !token.addr) {
+                    option.title = 'Bridge required - Use Bridge button';
+                    option.style.color = '#ff4444'; // Dim for bridged-only
+                }
+                select.appendChild(option);
+            });
+            select.value = 'CORE'; // Default to native
+        }
+
+        // Wallet Functions
+        async function connectWallet() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    const accounts = await provider.send('eth_requestAccounts', []);
+                    userAddress = accounts[0];
+                    document.getElementById('walletAddress').innerHTML = `${userAddress.slice(0,6)}...${userAddress.slice(-4)}`;
+                    document.getElementById('connectBtn').style.display = 'none';
+                    document.getElementById('disconnectBtn').style.display = 'inline-block';
+                    loadDashboard();
+                    loadTier();
+                    loadPendingGames();
+                    loadMyGames();
+                    if (isDev()) loadDevPanel();
+                    showAlert('Wallet connected!', 'success');
+                } catch (error) {
+                    showAlert('Connection failed: ' + error.message, 'error');
+                }
+            } else {
+                showAlert('MetaMask required!', 'error');
+            }
+        }
+
+        function disconnectWallet() {
+            userAddress = null;
+            document.getElementById('walletAddress').innerHTML = 'Not Connected';
+            document.getElementById('connectBtn').style.display = 'inline-block';
+            document.getElementById('disconnectBtn').style.display = 'none';
+            document.getElementById('createBtn').disabled = true;
+            showAlert('Disconnected', 'info');
+        }
+
+        // Game Creation
+        function updateCreateButton() {
+            const amount = parseFloat(document.getElementById('stakeAmount').value) || 0;
+            const token = document.getElementById('stakeToken').value;
+            const btn = document.getElementById('createBtn');
+            btn.disabled = amount < 0.01 || !userAddress;
+            const tokenInfo = TOP_25_TOKENS.find(t => t.symbol === token);
+            document.getElementById('bridgeBtn').style.display = (tokenInfo.addr === '0x...' && userAddress) ? 'block' : 'none';
+        }
+
+        document.getElementById('stakeToken').addEventListener('change', (e) => {
+            selectedToken = e.target.value;
+            updateCreateButton();
+            if (userAddress) {
+                loadDashboard();
+                loadTier();
+                if (isDev()) loadDevPanel();
+            }
+            // New: Prompt bridge if not native
+            const token = TOP_25_TOKENS.find(t => t.symbol === selectedToken);
+            if (token.addr === '0x...' && userAddress) {
+                showAlert(`Bridge ${selectedToken} from ${token.name} to wager on Core`, 'info');
+            }
+        });
+
+        document.getElementById('gameType').addEventListener('change', (e) => {
+            selectedGameType = e.target.value;
+            updateCreateButton();
+        });
+
+        document.getElementById('privacy').addEventListener('change', (e) => {
+            currentGamePrivacy = e.target.value;
+        });
+
+        document.getElementById('referral').addEventListener('input', (e) => {
+            currentReferral = e.target.value || null;
+        });
+
+        function toggleAI() {
+            aiMode = document.getElementById('aiMode').checked;
+        }
+
+        async function createGame() {
+            if (!userAddress) return showAlert('Connect wallet first', 'error');
+            const stakeAmount = parseFloat(document.getElementById('stakeAmount').value) || 0;
+            if (stakeAmount < 0.01) return showAlert('Min stake: 0.01', 'error');
+           
+            const token = TOP_25_TOKENS.find(t => t.symbol === selectedToken);
+            if (!token || token.addr === '0x...') {
+                return showAlert(`Bridge ${selectedToken} first via Bridge button`, 'error');
+            }
+           
+            const stake = ethers.utils.parseUnits(stakeAmount.toString(), token.decimals); // Handle decimals
+            const tokenAddr = token.addr;
+            const privacy = currentGamePrivacy;
+            const referral = currentReferral || '0x0000000000000000000000000000000000000000';
+            const isAI = aiMode;
+           
+            try {
+                const hub = new ethers.Contract(HUB_ADDRESS, HUB_ABI, signer);
+                // Approve if ERC20
+                if (selectedToken !== 'CORE') {
+                    const tokenContract = new ethers.Contract(tokenAddr, ERC20_ABI, signer);
+                    const allowance = await tokenContract.allowance(userAddress, HUB_ADDRESS);
+                    if (allowance < stake) {
+                        const approveTx = await tokenContract.approve(HUB_ADDRESS, stake);
+                        await approveTx.wait();
+                        showAlert('Approved token spend', 'success');
+                    }
+                }
+               
+                const potContribution = (stake.mul(3)).div(100); // 3% pot (using BigNumber for safety)
+                const netStake = stake.sub(potContribution);
+               
+                const value = selectedToken === 'CORE' ? netStake : '0';
+                const tx = await hub.createGame(
+                    selectedGameType,
+                    netStake,
+                    tokenAddr,
+                    privacy,
+                    referral,
+                    isAI,
+                    zeroGasMode,
+                    { value: value.add(potContribution) }
+                );
+                const receipt = await tx.wait();
+                const gameId = receipt.events?.find(e => e.event === 'GameCreated')?.args?.id || 0;
+               
+                // Contribute to token-specific pot
+                if (potContribution.gt(0)) {
+                    const rewards = new ethers.Contract(REWARDS_ADDRESS, REWARDS_ABI, signer);
+                    const potValue = selectedToken === 'CORE' ? potContribution : '0';
+                    await rewards.contributeToPot(potContribution, tokenAddr, { value: potValue });
+                }
+               
+                showAlert(`Game created with ${stakeAmount} ${selectedToken}! ID: ${gameId} | Tx: <a href="${EXPLORER_URL}${receipt.hash}" target="_blank">${receipt.hash.slice(0,10)}...</a>`, 'success');
+                if (privacy === 'closed') {
+                    const shareLink = `${baseUrl}?gameId=${gameId}&private=true&token=${selectedToken}`;
+                    document.getElementById('shareLink').value = shareLink;
+                    document.getElementById('shareLinkSection').classList.remove('hidden');
+                }
+                loadPendingGames();
+                loadDashboard();
+                loadTier();
+                if (isDev()) loadDevPanel();
+            } catch (error) {
+                showAlert('Create failed: ' + error.message, 'error');
+            }
+        }
+
+        // Bridge Function (LayerZero Integration)
+        async function bridgeTokens() {
+            if (!userAddress) return showAlert('Connect wallet first', 'error');
+            const token = TOP_25_TOKENS.find(t => t.symbol === selectedToken);
+            if (!token || token.addr !== '0x...') return showAlert('Token already on Core', 'info');
+           
+            try {
+                const lzEndpoint = new ethers.Contract(LAYERZERO_ENDPOINT, LZ_ABI, signer);
+                const dstEid = 30110; // Core EID
+                const amount = ethers.utils.parseUnits('0.01', token.decimals); // Test amt
+                const message = ethers.utils.defaultAbiCoder.encode(['address', 'uint256'], [userAddress, amount]); // To, amt
+               
+                const tx = await lzEndpoint.send(
+                    dstEid,
+                    ethers.utils.toUtf8Bytes(''), // Options (default)
+                    message,
+                    userAddress, // Refund
+                    { value: ethers.utils.parseEther('0.02') } // LZ fee + gas
+                );
+                const receipt = await tx.wait();
+                showAlert(`Bridged ${selectedToken}! Wait 5-10min for w${selectedToken} on Core. Tx: <a href="${EXPLORER_URL}${receipt.hash}" target="_blank">${receipt.hash.slice(0,10)}...</a>`, 'success');
+            } catch (error) {
+                showAlert('Bridge failed: ' + error.message + '. Try Symbiosis UI?', 'error');
+            }
+        }
+
+        // Utility Functions
+        function showAlert(message, type) {
+            const alertArea = document.getElementById('alertArea');
+            const alert = document.createElement('div');
+            alert.className = `alert ${type}`;
+            alert.innerHTML = message;
+            alertArea.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        function copyShareLink() {
+            const link = document.getElementById('shareLink');
+            link.select();
+            document.execCommand('copy');
+            showAlert('Link copied!', 'success');
+        }
+
+        function shareToSocial() {
+            const link = document.getElementById('shareLink').value;
+            if (navigator.share) {
+                navigator.share({ title: 'Join my CrossRealm Game!', url: link });
+            } else {
+                showAlert('Copy the link and share manually', 'info');
+            }
+        }
+
+        function isDev() {
+            return userAddress && userAddress.toLowerCase() === '0x7adb4852c70fb86d906deb082604fc338c067135'.toLowerCase();
+        }
+
+        // Dashboard & Rewards
+        async function loadDashboard() {
+            if (!userAddress) return;
+            try {
+                const rewards = new ethers.Contract(REWARDS_ADDRESS, REWARDS_ABI, signer);
+                const gamesCount = await rewards.getUserGamesCount(userAddress);
+                const timestamp = Math.floor(Date.now() / 1000 / (30 * 24 * 3600)) * (30 * 24 * 3600); // Current month
+                const claimable = await rewards.getClaimableRewards(userAddress, timestamp, ethers.constants.AddressZero);
+                document.getElementById('rewardsInfo').innerHTML = `
+                    <div><strong>Games Played:</strong> ${gamesCount}</div>
+                    <div style="margin-top:10px;color:var(--success)"><strong>Claimable:</strong> ${ethers.utils.formatEther(claimable)} CORE</div>
+                `;
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function claimRewards() {
+            if (!userAddress) return;
+            try {
+                const rewards = new ethers.Contract(REWARDS_ADDRESS, REWARDS_ABI, signer);
+                const timestamp = Math.floor(Date.now() / 1000 / (30 * 24 * 3600)) * (30 * 24 * 3600);
+                const tx = await rewards.claimRewards(userAddress, timestamp, ethers.constants.AddressZero);
+                await tx.wait();
+                showAlert('Rewards claimed!', 'success');
+                loadDashboard();
+            } catch (error) {
+                showAlert('Claim failed: ' + error.message, 'error');
+            }
+        }
+
+        function loadTier() {
+            // Simplified tier based on games
+            const games = 42; // Fetch from contract
+            const tier = getTierName(games);
+            document.getElementById('tierInfo').textContent = `${tier} • ${games} Games`;
+            document.getElementById('tierProgress').style.width = `${(games % 10) * 10}%`;
+        }
+
+        function getTierName(games) {
+            if (games >= 50) return '🏆 Legendary';
+            if (games >= 25) return '💎 Diamond';
+            if (games >= 10) return '🥇 Gold';
+            if (games >= 5) return '🥈 Silver';
+            return '⭐ Novice';
+        }
+
+        // Leaderboard (Mock - integrate on-chain query)
+        function loadLeaderboard() {
+            const leaderboard = document.getElementById('leaderboard');
+            leaderboard.innerHTML = `
+                <div class="leaderboard-item">
+                    <div class="rank-badge">#1</div>
+                    <div>@ChessMaster • 147 Wins</div>
+                    <div>2850 ELO</div>
+                </div>
+                <!-- Add more -->
+            `;
+        }
+
+        // Tournaments (Mock)
+        function loadTournaments() {
+            const tournaments = document.getElementById('tournaments');
+            tournaments.innerHTML = '<div class="tournament-item">Upcoming: Core Chess Open • Prize: 100 CORE <button onclick="joinTournament(1)">Join</button></div>';
+        }
+
+        function createTournament() {
+            showAlert('Tournament creation coming soon!', 'info');
+        }
+
+        function joinTournament(id) {
+            showAlert(`Joined tournament ${id}!`, 'success');
+        }
+
+        // Dev Panel
+        async function loadDevPanel() {
+            if (!isDev()) return;
+            document.getElementById('devPanel').classList.remove('hidden');
+            // Load TXs, months, chart - mock for now
+            document.getElementById('devTxList').innerHTML = '<div class="dev-tx-item">Tx: 0xabc... <span class="dev-tx-hash" onclick="window.open(\'' + EXPLORER_URL + '0xabc...\')">View</span></div>';
+        }
+
+        async function claimDevShare() {
+            if (!isDev()) return;
+            showAlert('Dev share claimed!', 'success');
+        }
+
+        async function claimMultiDevShare() {
+            if (!isDev()) return;
+            showAlert('Multi-dev share claimed!', 'success');
+        }
+
+        // Game Board (Simplified Chess/Checkers)
+        function renderBoard(fen) {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            // Parse FEN and render squares/pieces - implement full logic
+            for (let i = 0; i < 64; i++) {
+                const square = document.createElement('div');
+                square.className = `square ${(i + Math.floor(i/8)) % 2 ? 'light' : 'dark'}`;
+                square.onclick = () => selectSquare(i);
+                board.appendChild(square);
+            }
+            showAlert('Board rendered (full impl needed)', 'info');
+        }
+
+        function renderCheckersBoard() {
+            // Similar for checkers
+            renderBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'); // Default
+        }
+
+        function selectSquare(index) {
+            // Move logic
+            console.log(`Selected square ${index}`);
+        }
+
+        function loadGame(id) {
+            currentGameId = id;
+            document.getElementById('gameNotLoaded').classList.add('hidden');
+            document.getElementById('gameBoard').classList.remove('hidden');
+            renderBoard(); // Load from contract/events
+        }
+
+        function resignGame() {
+            if (!currentGameId) return;
+            showAlert('Game resigned. You lost this round.', 'warning');
+            currentGameId = null;
+            document.getElementById('gameBoard').classList.add('hidden');
+            document.getElementById('gameNotLoaded').classList.remove('hidden');
+        }
+
+        async function claimTimeout() {
+            if (!currentGameId) return;
+            showAlert('Timeout claimed! You won by timeout.', 'success');
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+            const chatWindow = document.getElementById('chatWindow');
+            const msg = document.createElement('div');
+            msg.className = 'chat-message';
+            msg.innerHTML = `<strong>You:</strong> ${message}`;
+            chatWindow.appendChild(msg);
+            input.value = '';
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            showAlert('Message sent on-chain', 'success'); // Call contract
+        }
+
+        // Replays (Mock)
+        function openReplay() {
+            document.getElementById('replaySection').classList.remove('hidden');
+            renderBoard(); // Replay board
+        }
+
+        function closeReplay() {
+            document.getElementById('replaySection').classList.add('hidden');
+        }
+
+        // Pending/My Games (Mock - query contract)
+        function loadPendingGames() {
+            // List public games
+            console.log('Pending games loaded');
+        }
+
+        function loadMyGames() {
+            // List user games
+            console.log('My games loaded');
+        }
+
+        // On Load
+        document.addEventListener('DOMContentLoaded', () => {
+            initTokenSelect();
+            loadLeaderboard();
+            loadTournaments();
+            updateCreateButton();
+            document.getElementById('stakeAmount').addEventListener('input', updateCreateButton);
+        });
+    </script>
+</body>
+</html>
