@@ -9,9 +9,11 @@ contract Rewards is Ownable {
     mapping(uint => uint) public monthlyTotalStake;
     mapping(address => mapping(uint => uint)) public userClaimable;
     mapping(address => uint) public userGamesPlayed;
+    mapping(uint => uint) public monthlyTotalGames;
     address public hubContract;
 
     event ContributionAdded(uint amount, address from, uint timestamp);
+    event GamesPlayedIncremented(address user, uint count);
 
     constructor(address _dev) Ownable(msg.sender) {
         devAddress = _dev;
@@ -19,6 +21,14 @@ contract Rewards is Ownable {
 
     function setHub(address _hub) external onlyOwner {
         hubContract = _hub;
+    }
+
+    function incrementGamesPlayed(address _user) external {
+        require(msg.sender == hubContract, "Only Hub");
+        userGamesPlayed[_user]++;
+        uint timestamp = _getMonthStart(block.timestamp);
+        monthlyTotalGames[timestamp]++;
+        emit GamesPlayedIncremented(_user, userGamesPlayed[_user]);
     }
 
     function contributeToPot(uint _amount, address _token) external payable {
@@ -31,12 +41,17 @@ contract Rewards is Ownable {
     function claimRewards(address _user, uint _timestamp, address _token) external {
         uint claimable = getClaimableRewards(_user, _timestamp, _token);
         require(claimable > 0, "Nothing to claim");
+
+        if (userClaimable[_user][_timestamp] == 0) {
+            userClaimable[_user][_timestamp] = claimable;
+        }
+        uint payout = userClaimable[_user][_timestamp];
         userClaimable[_user][_timestamp] = 0;
 
         if (_token == address(0)) {
-            payable(_user).transfer(claimable);
+            payable(_user).transfer(payout);
         } else {
-            IERC20(_token).transfer(_user, claimable);
+            IERC20(_token).transfer(_user, payout);
         }
     }
 
@@ -63,8 +78,9 @@ contract Rewards is Ownable {
         return (_time / 30 days) * 30 days;
     }
 
-    function _getTotalGames(uint _timestamp) internal pure returns (uint) {
-        return 100; // Stub
+    function _getTotalGames(uint _timestamp) internal view returns (uint) {
+        uint ts = _getMonthStart(_timestamp);
+        return monthlyTotalGames[ts] > 0 ? monthlyTotalGames[ts] : 100;
     }
 
     receive() external payable {}
