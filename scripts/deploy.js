@@ -7,63 +7,63 @@ async function main() {
   console.log("Deploying with:", deployer.address);
   console.log("Balance:", ethers.utils.formatEther(await deployer.provider.getBalance(deployer.address)));
 
-  const NATIVE_TOKEN = ethers.ZeroAddress; // 0x000...000 for native CORE
+  const NATIVE_TOKEN = "0x0000000000000000000000000000000000000000"; // Native CORE
 
-  // 1. Deploy Rewards (regular, not proxy—updated contract uses constructor)
+  // 1. Deploy Rewards (regular deploy, v5 style)
   const Rewards = await ethers.getContractFactory("Rewards");
-  const rewards = await Rewards.deploy(deployer.address);
-  await rewards.waitForDeployment();
-  const rewardsAddr = await rewards.getAddress();
+  const deployTxRewards = await Rewards.deploy(deployer.address);
+  const rewards = await deployTxRewards.deployed();
+  const rewardsAddr = rewards.address;
   console.log("Rewards:", rewardsAddr);
 
   // 2. Deploy NFT
   const CrossRealmNFT = await ethers.getContractFactory("CrossRealmNFT");
-  const nft = await CrossRealmNFT.deploy();
-  await nft.waitForDeployment();
-  const nftAddr = await nft.getAddress();
+  const deployTxNFT = await CrossRealmNFT.deploy();
+  const nft = await deployTxNFT.deployed();
+  const nftAddr = nft.address;
   console.log("NFT:", nftAddr);
 
-  // 3. Deploy Staking (native CORE for both staking/rewards)
+  // 3. Deploy Staking (native CORE for both)
   const Staking = await ethers.getContractFactory("Staking");
-  const staking = await Staking.deploy(NATIVE_TOKEN, NATIVE_TOKEN);
-  await staking.waitForDeployment();
-  const stakingAddr = await staking.getAddress();
+  const deployTxStaking = await Staking.deploy(NATIVE_TOKEN, NATIVE_TOKEN);
+  const staking = await deployTxStaking.deployed();
+  const stakingAddr = staking.address;
   console.log("Staking:", stakingAddr);
 
   // 4. Deploy Verifiers
   const ChessVerifier = await ethers.getContractFactory("ChessVerifier");
-  const chessVerifier = await ChessVerifier.deploy();
-  await chessVerifier.waitForDeployment();
-  const chessAddr = await chessVerifier.getAddress();
+  const deployTxChess = await ChessVerifier.deploy();
+  const chessVerifier = await deployTxChess.deployed();
+  const chessAddr = chessVerifier.address;
   console.log("ChessVerifier:", chessAddr);
 
   const CheckersVerifier = await ethers.getContractFactory("CheckersVerifier");
-  const checkersVerifier = await CheckersVerifier.deploy();
-  await checkersVerifier.waitForDeployment();
-  const checkersAddr = await checkersVerifier.getAddress();
+  const deployTxCheckers = await CheckersVerifier.deploy();
+  const checkersVerifier = await deployTxCheckers.deployed();
+  const checkersAddr = checkersVerifier.address;
   console.log("CheckersVerifier:", checkersAddr);
 
   // 5. NEW: Deploy Tournament
   const Tournament = await ethers.getContractFactory("Tournament");
-  const tournament = await Tournament.deploy(rewardsAddr, rewardsAddr); // Hub stub; update if needed
-  await tournament.waitForDeployment();
-  const tournamentAddr = await tournament.getAddress();
+  const deployTxTournament = await Tournament.deploy(NATIVE_TOKEN, NATIVE_TOKEN); // Hub stub; native for rewards
+  const tournament = await deployTxTournament.deployed();
+  const tournamentAddr = tournament.address;
   console.log("Tournament:", tournamentAddr);
 
-  // 6. Deploy Hub (proxy)
+  // 6. Deploy Hub (proxy—upgrades handles v5)
   const Hub = await ethers.getContractFactory("Hub");
   const hub = await upgrades.deployProxy(Hub, [rewardsAddr, nftAddr], { initializer: "initialize" });
-  await hub.waitForDeployment();
-  const hubAddr = await hub.getAddress();
+  await hub.deployed(); // v5 for proxy
+  const hubAddr = hub.address;
   console.log("Hub:", hubAddr);
 
   // 7. Set Hub in Rewards
-  const rewardsContract = Rewards.attach(rewardsAddr);
+  const rewardsContract = await ethers.getContractAt("Rewards", rewardsAddr);
   await (await rewardsContract.setHub(hubAddr)).wait();
   console.log("Hub set in Rewards");
 
   // 8. Register Verifiers in Hub
-  const hubContract = Hub.attach(hubAddr);
+  const hubContract = await ethers.getContractAt("Hub", hubAddr);
   await (await hubContract.registerVerifier("chess", chessAddr)).wait();
   console.log("Chess verifier registered");
   await (await hubContract.registerVerifier("checkers", checkersAddr)).wait();
@@ -87,12 +87,12 @@ async function main() {
     await hre.run("verify:verify", { address: checkersAddr });
   } catch (e) { console.log("CheckersVerifier skip:", e.message); }
   try {
-    await hre.run("verify:verify", { address: tournamentAddr, constructorArguments: [rewardsAddr, rewardsAddr] });
+    await hre.run("verify:verify", { address: tournamentAddr, constructorArguments: [NATIVE_TOKEN, NATIVE_TOKEN] });
   } catch (e) { console.log("Tournament skip:", e.message); }
-  // Hub proxy: Verify implementation separately if needed
+  // Hub proxy impl
   const implAddr = await upgrades.erc1967.getImplementationAddress(hubAddr);
   try {
-    await hre.run("verify:verify", { address: implAddr, constructorArguments: [] });
+    await hre.run("verify:verify", { address: implAddr });
   } catch (e) { console.log("Hub impl skip:", e.message); }
 
   console.log("\nFull deployment complete! Update index.html with:");
@@ -101,7 +101,7 @@ async function main() {
   console.log(`NFT_ADDRESS = '${nftAddr}';`);
   console.log(`STAKING_ADDRESS = '${stakingAddr}';`);
   console.log(`TOURNAMENT_ADDRESS = '${tournamentAddr}';`); // NEW
-  console.log(`VERIFIER_ADDRESSES = { chess: '${chessAddr}', checkers: '${checkersAddr}', fighting: '0x0000000000000000000000000000000000000000', carrace: '0x0000000000000000000000000000000000000000' };`); // Trimmed extras
+  console.log(`VERIFIER_ADDRESSES = { chess: '${chessAddr}', checkers: '${checkersAddr}', fighting: '0x0000000000000000000000000000000000000000', carrace: '0x0000000000000000000000000000000000000000' };`);
 }
 
 main().catch((error) => {
