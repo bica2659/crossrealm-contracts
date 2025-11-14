@@ -9,11 +9,16 @@ contract Rewards is Ownable {
     mapping(uint => uint) public monthlyTotalStake;
     mapping(address => mapping(uint => uint)) public userClaimable;
     mapping(address => uint) public userGamesPlayed;
+    mapping(address => uint) public userWins;
+    mapping(address => uint) public userLosses;
+    mapping(address => uint) public userTotalStakes;
+    mapping(address => uint) public userElo;
     mapping(uint => uint) public monthlyTotalGames;
     address public hubContract;
 
     event ContributionAdded(uint amount, address from, uint timestamp);
     event GamesPlayedIncremented(address user, uint count);
+    event UserELOUpdated(address user, uint newElo);
 
     constructor(address _dev) Ownable(msg.sender) {
         devAddress = _dev;
@@ -23,12 +28,24 @@ contract Rewards is Ownable {
         hubContract = _hub;
     }
 
-    function incrementGamesPlayed(address _user) external {
+    // Updated: Now tracks wins/losses and calls updateELO
+    function incrementGamesPlayed(address _user, uint _wins, uint _losses) external {
         require(msg.sender == hubContract, "Only Hub");
-        userGamesPlayed[_user]++;
+        userGamesPlayed[_user] += 1;
+        userWins[_user] += _wins;
+        userLosses[_user] += _losses;
+        userTotalStakes[_user] += 1; // Stub: Avg 1 CORE; update with real stake in prod
         uint timestamp = _getMonthStart(block.timestamp);
         monthlyTotalGames[timestamp]++;
+        updateELO(_user);
         emit GamesPlayedIncremented(_user, userGamesPlayed[_user]);
+    }
+
+    function updateELO(address _user) internal {
+        // Stub ELO calc (integrate full formula later)
+        uint newElo = 1200 + (userWins[_user] * 20) - (userLosses[_user] * 10);
+        userElo[_user] = newElo;
+        emit UserELOUpdated(_user, newElo);
     }
 
     function contributeToPot(uint _amount, address _token) external payable {
@@ -58,9 +75,15 @@ contract Rewards is Ownable {
     function getClaimableRewards(address _user, uint _timestamp, address _token) public view returns (uint) {
         uint pot = (monthlyTotalStake[_timestamp] * 3) / 100;
         uint participation = (pot * 20) / 100;
-        uint userShare = (userGamesPlayed[_user] * participation) / _getTotalGames(_timestamp);
+        uint totalGames = _getTotalGames(_timestamp);
+        uint userShare = totalGames > 0 ? (userGamesPlayed[_user] * participation) / totalGames : 0;
         uint multiplier = getTierMultiplier(_user);
         return userShare * multiplier / 100;
+    }
+
+    // New: getUserStats for frontend
+    function getUserStats(address _user) external view returns (uint wins, uint losses, uint totalStakes, uint elo) {
+        return (userWins[_user], userLosses[_user], userTotalStakes[_user], userElo[_user]);
     }
 
     function getUserGamesCount(address _user) external view returns (uint) {
@@ -80,7 +103,7 @@ contract Rewards is Ownable {
 
     function _getTotalGames(uint _timestamp) internal view returns (uint) {
         uint ts = _getMonthStart(_timestamp);
-        return monthlyTotalGames[ts] > 0 ? monthlyTotalGames[ts] : 100;
+        return monthlyTotalGames[ts] > 0 ? monthlyTotalGames[ts] : 1; // Fixed: Avoid div by zero
     }
 
     receive() external payable {}

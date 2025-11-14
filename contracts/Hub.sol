@@ -69,15 +69,15 @@ contract Hub is Initializable, OwnableUpgradeable {
         uint netStake = _stake - potContribution;
         if (_token == address(0)) {
             require(msg.value == _stake, "Incorrect ETH value");
-            rewardsContract.transfer(potContribution);
+            // Fixed: Payable call for native pot
+            Rewards(rewardsContract).contributeToPot{value: potContribution}(potContribution, _token);
         } else {
             IERC20(_token).transferFrom(msg.sender, address(this), netStake);
             if (potContribution > 0) {
                 IERC20(_token).transferFrom(msg.sender, rewardsContract, potContribution);
             }
+            Rewards(rewardsContract).contributeToPot(potContribution, _token);
         }
-
-        Rewards(rewardsContract).contributeToPot(potContribution, _token);
 
         games[id] = Game({
             id: id,
@@ -111,15 +111,14 @@ contract Hub is Initializable, OwnableUpgradeable {
 
         if (game.token == address(0)) {
             require(msg.value == game.stake, "Incorrect ETH value");
-            rewardsContract.transfer(potContribution);
+            Rewards(rewardsContract).contributeToPot{value: potContribution}(potContribution, game.token);
         } else {
             IERC20(game.token).transferFrom(msg.sender, address(this), netStake);
             if (potContribution > 0) {
                 IERC20(game.token).transferFrom(msg.sender, rewardsContract, potContribution);
             }
+            Rewards(rewardsContract).contributeToPot(potContribution, game.token);
         }
-
-        Rewards(rewardsContract).contributeToPot(potContribution, game.token);
 
         game.player2 = msg.sender;
         emit GameJoined(_gameId, msg.sender);
@@ -164,8 +163,9 @@ contract Hub is Initializable, OwnableUpgradeable {
             IERC20(game.token).transfer(winner, payout);
         }
 
-        Rewards(rewardsContract).incrementGamesPlayed(game.creator);
-        Rewards(rewardsContract).incrementGamesPlayed(game.player2);
+        // Updated: Increment games and update ELO
+        Rewards(rewardsContract).incrementGamesPlayed(game.creator, _creatorWins ? 1 : 0, 1); // wins, losses for creator
+        Rewards(rewardsContract).incrementGamesPlayed(game.player2, _creatorWins ? 0 : 1, 1); // wins, losses for player2
 
         if (!game.isAI) {
             CrossRealmNFT(nftContract).mintWinStreak(winner);
@@ -178,7 +178,8 @@ contract Hub is Initializable, OwnableUpgradeable {
         if (keccak256(abi.encodePacked(_gameType)) == keccak256(abi.encodePacked("chess"))) {
             return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         } else if (keccak256(abi.encodePacked(_gameType)) == keccak256(abi.encodePacked("checkers"))) {
-            return "WBDWB DWB WB DWB DWB WB DWB DWB:WHITE:8";
+            // Aligned with frontend: bwbw/4/4/4/4/wbwb/4/4 b (simplified, adjust as needed)
+            return "bwbw/4/4/4/4/wbwb/4/4 b";
         }
         revert("Unsupported game type");
     }

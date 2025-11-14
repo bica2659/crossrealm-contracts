@@ -5,9 +5,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Staking is Ownable {
-    IERC20 public stakingToken; // CORE token
+    IERC20 public stakingToken; // CORE token (or native via payable)
     IERC20 public rewardsToken; // CORE for rewards
-    uint public rewardRate = 15; // 15% APY stub (per second calc in prod)
+    uint public rewardRate = 15; // Basis points for ~15% APY (adjustable)
     uint public lastUpdateTime;
     uint public rewardPerTokenStored;
 
@@ -37,11 +37,16 @@ contract Staking is Ownable {
         _;
     }
 
-    function stake(uint amount) external updateReward(msg.sender) {
+    // Updated: Payable for native CORE
+    function stake(uint amount) external payable updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
+        if (address(stakingToken) == address(0)) {
+            require(msg.value == amount, "Incorrect ETH value");
+        } else {
+            stakingToken.transferFrom(msg.sender, address(this), amount);
+        }
         _totalSupply += amount;
         balances[msg.sender] += amount;
-        stakingToken.transferFrom(msg.sender, address(this), amount);
         emit Staked(msg.sender, amount);
     }
 
@@ -50,7 +55,11 @@ contract Staking is Ownable {
         require(balances[msg.sender] >= amount, "Insufficient balance");
         _totalSupply -= amount;
         balances[msg.sender] -= amount;
-        stakingToken.transfer(msg.sender, amount);
+        if (address(stakingToken) == address(0)) {
+            payable(msg.sender).transfer(amount);
+        } else {
+            stakingToken.transfer(msg.sender, amount);
+        }
         emit Withdrawn(msg.sender, amount);
     }
 
@@ -71,6 +80,11 @@ contract Staking is Ownable {
         if (_totalSupply == 0) {
             return rewardPerTokenStored;
         }
-        return rewardPerTokenStored + ((block.timestamp - lastUpdateTime) * rewardRate * 1e18 / _totalSupply);
+        uint timeDelta = block.timestamp - lastUpdateTime;
+        return rewardPerTokenStored + ((timeDelta * rewardRate * 1e16) / _totalSupply); // Adjusted for ~15% APY
+    }
+
+    function totalSupply() external view returns (uint) {
+        return _totalSupply;
     }
 }
