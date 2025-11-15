@@ -656,39 +656,43 @@
 
         // ============= GAMES TAB =============
         async function loadGames() {
-            const listEl = document.getElementById('gamesList');
+    const listEl = document.getElementById('gamesList');
+    try {
+        const count = await hubContract.gameCount();
+        let html = '';
+        for (let i = count.toNumber(); i >= 1; i--) {
             try {
-                const count = await hubContract.gameCount();
-                let html = '';
-                for (let i = count.toNumber(); i >= 1; i--) {
-                    try {
-                        const game = await hubContract.games(i);
-                        if (game.active) {
-                            const isMyGame = game.creator === userAddress || game.player2 === userAddress;
-                            const canJoin = game.player2 === ethers.constants.AddressZero && (!game.isPrivate || game.creator === userAddress);
-                            html += `
-                                <div class="tournament-card">
-                                    <div>
-                                        <strong>${game.gameType.toUpperCase()} Game #${i}</strong><br>
-                                        Stake: ${ethers.utils.formatEther(game.stake)} CORE<br>
-                                        Creator: ${game.creator.slice(0,6)}...
-                                    </div>
-                                    ${isMyGame ? '<span>Your Game</span>' : ''}
-                                    ${canJoin ? `<button onclick="joinGame(${i})" style="margin-left:10px;">Join</button>` : ''}
-                                    <button onclick="loadGame(${i})">View</button>
-                                </div>
-                            `;
-                        }
-                    } catch (e) {
-                        // Skip invalid games
-                    }
+                const game = await hubContract.games(i);
+                if (game[10]) {  // active (index 10)
+                    const creator = game[4];  // creator (index 4)
+                    const player2 = game[5];  // player2 (index 5)
+                    const isMyGame = creator === userAddress || player2 === userAddress;
+                    const isPrivate = game[7];  // isPrivate (index 7)
+                    const zeroAddr = '0x0000000000000000000000000000000000000000';
+                    const canJoin = player2 === zeroAddr && (!isPrivate || creator === userAddress);
+                    html += `
+                        <div class="tournament-card">
+                            <div>
+                                <strong>$$ {game[1].toUpperCase()} Game # $${i}</strong><br>  // gameType (index 1)
+                                Stake: ${ethers.utils.formatEther(game[2])} CORE<br>  // stake (index 2)
+                                Creator: ${creator.slice(0,6)}...
+                            </div>
+                            ${isMyGame ? '<span style="color: var(--core-green);">Your Game</span>' : ''}
+                            ${canJoin ? `<button onclick="joinGame(${i})" style="margin-left:10px;">Join</button>` : ''}
+                            <button onclick="loadGame(${i})">View</button>
+                        </div>
+                    `;
                 }
-                listEl.innerHTML = html || '<p>No active games found.</p>';
             } catch (e) {
-                listEl.innerHTML = '<p>Error loading games.</p>';
+                // Skip invalid games
             }
         }
-
+        listEl.innerHTML = html || '<p>No active games found.</p>';
+    } catch (e) {
+        console.error('Load games error:', e);  // Add logging for debug
+        listEl.innerHTML = '<p>Error loading games. Check console.</p>';
+    }
+}
         async function loadGame(id) {
             currentGameId = id;
             try {
