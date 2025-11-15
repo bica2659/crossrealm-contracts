@@ -11,7 +11,7 @@ async function main() {
 
   // 1. Deploy Rewards (regular deploy, v5 style)
   const Rewards = await ethers.getContractFactory("Rewards");
-  const deployTxRewards = await Rewards.deploy(deployer.address);
+  const deployTxRewards = await Rewards.deploy(deployer.address, NATIVE_TOKEN); // New: 2 args (_dev, _staking native)
   const rewards = await deployTxRewards.deployed();
   const rewardsAddr = rewards.address;
   console.log("Rewards:", rewardsAddr);
@@ -45,7 +45,7 @@ async function main() {
 
   // 5. NEW: Deploy Tournament
   const Tournament = await ethers.getContractFactory("Tournament");
-  const deployTxTournament = await Tournament.deploy(NATIVE_TOKEN, NATIVE_TOKEN); // Hub stub; native for rewards
+  const deployTxTournament = await Tournament.deploy(NATIVE_TOKEN, NATIVE_TOKEN); // Hub stub as native
   const tournament = await deployTxTournament.deployed();
   const tournamentAddr = tournament.address;
   console.log("Tournament:", tournamentAddr);
