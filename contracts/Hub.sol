@@ -69,7 +69,6 @@ contract Hub is Initializable, OwnableUpgradeable {
         uint netStake = _stake - potContribution;
         if (_token == address(0)) {
             require(msg.value == _stake, "Incorrect ETH value");
-            // Fixed: Payable call for native pot
             Rewards(rewardsContract).contributeToPot{value: potContribution}(potContribution, _token);
         } else {
             IERC20(_token).transferFrom(msg.sender, address(this), netStake);
@@ -77,6 +76,11 @@ contract Hub is Initializable, OwnableUpgradeable {
                 IERC20(_token).transferFrom(msg.sender, rewardsContract, potContribution);
             }
             Rewards(rewardsContract).contributeToPot(potContribution, _token);
+        }
+
+        // Set primary referrer if first
+        if (_referral != address(0)) {
+            Rewards(rewardsContract).setPrimaryReferrer(msg.sender, _referral);
         }
 
         games[id] = Game({
@@ -163,9 +167,18 @@ contract Hub is Initializable, OwnableUpgradeable {
             IERC20(game.token).transfer(winner, payout);
         }
 
-        // Updated: Increment games and update ELO
-        Rewards(rewardsContract).incrementGamesPlayed(game.creator, _creatorWins ? 1 : 0, 1); // wins, losses for creator
-        Rewards(rewardsContract).incrementGamesPlayed(game.player2, _creatorWins ? 0 : 1, 1); // wins, losses for player2
+        uint winsCreator = _creatorWins ? 1 : 0;
+        uint lossesCreator = _creatorWins ? 0 : 1;
+        Rewards(rewardsContract).incrementGamesPlayed(game.creator, winsCreator, lossesCreator);
+        Rewards(rewardsContract).incrementGamesPlayed(game.player2, _creatorWins ? 0 : 1, 1);
+
+        // Add referral cut
+        Rewards(rewardsContract).addReferralCut(game.creator, game.stake * 3 / 100, _getMonthStart(block.timestamp));
+
+        // Private creator bonus
+        if (game.isPrivate && game.player2 != address(0)) {
+            Rewards(rewardsContract).addCreatorBonus(_gameId, game.creator, game.stake * 3 / 100);
+        }
 
         if (!game.isAI) {
             CrossRealmNFT(nftContract).mintWinStreak(winner);
@@ -178,10 +191,13 @@ contract Hub is Initializable, OwnableUpgradeable {
         if (keccak256(abi.encodePacked(_gameType)) == keccak256(abi.encodePacked("chess"))) {
             return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         } else if (keccak256(abi.encodePacked(_gameType)) == keccak256(abi.encodePacked("checkers"))) {
-            // Aligned with frontend: bwbw/4/4/4/4/wbwb/4/4 b (simplified, adjust as needed)
             return "bwbw/4/4/4/4/wbwb/4/4 b";
         }
         revert("Unsupported game type");
+    }
+
+    function _getMonthStart(uint _time) internal pure returns (uint) {
+        return (_time / 30 days) * 30 days;
     }
 
     receive() external payable {}

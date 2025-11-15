@@ -20,6 +20,7 @@ contract Staking is Ownable {
     event Staked(address indexed user, uint amount);
     event Withdrawn(address indexed user, uint amount);
     event RewardPaid(address indexed user, uint reward);
+    event FundsContributed(uint amount); // For auto-top from pots
 
     constructor(address _stakingToken, address _rewardsToken) Ownable(msg.sender) {
         stakingToken = IERC20(_stakingToken);
@@ -37,7 +38,7 @@ contract Staking is Ownable {
         _;
     }
 
-    // Updated: Payable for native CORE
+    // Payable for native CORE
     function stake(uint amount) external payable updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
         if (address(stakingToken) == address(0)) {
@@ -72,6 +73,12 @@ contract Staking is Ownable {
         }
     }
 
+    // Auto-fund from Rewards pot (10% cut)
+    function contributeFunds(uint amount) external payable onlyOwner {
+        require(msg.value == amount || msg.value == 0, "Value mismatch");
+        emit FundsContributed(amount);
+    }
+
     function earned(address account) public view returns (uint) {
         return (balances[account] * (rewardPerToken() - userRewardPerTokenPaid[account]) / 1e18) + rewards[account];
     }
@@ -81,10 +88,12 @@ contract Staking is Ownable {
             return rewardPerTokenStored;
         }
         uint timeDelta = block.timestamp - lastUpdateTime;
-        return rewardPerTokenStored + ((timeDelta * rewardRate * 1e16) / _totalSupply); // Adjusted for ~15% APY
+        return rewardPerTokenStored + ((timeDelta * rewardRate * 1e16) / _totalSupply); // ~15% APY
     }
 
     function totalSupply() external view returns (uint) {
         return _totalSupply;
     }
+
+    receive() external payable {}
 }
