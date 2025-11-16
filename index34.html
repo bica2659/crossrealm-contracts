@@ -9,7 +9,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@gelatonetwork/relay-sdk@1.0.1/dist/index.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/snarkjs@latest"></script> <!-- ZK proofs client-side -->
-    <script src="https://unpkg.com/stockfish@16.0.0/src/stockfish.js"></script> <!-- Stockfish.js CDN -->
     <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiQ3Jvc3NSZWalmIiwic2hvcnRfbmFtZSI6IkNSUiIsInN0YXJ0X3VybCI6Ii8iLCJkaXNwbGF5IjoiZnVsbHNjcmVlbiIsImJhY2tncm91bmRfY29sb3IiOiIjMGYwZjBmIiwidGhlbWVfY29sb3IiOiIjZjc5MzFhIn0=">
     <style>
         * {
@@ -455,6 +454,7 @@
                 this.parseFen(this.fen);
                 this.turnColor = this.turnColor || 'b'; // Default black starts
             }
+
             parseFen(fen) {
                 const [posStr, turnStr] = fen.split(' ');
                 this.turnColor = turnStr || 'b';
@@ -475,6 +475,7 @@
                     return row;
                 });
             }
+
             fen() {
                 const posStr = this.board.map(row => {
                     let str = '';
@@ -496,24 +497,31 @@
                 }).join('/');
                 return posStr + ' ' + this.turnColor;
             }
+
             board() {
                 return this.board;
             }
+
             getPiece(row, col) {
                 return this.board[row] ? this.board[row][col] : null;
             }
+
             isValidSquare(row, col) {
                 return row >= 0 && row < 8 && col >= 0 && col < 8 && (row + col) % 2 === 1;
             }
+
             legalMoves(fromRow, fromCol) {
                 const piece = this.getPiece(fromRow, fromCol);
                 if (!piece || piece.color !== this.turnColor) return [];
+
                 const moves = [];
                 const directions = this.turnColor === 'w' ? [[-1, -1], [-1, 1]] : [[1, -1], [1, 1]];
                 const isKing = piece.type === 'king';
                 const dirRange = isKing ? directions.concat(this.turnColor === 'w' ? [[1, -1], [1, 1]] : [[-1, -1], [-1, 1]]) : directions;
+
                 let captures = this.getCaptureMoves(fromRow, fromCol, piece, dirRange);
                 if (captures.length > 0) return captures; // Mandatory
+
                 for (let [dr, dc] of dirRange) {
                     const toRow = fromRow + dr;
                     const toCol = fromCol + dc;
@@ -523,6 +531,7 @@
                 }
                 return moves;
             }
+
             getCaptureMoves(row, col, piece, directions) {
                 const captures = [];
                 for (let [dr, dc] of directions) {
@@ -538,25 +547,31 @@
                 }
                 return captures;
             }
+
             move(moveObj) {
                 const { from, to, capture } = moveObj;
                 const piece = this.getPiece(from.row, from.col);
                 if (!piece) return false;
+
                 this.board[from.row][from.col] = null;
                 this.board[to.row][to.col] = piece;
                 if (capture) {
                     this.board[capture.row][capture.col] = null;
                 }
+
                 if (this.isPromotion(to.row, piece.color)) {
                     piece.type = 'king';
                 }
+
                 this.turnColor = this.turnColor === 'w' ? 'b' : 'w';
                 this.fen = this.fen();
                 return true;
             }
+
             isPromotion(row, color) {
                 return (color === 'w' && row === 0) || (color === 'b' && row === 7);
             }
+
             moves({ square } = {}) {
                 if (square) {
                     const [row, col] = square.split(',').map(Number);
@@ -572,118 +587,41 @@
                 }
                 return allMoves;
             }
+
             gameOver() {
                 return this.moves().length === 0;
             }
         }
+
         // Core Configs and Contracts (update addresses post-deploy)
         const CORE_MAINNET = {
-            chainId: '0x45c', // 1116 in decimal
+            chainId: '0x46c',
             chainName: 'Core',
             rpcUrls: ['https://rpc.coredao.org'],
             nativeCurrency: { name: 'Core', symbol: 'CORE', decimals: 18 },
             blockExplorerUrls: ['https://scan.coredao.org']
         };
-        const HUB_ADDRESS = '0xD2Ff26ff20F8ca249b33808d85C38C16e6b9721f'; // Updated
-        const REWARDS_ADDRESS = '0x3fd3288144DFbFa5C728fD46aF126073526a5E22'; // Updated
-        const NFT_ADDRESS = '0x16A88d66376791a508F1aAdBc6Df4c112074EB91'; // Updated
-        const STAKING_ADDRESS = '0xDADa11419AC555Bf840e6492C4D7a212F90249DD'; // Updated
-        const TOURNAMENT_ADDRESS = '0xD25474e4510bc0967c0876Ef6ef5088782Bb2e4E'; // updated
+        const HUB_ADDRESS = '0xD2Ff26ff20F8ca249b33808d85C38C16e6b9721f'; // Update
+        const REWARDS_ADDRESS = '0x3fd3288144DFbFa5C728fD46aF126073526a5E22'; // Update
+        const NFT_ADDRESS = '0x16A88d66376791a508F1aAdBc6Df4c112074EB91'; // Update
+        const STAKING_ADDRESS = '0xDADa11419AC555Bf840e6492C4D7a212F90249DD'; // Update
+        const TOURNAMENT_ADDRESS = '0xD25474e4510bc0967c0876Ef6ef5088782Bb2e4E'; // Update
         const CHAT_ADDRESS = '0xYourDeployedGameChat'; // Deploy and update
         const VERIFIER_ADDRESSES = { chess: '0xYourChessVerifier', checkers: '0xYourCheckersVerifier' }; // Deploy and update
+
         let provider, signer, userAddress, contract, rewardsContract, stakingContract, tournamentContract, nftContract, chatContract;
         let currentGameId = null, currentGame = null, selectedSquare = null, targetSquare = null;
         let gameEngine = null;
         let devChart = null;
-        let stockfish = null;
         const devWallet = '0x7ADB4852C70FB86d906deB082604Fc338C067135'.toLowerCase();
         let realtimeListeners = [];
+
         const pieceUnicode = {
             'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
             'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
         };
         const checkersUnicode = { man: '●', king: '♦' };
-        // Checkers AI: Minimax with alpha-beta pruning
-        function evaluateBoard(board, aiColor) {
-            let score = 0;
-            const opponentColor = aiColor === 'w' ? 'b' : 'w';
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    const piece = board[r][c];
-                    if (piece) {
-                        let value = piece.type === 'king' ? 3 : 1;
-                        let posBonus = 0;
-                        if (piece.color === aiColor) {
-                            // Position bonus: closer to promotion for men
-                            if (aiColor === 'w') {
-                                posBonus = (7 - r) * 0.2; // White promotes at row 0, so lower r better? Wait, board[0] top (black side), board[7] bottom (white side). White moves to row 0.
-                                if (piece.type === 'man') posBonus = r * 0.1; // Actually, for white man, smaller r worse? No: white starts at row 6-7, moves to smaller row.
-                                // Correction: white promotes at row 0 (top), so smaller r better for white.
-                                posBonus = (7 - r) * 0.2; // Higher score for smaller r.
-                            } else {
-                                posBonus = r * 0.2; // Black promotes at row 7, larger r better.
-                            }
-                            score += value + posBonus;
-                        } else {
-                            if (opponentColor === 'w') {
-                                posBonus = (7 - r) * 0.2;
-                            } else {
-                                posBonus = r * 0.2;
-                            }
-                            score -= value + posBonus;
-                        }
-                    }
-                }
-            }
-            return score;
-        }
-        function minimax(game, depth, alpha, beta, maximizing, aiColor) {
-            if (depth === 0 || game.gameOver()) {
-                return evaluateBoard(game.board(), aiColor);
-            }
-            const moves = game.moves();
-            if (maximizing) {
-                let maxEval = -Infinity;
-                for (let move of moves) {
-                    const oldFen = game.fen();
-                    game.move(move);
-                    const evalScore = minimax(game, depth - 1, alpha, beta, false, aiColor);
-                    game.parseFen(oldFen);
-                    maxEval = Math.max(maxEval, evalScore);
-                    alpha = Math.max(alpha, evalScore);
-                    if (beta <= alpha) break;
-                }
-                return maxEval;
-            } else {
-                let minEval = Infinity;
-                for (let move of moves) {
-                    const oldFen = game.fen();
-                    game.move(move);
-                    const evalScore = minimax(game, depth - 1, alpha, beta, true, aiColor);
-                    game.parseFen(oldFen);
-                    minEval = Math.min(minEval, evalScore);
-                    beta = Math.min(beta, minEval);
-                    if (beta <= alpha) break;
-                }
-                return minEval;
-            }
-        }
-        function getBestMove(game, aiColor, depth) {
-            let bestMove = null;
-            let bestValue = -Infinity;
-            const moves = game.moves();
-            for (let move of moves) {
-                const oldFen = game.fen();
-                game.move(move);
-                const value = minimax(game, depth - 1, -Infinity, Infinity, false, aiColor);
-                game.parseFen(oldFen);
-                if (value > bestValue) {
-                    bestValue = value;
-                    bestMove = move;
-                }
-            }
-            return bestMove;
-        }
+
         async function init() {
             if (window.ethereum) provider = new ethers.providers.Web3Provider(window.ethereum);
             loadPendingGames();
@@ -705,6 +643,7 @@
                 }
             }, 10000); // Poll chat
         }
+
         async function connectWallet() {
             try {
                 try {
@@ -785,12 +724,11 @@
                 showAlert('Connection failed: ' + e.message, 'error');
             }
         }
+
         function disconnectWallet() {
             realtimeListeners.forEach(l => l.remove());
             realtimeListeners = [];
             if (chatContract) chatContract.removeAllListeners();
-            if (stockfish) stockfish.terminate();
-            stockfish = null;
             userAddress = null;
             selectedSquare = null;
             targetSquare = null;
@@ -801,11 +739,13 @@
             document.getElementById('devTabBtn').classList.add('hidden');
             document.body.classList.remove('loading');
         }
+
         async function updateWalletBalance() {
             if (!userAddress) return;
             const balance = await provider.getBalance(userAddress);
             document.getElementById('walletBalance').innerHTML = parseFloat(ethers.utils.formatEther(balance)).toFixed(4) + ' CORE';
         }
+
         async function createGame() {
             if (!contract || !userAddress) return showAlert('Connect wallet', 'error');
             document.body.classList.add('loading');
@@ -826,6 +766,7 @@
             }
             document.body.classList.remove('loading');
         }
+
         async function loadPendingGames() {
             if (!contract) return;
             const list = document.getElementById('pendingGames');
@@ -845,6 +786,7 @@
                 list.innerHTML = '<p>Error loading games</p>';
             }
         }
+
         async function joinGame(id) {
             if (!contract) return;
             document.body.classList.add('loading');
@@ -860,6 +802,7 @@
             }
             document.body.classList.remove('loading');
         }
+
         async function loadMyGames() {
             if (!contract || !userAddress) return;
             const list = document.getElementById('myGames');
@@ -879,13 +822,14 @@
                 list.innerHTML = '<p>Error loading games</p>';
             }
         }
+
         async function loadGame(id) {
             if (!contract) return;
             document.body.classList.add('loading');
             try {
                 currentGameId = id;
-                const [ , gameType, stake, , creator, , isAI, , , , active, fen, , turn ] = await contract.getGame(id);
-                currentGame = { gameType, stake, active, fen, turn, creator, isAI };
+                const [ , gameType, stake, , creator, , , , , , active, fen, , turn ] = await contract.getGame(id);
+                currentGame = { gameType, stake, active, fen, turn, creator };
                 document.getElementById('gameInfo').innerHTML = `Game #${id} - ${gameType} - Turn: ${turn === (creator.toLowerCase() === userAddress.toLowerCase() ? 0 : 1) ? 'You' : 'Opponent'} - Stake: ${parseFloat(ethers.utils.formatEther(stake)).toFixed(4)} CORE`;
                 const initialFen = fen || getInitialFen(gameType);
                 gameEngine = gameType === 'chess' ? new Chess(initialFen) : new Checkers(initialFen);
@@ -902,74 +846,16 @@
                 shareBtn.disabled = !active;
                 resignBtn.disabled = !active;
                 if (gameEngine.gameOver()) showAlert('Game Over! Check contract for winner.', 'success');
-                // AI Integration
-                if (currentGame.isAI && currentGame.active && !isMyTurn) {
-                    setTimeout(async () => {
-                        if (currentGame.gameType === 'chess') {
-                            if (!stockfish) {
-                                stockfish = new Worker('https://unpkg.com/stockfish@16.0.0/src/stockfish.js');
-                                stockfish.onmessage = function(event) {
-                                    const msg = event.data;
-                                    if (msg.startsWith('bestmove')) {
-                                        const uci = msg.split(' ')[1];
-                                        makeAIMove(uci);
-                                    }
-                                };
-                                stockfish.postMessage('uci');
-                                stockfish.postMessage('setoption name Skill Level value 8');
-                            }
-                            stockfish.postMessage(`position fen ${gameEngine.fen()}`);
-                            stockfish.postMessage('go depth 10');
-                        } else {
-                            await makeAIMoveCheckers();
-                        }
-                    }, 1000);
-                }
             } catch (e) {
                 showAlert('Load failed: ' + e.message, 'error');
             }
             document.body.classList.remove('loading');
         }
-        async function makeAIMove(uci) {
-            if (!currentGameId || !gameEngine || currentGame.gameType !== 'chess') return;
-            document.body.classList.add('loading');
-            try {
-                const moveObj = gameEngine.move(uci);
-                const move = moveObj.san;
-                const newFen = gameEngine.fen();
-                let proof = '0x0000000000000000000000000000000000000000000000000000000000000000'; // Stub
-                const tx = await contract.makeMove(currentGameId, move, newFen, proof);
-                await tx.wait();
-                showAlert('AI moved: ' + move, 'success');
-                loadGame(currentGameId);
-            } catch (e) {
-                showAlert('AI move failed: ' + e.message, 'error');
-            }
-            document.body.classList.remove('loading');
-        }
-        async function makeAIMoveCheckers() {
-            if (!currentGameId || !gameEngine || currentGame.gameType !== 'checkers') return;
-            document.body.classList.add('loading');
-            try {
-                const aiColor = gameEngine.turnColor;
-                const bestMove = getBestMove(gameEngine, aiColor, 4); // Depth 4 for balance
-                if (!bestMove) return showAlert('No AI move available', 'error');
-                const moveStr = `${bestMove.from.row},${bestMove.from.col}-${bestMove.to.row},${bestMove.to.col}`;
-                gameEngine.move(bestMove);
-                const newFen = gameEngine.fen();
-                let proof = '0x0000000000000000000000000000000000000000000000000000000000000000'; // Stub
-                const tx = await contract.makeMove(currentGameId, moveStr, newFen, proof);
-                await tx.wait();
-                showAlert(`AI moved to ${bestMove.to.row},${bestMove.to.col}`, 'success');
-                loadGame(currentGameId);
-            } catch (e) {
-                showAlert('AI move failed: ' + e.message, 'error');
-            }
-            document.body.classList.remove('loading');
-        }
+
         function getInitialFen(gameType) {
             return gameType === 'chess' ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' : 'bwbw/4/4/4/4/wbwb/4/4 b';
         }
+
         function renderBoard() {
             const container = document.getElementById('boardContainer');
             container.innerHTML = '';
@@ -998,6 +884,7 @@
                 }
             }
         }
+
         function selectSquare(row, col) {
             if (!currentGame || !currentGame.active) return;
             document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
@@ -1014,6 +901,7 @@
             });
             targetSquare = null; // Reset target
         }
+
         async function makeMove() {
             if (!selectedSquare || !currentGameId || !contract || !gameEngine) return showAlert('No selection or game loaded', 'error');
             document.body.classList.add('loading');
@@ -1024,7 +912,7 @@
                     const from = chess.ascii().charAt((7 - selectedSquare.row) * 17 + 1 + selectedSquare.col); // Approximate SAN from
                     const moves = chess.moves({ square: from, verbose: true });
                     if (moves.length === 0) return showAlert('No legal moves', 'error');
-                    const validMove = moves.find(m => targetSquare && m.to === `${targetSquare.row + 1}${targetSquare.col + 'a'.charCodeAt(0) - 1}` || moves[0]); // Prefer target if set
+                    const validMove = moves.find(m => m.to === targetSquare ? `${selectedSquare.row},${selectedSquare.col}` : moves[0]); // Prefer target if set
                     move = validMove.san;
                     chess.move(validMove);
                     newFen = chess.fen();
@@ -1056,6 +944,7 @@
             }
             document.body.classList.remove('loading');
         }
+
         // Click for target selection (second click to move)
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('board-square') && selectedSquare) {
@@ -1069,6 +958,7 @@
                 }
             }
         });
+
         async function shareGame() {
             if (!currentGameId) return showAlert('No game loaded', 'error');
             const shareData = {
@@ -1087,6 +977,7 @@
             const text = `${shareData.text} ${shareData.url}`;
             window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
         }
+
         function resignGame() {
             if (!currentGameId) return;
             if (confirm('Resign game? You will lose the stake.')) {
@@ -1094,6 +985,7 @@
                 showAlert('Resign submitted (stub - implement endGame tx)', 'success');
             }
         }
+
         async function loadChatMessages(gameId) {
             if (!chatContract || !gameId) return;
             try {
@@ -1110,6 +1002,7 @@
                 console.error('Chat load failed:', e);
             }
         }
+
         function appendChatMessage(data) {
             const container = document.getElementById('chatContainer');
             const p = document.createElement('p');
@@ -1117,6 +1010,7 @@
             container.appendChild(p);
             container.scrollTop = container.scrollHeight;
         }
+
         function handleChatKey(e) {
             if (e.key === 'Enter') {
                 const msg = document.getElementById('chatInput').value.trim();
@@ -1128,6 +1022,7 @@
                 }
             }
         }
+
         // Tab switching
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.onclick = () => {
@@ -1140,6 +1035,7 @@
                 if (btn.dataset.tab === 'tournaments') loadTournaments();
             };
         });
+
         // Rewards & Stats (with realtime)
         async function loadUserStats() {
             if (!rewardsContract || !userAddress) return;
@@ -1164,11 +1060,13 @@
                 console.error('Stats load failed:', e);
             }
         }
+
         function getTierMultiplier(games) {
             if (games >= 50) return 150;
             if (games >= 10) return 120;
             return 100;
         }
+
         async function updateGlobalStats() {
             if (!rewardsContract) return;
             try {
@@ -1179,6 +1077,7 @@
                 console.error('Global stats failed:', e);
             }
         }
+
         async function claimRewards() {
             if (!rewardsContract) return;
             document.body.classList.add('loading');
@@ -1192,6 +1091,7 @@
             }
             document.body.classList.remove('loading');
         }
+
         // Staking
         async function stakeTokens() {
             if (!stakingContract) return;
@@ -1207,11 +1107,13 @@
             }
             document.body.classList.remove('loading');
         }
+
         async function withdrawStake() {
             if (!stakingContract) return;
             // Implement amount input
             showAlert('Withdraw stub - add amount input', 'error');
         }
+
         async function claimStakingRewards() {
             if (!stakingContract) return;
             document.body.classList.add('loading');
@@ -1224,9 +1126,11 @@
             }
             document.body.classList.remove('loading');
         }
+
         async function loadStakingStats() {
             document.getElementById('stakingStats').innerHTML = 'Total Staked: 1000 CORE<br>Your Earned: 10 CORE'; // Query contract
         }
+
         // Tournaments
         async function createTournament() {
             if (!tournamentContract || !userAddress) return showAlert('Connect wallet', 'error');
@@ -1246,11 +1150,13 @@
             }
             document.body.classList.remove('loading');
         }
+
         async function loadTournaments() {
             if (!tournamentContract) return;
             const list = document.getElementById('tournamentList');
             list.innerHTML = '<div class="game-item">Upcoming: Chess Tourney - Entry: 0.1 CORE - Players: 4/8</div>'; // Query events
         }
+
         // NFTs
         async function loadNFTs() {
             if (!nftContract || !userAddress) return;
@@ -1269,6 +1175,7 @@
                 console.error('NFTs load failed:', e);
             }
         }
+
         async function equipNFT() {
             if (!nftContract) return;
             document.body.classList.add('loading');
@@ -1283,16 +1190,19 @@
             }
             document.body.classList.remove('loading');
         }
+
         async function bridgeTokens() {
             const chain = document.getElementById('bridgeFromChain').value;
             const amount = document.getElementById('bridgeAmount').value;
             showAlert(`Bridging ${amount} from ${chain} to Core (ZK-relayed)`, 'success');
             // Integrate Axelar or LayerZero for real bridge
         }
+
         // Dev Panel
         async function loadDevPanel() {
             document.getElementById('devStats').innerHTML = 'Dev tools loaded. Global games: 1000';
         }
+
         async function loadGlobalStats() {
             const ctx = document.getElementById('devChart').getContext('2d');
             if (devChart) devChart.destroy();
@@ -1305,9 +1215,11 @@
                 options: { responsive: true }
             });
         }
+
         function loadLeaderboard() {
             document.getElementById('devStats').innerHTML += '<br>Top Player ELO: 1800 (Boosted 150%)';
         }
+
         async function updateRealtimeStats() {
             if (!provider) return;
             try {
@@ -1324,6 +1236,7 @@
                 console.error('Realtime update failed:', e);
             }
         }
+
         function showAlert(msg, type = 'success') {
             const el = document.createElement('div');
             el.className = `alert ${type}`;
@@ -1331,12 +1244,14 @@
             document.body.appendChild(el);
             setTimeout(() => el.remove(), 3000);
         }
+
         // PWA
         let deferredPrompt;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
         });
+
         document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
