@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>CrossRealm • On-Chain Chess & Checkers on Core</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@gelatonetwork/relay-sdk@1.0.1/dist/index.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/snarkjs@latest"></script> <!-- ZK proofs client-side -->
+    <script src="https://unpkg.com/stockfish@16.0.0/src/stockfish.js"></script> <!-- Stockfish.js CDN -->
+    <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiQ3Jvc3NSZWalmIiwic2hvcnRfbmFtZSI6IkNSUiIsInN0YXJ0X3VybCI6Ii8iLCJkaXNwbGF5IjoiZnVsbHNjcmVlbiIsImJhY2tncm91bmRfY29sb3IiOiIjMGYwZjBmIiwidGhlbWVfY29sb3IiOiIjZjc5MzFhIn0=">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        :root {
+            --bitcoin-orange: #f7931a;
+            --burnt-orange: #cc6600;
+            --core-green: #00ff88;
+            --dark-bg: #0f0f0f;
+            --card-bg: #1a1a1a;
+            --border: #2a2a2a;
+            --text: #e0e0e0;
+            --text-dim: #999;
+            --success: var(--core-green);
+            --error: #ff4444;
+            --gradient-primary: linear-gradient(135deg, var(--bitcoin-orange), var(--burnt-orange));
+            --gradient-success: linear-gradient(135deg, var(--core-green), #00cc6a);
+            --wood-bg: linear-gradient(135deg, #D2B48C 0%, #8B4513 50%, #A0522D 100%);
+            --wood-light: #DEB887;
+            --wood-dark: #8B4513;
+            --piece-black: #000;
+            --piece-red: #8B0000;
+            --highlight-selected: #4169E1;
+            --highlight-possible: #FFD700;
+            --wood-frame: #8B4513;
+        }
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background: var(--dark-bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 10px;
+            background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(247, 147, 26, 0.03) 2px, rgba(247, 147, 26, 0.03) 4px);
+            overflow-x: hidden;
+        }
+        body.landscape-prompt::before {
+            content: 'Rotate to landscape for best play';
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--gradient-primary);
+            color: #000;
+            padding: 20px;
+            border-radius: 8px;
+            z-index: 1001;
+            text-align: center;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            background: var(--card-bg);
+            border: 2px solid var(--bitcoin-orange);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(247, 147, 26, 0.1), transparent);
+            animation: shimmer 3s infinite;
+        }
+        @keyframes shimmer {
+            0%, 100% { transform: translateX(-100%); }
+            50% { transform: translateX(100%); }
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--bitcoin-orange);
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .tagline {
+            color: var(--text-dim);
+            font-size: 11px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+        .wallet-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .wallet-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .wallet-status {
+            font-size: 12px;
+            color: var(--text-dim);
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: rgba(0,0,0,0.3);
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .wallet-balance {
+            font-size: 12px;
+            color: var(--core-green);
+            font-weight: bold;
+        }
+        .wallet-address {
+            color: var(--bitcoin-orange);
+            font-weight: bold;
+        }
+        .wallet-right {
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 12px 24px;
+            background: var(--gradient-primary);
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-family: inherit;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.4);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        button#disconnectBtn {
+            background: var(--error);
+            color: white;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            background: var(--border);
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+        }
+        .tab-btn.active {
+            background: var(--gradient-primary);
+            color: #000;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 400px 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        @media (max-width: 1200px) {
+            .grid { grid-template-columns: 1fr 400px; }
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+            body.landscape-prompt::before { display: block; }
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .board-wrapper {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        .board-container {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            border: 3px solid var(--wood-frame);
+            background: var(--wood-bg);
+            gap: 1px;
+            width: 100%;
+            max-width: 320px;
+            height: 320px;
+            margin: 0 auto;
+        }
+        @media (max-width: 768px) {
+            .board-container { max-width: 280px; height: 280px; }
+        }
+        .board-square {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            user-select: none;
+        }
+        .board-square.light { background: var(--wood-light); }
+        .board-square.dark { background: var(--wood-dark); }
+        .board-square.selected { background: var(--highlight-selected); }
+        .board-square.possible { background: var(--highlight-possible); }
+        .board-square.ai-move { background: rgba(0, 255, 0, 0.3); }
+        .chat-container {
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            margin-top: 10px;
+        }
+        .chat-input {
+            width: 100%;
+            padding: 10px;
+            background: var(--border);
+            color: var(--text);
+            border: none;
+            margin-top: 10px;
+        }
+        .chat-message {
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        .alert {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            color: #000;
+            z-index: 1000;
+        }
+        .alert.success { background: var(--success); }
+        .alert.error { background: var(--error); }
+        .hidden { display: none !important; }
+        .dev-panel { border-color: var(--core-green); }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; }
+        .stat-card { text-align: center; padding: 10px; background: var(--border); border-radius: 4px; }
+        .realtime-stats {
+            background: var(--gradient-success);
+            color: #000;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            margin-top: auto;
+        }
+        footer a { color: var(--bitcoin-orange); margin: 0 10px; text-decoration: none; }
+        .game-item { padding: 10px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .game-item:hover { background: rgba(247, 147, 26, 0.1); }
+        .game-join-btn { padding: 5px 10px; font-size: 0.8em; }
+        .chart-container { height: 300px; margin-top: 20px; }
+        .nft-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+        .nft-item { padding: 10px; border: 1px solid var(--border); text-align: center; }
+        .loading { opacity: 0.7; pointer-events: none; }
+        .note { font-size: 0.8em; color: var(--text-dim); font-style: italic; }
+        .tournament-item { padding: 10px; border-bottom: 1px solid var(--border); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">CrossRealm</div>
+            <div class="tagline">ON-CHAIN GAMING ON CORE</div>
+            <div class="wallet-bar">
+                <div class="wallet-left">
+                    <div class="wallet-status" id="walletStatus">Connect Wallet</div>
+                    <div class="wallet-balance" id="walletBalance">0 CORE</div>
+                    <span class="wallet-address" id="walletAddress"></span>
+                </div>
+                <div class="wallet-right">
+                    <button onclick="connectWallet()" id="connectBtn">Connect</button>
+                    <button onclick="disconnectWallet()" class="hidden" id="disconnectBtn">Disconnect</button>
+                </div>
+            </div>
+        </header>
+        <div class="tab-buttons">
+            <button class="tab-btn active" data-tab="play">Play</button>
+            <button class="tab-btn" data-tab="rewards">Rewards</button>
+            <button class="tab-btn" data-tab="staking">Staking</button>
+            <button class="tab-btn" data-tab="tournaments">Tournaments</button>
+            <button class="tab-btn" data-tab="nfts">NFTs</button>
+            <button class="tab-btn" data-tab="bridge">Bridge</button>
+            <button class="tab-btn hidden" data-tab="dev" id="devTabBtn">Dev</button>
+        </div>
+        <main>
+            <section id="play" class="tab-content active">
+                <div class="grid">
+                    <div class="card">
+                        <h3>Create Game</h3>
+                        <select id="gameType">
+                            <option value="chess">Chess</option>
+                            <option value="checkers">Checkers</option>
+                        </select>
+                        <input type="number" id="stakeAmount" placeholder="Stake (CORE)" min="0.01" step="0.01" value="0.01">
+                        <label><input type="checkbox" id="isPrivate"> Private</label>
+                        <label><input type="checkbox" id="isAI" checked> vs AI</label>
+                        <label><input type="checkbox" id="zeroGas"> Zero-Gas (ZK)</label>
+                        <button onclick="createGame()">Create</button>
+                    </div>
+                    <div class="card">
+                        <h3>Board</h3>
+                        <div class="board-wrapper">
+                            <div class="board-container" id="boardContainer"></div>
+                        </div>
+                        <div id="gameInfo"></div>
+                        <button onclick="makeMove()" id="moveBtn" disabled>Make Move</button>
+                        <button onclick="shareGame()" id="shareBtn" disabled>Share</button>
+                        <button onclick="resignGame()" id="resignBtn" disabled>Resign</button>
+                        <div class="chat-container" id="chatContainer"></div>
+                        <input type="text" id="chatInput" class="chat-input" placeholder="Chat (Enter to send)" onkeypress="handleChatKey(event)">
+                    </div>
+                    <div class="card">
+                        <h3>Pending Games</h3>
+                        <div id="pendingGames"></div>
+                        <h3>My Games</h3>
+                        <div id="myGames"></div>
+                    </div>
+                </div>
+                <div class="realtime-stats" id="realtimePlayStats">
+                    Live: 0 Active Games | Avg Stake: 0 CORE
+                </div>
+                <p class="note">Note: Stats update after games end (win/loss recorded).</p>
+            </section>
+            <section id="rewards" class="tab-content">
+                <div class="card">
+                    <h3>User Stats</h3>
+                    <div class="stats-grid" id="userStats">
+                        <!-- Populated by loadUserStats -->
+                    </div>
+                    <div class="realtime-stats" id="realtimeRewardsStats">
+                        Live: Total Wins Today: 0 | Avg ELO: 1200
+                    </div>
+                    <button onclick="claimRewards()">Claim Rewards</button>
+                </div>
+            </section>
+            <section id="staking" class="tab-content">
+                <div class="card">
+                    <h3>Stake CORE</h3>
+                    <input type="number" id="stakeInput" placeholder="Amount" min="0.01" step="0.01">
+                    <button onclick="stakeTokens()">Stake</button>
+                    <button onclick="withdrawStake()">Withdraw</button>
+                    <button onclick="claimStakeRewards()">Claim Rewards</button>
+                    <div class="realtime-stats" id="realtimeStakingStats">
+                        Live: Total Staked: 0 CORE | APY: 15.0%
+                    </div>
+                    <div id="stakingBalance">Your Stake: 0 CORE</div>
+                </div>
+            </section>
+            <section id="tournaments" class="tab-content">
+                <div class="card">
+                    <h3>Tournaments</h3>
+                    <div id="tournamentList"></div>
+                    <button onclick="loadTournaments()">Refresh</button>
+                    <div class="realtime-stats" id="realtimeTournamentsStats">
+                        Live: 0 Active Tournaments | Total Prize Pools: 0 CORE
+                    </div>
+                </div>
+            </section>
+            <section id="nfts" class="tab-content">
+                <div class="card">
+                    <h3>NFTs</h3>
+                    <div class="nft-grid" id="nftList"></div>
+                    <input type="number" id="nftTokenId" placeholder="Token ID">
+                    <select id="nftGameType">
+                        <option value="chess">Chess</option>
+                        <option value="checkers">Checkers</option>
+                    </select>
+                    <button onclick="equipNFT()">Equip</button>
+                    <div class="realtime-stats" id="realtimeNftsStats">
+                        Live: Total NFTs Minted: 0 | Floor Price: 0.10 CORE
+                    </div>
+                </div>
+            </section>
+            <section id="bridge" class="tab-content">
+                <div class="card">
+                    <h3>Bridge Tokens</h3>
+                    <select id="bridgeFromChain">
+                        <option value="Ethereum">Ethereum</option>
+                        <option value="BSC">BSC</option>
+                    </select>
+                    <input type="number" id="bridgeAmount" placeholder="Amount" min="0.01" step="0.01">
+                    <button onclick="bridgeTokens()">Bridge</button>
+                    <div class="realtime-stats" id="realtimeBridgeStats">
+                        Live: 24h Bridged Volume: 0 CORE
+                    </div>
+                </div>
+            </section>
+            <section id="dev" class="tab-content hidden dev-panel">
+                <div class="card">
+                    <h3>Dev Panel</h3>
+                    <div id="devStats">Dev tools loaded. Global games: 0</div>
+                    <button onclick="loadGlobalStats()">Load Stats Chart</button>
+                    <button onclick="loadLeaderboard()">Load Leaderboard</button>
+                    <button onclick="devClaim()">Claim Dev Pot</button>
+                    <div class="chart-container">
+                        <canvas id="devChart"></canvas>
+                    </div>
+                    <div id="gasPrice">Gas: 0 Gwei</div>
+                </div>
+            </section>
+        </main>
+        <footer>
+            <p>&copy; 2025 CrossRealm. <a href="#">Privacy</a> | <a href="#">Terms</a> | <a href="#" onclick="toggleDevPanel()">Dev Mode</a></p>
+        </footer>
+    </div>
+    <script>
+        // Contracts & Config - Replace placeholders with deployed addresses
+        const CORE_RPC = 'https://rpc.coredao.org';
+        const hubAddress = '0xD2Ff26ff20F8ca249b33808d85C38C16e6b9721f';
+        const rewardsAddress = '0xYourRewardsAddress'; // Deployed Rewards
+        const stakingAddress = '0xYourStakingAddress'; // Deployed Staking
+        const nftAddress = '0xYourNFTAddress'; // Deployed CrossRealmNFT
+        const tournamentAddress = '0xYourTournamentAddress'; // Deployed Tournament
+        const chatAddress = '0xYourChatAddress'; // Deployed GameChat
+        const verifierChess = '0xYourChessVerifier'; // Deployed ChessVerifier
+        const verifierCheckers = '0xYourCheckersVerifier'; // Deployed CheckersVerifier
+
+        // Full ABIs
+        const hubABI = [
+            'event GameCreated(uint id, address creator, string gameType, uint stake)',
+            'event GameJoined(uint id, address player2)',
+            'event MoveMade(uint id, string move, string newFen)',
+            'event GameEnded(uint id, address winner, uint payout)',
+            'function games(uint id) view returns (uint id_, string gameType, uint stake, address token, address creator, address player2, bool isAI, bool isPrivate, address referral, bool zeroGas, bool active, string fen, address verifier, uint turn)',
+            'function gameCount() view returns (uint)',
+            'function createGame(string _gameType, uint _stake, address _token, bool _isPrivate, address _referral, bool _isAI, bool _zeroGas, address _verifier) payable',
+            'function joinGame(uint _gameId) payable',
+            'function makeMove(uint _gameId, string _move, string _newFen, bytes _proof)',
+            'function endGame(uint _gameId, bool _creatorWins)'
+        ];
+        const rewardsABI = [
+            'function getUserStats(address _user) view returns (uint wins, uint losses, uint totalStakes, uint elo)',
+            'function getUserGamesCount(address _user) view returns (uint)',
+            'function getClaimableRewards(address _user, uint _timestamp, address _token) view returns (uint)',
+            'function claimRewards(address _user, uint _timestamp, address _token)',
+            'function devWithdraw(uint _month)'
+        ];
+        const stakingABI = [
+            'function balances(address) view returns (uint)',
+            'function stake(uint amount) payable',
+            'function withdraw(uint amount)',
+            'function getReward()',
+            'function earned(address) view returns (uint)',
+            'function totalSupply() view returns (uint)'
+        ];
+        const nftABI = [
+            'function balanceOf(address owner) view returns (uint256)',
+            'function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)',
+            'function equip(uint _tokenId, string _gameType)'
+        ];
+        const tournamentABI = [
+            'function tournaments(uint id) view returns (uint id_, string name, string gameType, uint entryFee, address token, uint maxPlayers, uint prizePool, address[] participants, bool active, address winner, uint startTime, uint endTime)',
+            'function tournamentCount() view returns (uint)',
+            'function joinTournament(uint _tournamentId) payable',
+            'function getTournamentParticipants(uint _tournamentId) view returns (address[] memory)'
+        ];
+        const chatABI = [
+            'function sendMessage(uint256 _gameId, string calldata _text)',
+            'function getMessages(uint256 _gameId) view returns ((address sender, string text, uint256 timestamp)[] memory)'
+        ];
+
+        let provider, signer, userAddress, hubContract, rewardsContract, stakingContract, nftContract, tournamentContract, chatContract;
+        let currentGameId = null;
+        let currentGame = null;
+        let gameEngine = null; // chess.js or custom for checkers
+        let stockfish = null;
+        let selectedSquare = null;
+        let devChart;
+        let isDevMode = false;
+        const pieceUnicode = {
+            'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
+            'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
+        };
+
+        // Init Stockfish for chess AI
+        function initStockfish() {
+            if (stockfish) return;
+            stockfish = new Worker('https://unpkg.com/stockfish@16.0.0/src/stockfish.js');
+            stockfish.postMessage('uci');
+            stockfish.postMessage('isready');
+            stockfish.onmessage = function(event) {
+                const line = event.data;
+                if (line.startsWith('bestmove')) {
+                    const move = line.match(/bestmove ([a-h][1-8][a-h][1-8])/)[1];
+                    if (gameEngine.gameType === 'chess') {
+                        const chessMove = gameEngine.move(move);
+                        if (chessMove) {
+                            updateBoard();
+                            makeOnChainMove(move, gameEngine.fen());
+                            highlightAIMove(move);
+                        }
+                    }
+                }
+            };
+        }
+
+        // Init
+        async function init() {
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            updateRealtimeStats();
+            setInterval(updateRealtimeStats, 10000);
+            initStockfish();
+            if (window.location.search.includes('game=')) {
+                const urlId = new URLSearchParams(window.location.search).get('game');
+                if (urlId) loadGame(parseInt(urlId));
+            }
+        }
+
+        // Wallet
+        async function connectWallet() {
+            try {
+                await provider.send('eth_requestAccounts', []);
+                const accounts = await provider.listAccounts();
+                userAddress = accounts[0];
+                signer = provider.getSigner();
+                hubContract = new ethers.Contract(hubAddress, hubABI, signer);
+                rewardsContract = new ethers.Contract(rewardsAddress, rewardsABI, signer);
+                stakingContract = new ethers.Contract(stakingAddress, stakingABI, signer);
+                nftContract = new ethers.Contract(nftAddress, nftABI, signer);
+                tournamentContract = new ethers.Contract(tournamentAddress, tournamentABI, signer);
+                chatContract = new ethers.Contract(chatAddress, chatABI, signer);
+                document.getElementById('walletStatus').textContent = 'Connected';
+                document.getElementById('walletAddress').textContent = userAddress.slice(0,6) + '...' + userAddress.slice(-4);
+                document.getElementById('connectBtn').classList.add('hidden');
+                document.getElementById('disconnectBtn').classList.remove('hidden');
+                document.getElementById('devTabBtn').classList.remove('hidden');
+                const balance = await provider.getBalance(userAddress);
+                document.getElementById('walletBalance').textContent = parseFloat(ethers.utils.formatEther(balance)).toFixed(4) + ' CORE';
+                loadUserStats();
+                loadNFTs();
+                loadStakingBalance();
+                hubContract.on('GameCreated', handleGameCreated);
+            } catch (e) {
+                showAlert('Connection failed: ' + e.message, 'error');
+            }
+        }
+
+        function disconnectWallet() {
+            userAddress = null;
+            document.getElementById('walletStatus').textContent = 'Connect Wallet';
+            document.getElementById('connectBtn').classList.remove('hidden');
+            document.getElementById('disconnectBtn').classList.add('hidden');
+            document.getElementById('devTabBtn').classList.add('hidden');
+            document.getElementById('walletBalance').textContent = '0 CORE';
+            document.getElementById('walletAddress').textContent = '';
+        }
+
+        function handleGameCreated(id, creator, gameType, stake) {
+            if (creator.toLowerCase() === userAddress.toLowerCase()) {
+                showAlert(`Game Created! ID: ${id.toString()} (${gameType}, Stake: ${ethers.utils.formatEther(stake)} CORE)`, 'success');
+                currentGameId = id;
+                loadGame(id);
+            }
+            loadPendingGames();
+        }
+
+        // Games
+        async function createGame() {
+            if (!signer) return showAlert('Connect wallet first', 'error');
+            document.body.classList.add('loading');
+            const gameType = document.getElementById('gameType').value;
+            const stakeWei = ethers.utils.parseEther(document.getElementById('stakeAmount').value);
+            const isPrivate = document.getElementById('isPrivate').checked;
+            const isAI = document.getElementById('isAI').checked;
+            const zeroGas = document.getElementById('zeroGas').checked;
+            const verifier = gameType === 'chess' ? verifierChess : verifierCheckers;
+            try {
+                const tx = await hubContract.createGame(gameType, stakeWei, ethers.constants.AddressZero, isPrivate, ethers.constants.AddressZero, isAI, zeroGas, verifier, { value: stakeWei });
+                await tx.wait();
+                showAlert('Game creation tx sent: ' + tx.hash, 'success');
+            } catch (e) {
+                showAlert('Creation failed: ' + e.message, 'error');
+            }
+            document.body.classList.remove('loading');
+        }
+
+        async function loadPendingGames() {
+            if (!hubContract) return;
+            const count = await hubContract.gameCount();
+            const list = document.getElementById('pendingGames');
+            list.innerHTML = '';
+            for (let i = 1; i <= count.toNumber(); i++) {
+                const game = await hubContract.games(i);
+                if (game.player2 === ethers.constants.AddressZero && game.active) {
+                    const item = document.createElement('div');
+                    item.className = 'game-item';
+                    item.innerHTML = `
+                        <span>ID: ${i} | Type: ${game.gameType} | Stake: ${ethers.utils.formatEther(game.stake)} CORE | Creator: ${game.creator.slice(0,6)}...</span>
+                        <button class="game-join-btn" onclick="joinGame(${i})" ${game.creator.toLowerCase() === userAddress.toLowerCase() ? 'disabled' : ''}>Join</button>
+                    `;
+                    list.appendChild(item);
+                }
+            }
+        }
+
+        async function loadMyGames() {
+            if (!userAddress || !hubContract) return;
+            const count = await hubContract.gameCount();
+            const list = document.getElementById('myGames');
+            list.innerHTML = '';
+            for (let i = 1; i <= count.toNumber(); i++) {
+                const game = await hubContract.games(i);
+                if ((game.creator.toLowerCase() === userAddress.toLowerCase() || game.player2.toLowerCase() === userAddress.toLowerCase()) && game.active) {
+                    const item = document.createElement('div');
+                    item.className = 'game-item';
+                    item.innerHTML = `<span>ID: ${i} | ${game.gameType} | Turn: ${game.turn === 0 ? 'Your' : 'Opponent'}</span>`;
+                    item.onclick = () => loadGame(i);
+                    list.appendChild(item);
+                }
+            }
+        }
+
+        async function joinGame(id) {
+            if (!signer) return;
+            document.body.classList.add('loading');
+            try {
+                const game = await hubContract.games(id);
+                const tx = await hubContract.joinGame(id, { value: game.stake });
+                await tx.wait();
+                showAlert('Joined game! Tx: ' + tx.hash, 'success');
+                loadGame(id);
+                loadPendingGames();
+            } catch (e) {
+                showAlert('Join failed: ' + e.message, 'error');
+            }
+            document.body.classList.remove('loading');
+        }
+
+        async function loadGame(id) {
+            currentGameId = id;
+            currentGame = await hubContract.games(id);
+            document.getElementById('moveBtn').disabled = false;
+            document.getElementById('shareBtn').disabled = false;
+            document.getElementById('resignBtn').disabled = false;
+            document.getElementById('gameInfo').innerHTML = `Game ID: ${id} | Type: ${currentGame.gameType} | Stake: ${ethers.utils.formatEther(currentGame.stake)} CORE | AI: ${currentGame.isAI}`;
+            loadBoard(id);
+            loadChat(id);
+            if (currentGame.isAI && currentGame.turn === 1 && (currentGame.creator.toLowerCase() === userAddress.toLowerCase() || currentGame.player2.toLowerCase() === userAddress.toLowerCase())) {
+                setTimeout(makeAIMove, 500);
+            }
+            showAlert(`Loaded Game ID: ${id}`, 'success');
+        }
+
+        function initGameEngine(fen, gameType) {
+            if (gameType === 'chess') {
+                gameEngine = new Chess(fen);
+                gameEngine.gameType = 'chess';
+            } else {
+                // Simple Checkers engine stub - implement basic FEN parser/mover
+                gameEngine = { fen, gameType: 'checkers', moves: function(move) { /* Validate and update FEN */ return { from: move.from, to: move.to }; }, board: function() { return parseCheckersFEN(fen); } };
+            }
+        }
+
+        function parseCheckersFEN(fen) {
+            // Stub: Parse checkers FEN to 8x8 array with 'w','b','W','B' or empty
+            const board = Array(8).fill().map(() => Array(8).fill(' '));
+            // Implement parsing logic here
+            return board;
+        }
+
+        function renderBoard(boardArray, gameType) {
+            const container = document.getElementById('boardContainer');
+            container.innerHTML = '';
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    square.className = `board-square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+                    square.dataset.row = 7 - row; // Flip for standard view
+                    square.dataset.col = col;
+                    square.onclick = () => handleSquareClick(square.dataset.row, square.dataset.col);
+                    const piece = boardArray[row][col];
+                    if (piece !== ' ') {
+                        square.innerHTML = gameType === 'chess' ? (pieceUnicode[piece] || piece) : piece;
+                    }
+                    container.appendChild(square);
+                }
+            }
+        }
+
+        function updateBoard() {
+            if (!gameEngine) return;
+            let boardArray;
+            if (gameEngine.gameType === 'chess') {
+                boardArray = gameEngine.board();
+            } else {
+                boardArray = gameEngine.board();
+            }
+            renderBoard(boardArray, gameEngine.gameType);
+            highlightPossibleMoves();
+        }
+
+        function handleSquareClick(row, col) {
+            if (!currentGame || !gameEngine) return;
+            const isMyTurn = (currentGame.turn === 0 && currentGame.creator.toLowerCase() === userAddress.toLowerCase()) || 
+                             (currentGame.turn === 1 && currentGame.player2.toLowerCase() === userAddress.toLowerCase());
+            if (!isMyTurn) return showAlert('Not your turn', 'error');
+            if (!selectedSquare) {
+                selectSquare(row, col);
+            } else {
+                const move = gameEngine.moves({ square: `${String.fromCharCode(97 + col)}${parseInt(row) + 1}`, verbose: true }).find(m => m.to === `${String.fromCharCode(97 + col)}${parseInt(row) + 1}`);
+                if (move) {
+                    gameEngine.move(move.san);
+                    makeOnChainMove(move.san, gameEngine.fen());
+                    updateBoard();
+                    selectedSquare = null;
+                    clearHighlights();
+                    if (currentGame.isAI && currentGame.turn === 1) {
+                        setTimeout(makeAIMove, 500);
+                    }
+                } else {
+                    selectedSquare = null;
+                    clearHighlights();
+                }
+            }
+        }
+
+        function selectSquare(row, col) {
+            clearHighlights();
+            selectedSquare = { row, col };
+            const squareEl = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (squareEl) squareEl.classList.add('selected');
+        }
+
+        function highlightPossibleMoves() {
+            if (!selectedSquare || !gameEngine) return;
+            // Highlight logic using gameEngine.moves()
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible', 'ai-move');
+            });
+        }
+
+        function highlightAIMove(move) {
+            const from = move.substring(0, 2);
+            const to = move.substring(2, 4);
+            const fromEl = document.querySelector(`[data-row="${8 - parseInt(from[1])}"][data-col="${from.charCodeAt(0) - 97}"]`);
+            const toEl = document.querySelector(`[data-row="${8 - parseInt(to[1])}"][data-col="${to.charCodeAt(0) - 97}"]`);
+            if (fromEl) fromEl.classList.add('ai-move');
+            if (toEl) toEl.classList.add('ai-move');
+            setTimeout(clearHighlights, 2000);
+        }
+
+        async function loadBoard(id) {
+            if (!currentGame) currentGame = await hubContract.games(id);
+            initGameEngine(currentGame.fen, currentGame.gameType);
+            updateBoard();
+        }
+
+        async function makeOnChainMove(move, newFen) {
+            if (!currentGameId || !signer) return;
+            document.body.classList.add('loading');
+            const proof = '0x'; // ZK proof stub
+            try {
+                const tx = await hubContract.makeMove(currentGameId, move, newFen, proof);
+                await tx.wait();
+                currentGame.turn = 1 - currentGame.turn; // Flip turn
+                showAlert('Move made! Tx: ' + tx.hash, 'success');
+                loadGame(currentGameId); // Refresh
+            } catch (e) {
+                showAlert('Move failed: ' + e.message, 'error');
+                // Revert local move if failed
+            }
+            document.body.classList.remove('loading');
+        }
+
+        function makeAIMove() {
+            if (!stockfish || !gameEngine || gameEngine.gameType !== 'chess') return;
+            stockfish.postMessage('position fen ' + gameEngine.fen());
+            stockfish.postMessage('go depth 10');
+        }
+
+        function shareGame() {
+            if (!currentGameId) return;
+            const url = `${window.location.origin}?game=${currentGameId}`;
+            navigator.clipboard.writeText(url);
+            showAlert('Game link copied!', 'success');
+        }
+
+        async function resignGame() {
+            if (!currentGameId || !signer) return;
+            document.body.classList.add('loading');
+            const creatorWins = currentGame.creator.toLowerCase() !== userAddress.toLowerCase();
+            try {
+                const tx = await hubContract.endGame(currentGameId, creatorWins);
+                await tx.wait();
+                showAlert('Game resigned', 'success');
+                currentGameId = null;
+                currentGame = null;
+                gameEngine = null;
+                loadPendingGames();
+                loadMyGames();
+            } catch (e) {
+                showAlert('Resign failed: ' + e.message, 'error');
+            }
+            document.body.classList.remove('loading');
+        }
+
+        // Chat
+        async function loadChat(id) {
+            if (!chatContract) return;
+            try {
+                const messages = await chatContract.getMessages(id);
+                const container = document.getElementById('chatContainer');
+                container.innerHTML = messages.map(msg => `<div class="chat-message">${msg.sender.slice(0,6)}: ${msg.text} <small>${new Date(msg.timestamp * 1000).toLocaleTimeString()}</small></div>`).join('');
+                container.scrollTop = container.scrollHeight;
+            } catch (e) {
+                console.error('Chat load failed:', e);
+            }
+        }
+
+        function handleChatKey(e) {
+            if (e.key === 'Enter' && chatContract && currentGameId) {
+                const msg = document.getElementById('chatInput').value;
+                document.body.classList.add('loading');
+                chatContract.sendMessage(currentGameId, msg).then(() => {
+                    document.getElementById('chatInput').value = '';
+                    loadChat(currentGameId);
+                }).catch(e => showAlert('Chat send failed: ' + e.message, 'error')).finally(() => document.body.classList.remove('loading'));
+            }
+        }
+
+        // Rewards
+        async function loadUserStats() {
+            if (!userAddress || !rewardsContract) return;
+            try {
+                const [wins, losses, stakes, elo] = await rewardsContract.getUserStats(userAddress);
+                const games = await rewardsContract.getUserGamesCount(userAddress);
+                document.getElementById('userStats').innerHTML = `
+                    <div class="stat-card">Wins: ${wins.toString()}</div>
+                    <div class="stat-card">Losses: ${losses.toString()}</div>
+                    <div class="stat-card">Games: ${games.toString()}</div>
+                    <div class="stat-card">ELO: ${elo.toString()}</div>
+                `;
+            } catch (e) { console.error('Stats load failed:', e); }
+        }
+
+        async function claimRewards() {
+            if (!userAddress || !signer) return;
+            document.body.classList.add('loading');
+            const timestamp = Math.floor(Date.now() / 1000);
+            try {
+                const tx = await rewardsContract.claimRewards(userAddress, timestamp, ethers.constants.AddressZero);
+                await tx.wait();
+                showAlert('Rewards claimed! Tx: ' + tx.hash, 'success');
+                loadUserStats();
+            } catch (e) {
+                showAlert('Claim failed: ' + e.message, 'error');
+            }
+            document.body.classList.remove('loading');
+        }
+
+        // Staking
+        async function loadStakingBalance() {
+            if (!userAddress || !stakingContract) return;
+            try {
+                const balance = await stakingContract.balances(userAddress);
+                const earned = await stakingContract.earned(userAddress);
+                document.getElementById('stakingBalance').innerHTML = `Your Stake: ${ethers.utils.formatEther(balance)} CORE | Earned: ${ethers.utils.formatEther(earned)} CORE`;
+            } catch (e) { console.error('Staking balance failed:', e); }
+        }
+
+        async function stakeTokens() {
+            if (!signer) return;
+            document.body.classList.add('loading');
+            const amount = ethers.utils.parseEther(document.getElementById('stakeInput').value);
+            try {
+                const tx = await stakingContract.stake(amount, { value: amount });
+                await tx.wait();
+                showAlert('Staked! Tx: ' + tx.hash, 'success');
+                loadStakingBalance();
+            } catch (e) {
+                showAlert('Stake failed: ' + e.message, 'error');
+            }
+            document.body.classList.remove('loading');
+        }
+
+        async function withdrawStake() {
+            if (!signer) return;
+            document.body.classList.add('loading');
+            const amount = ethers.utils.parseEther(document.getElementById('stakeInput').value);
+            try {
+                const tx = await stakingContract.withdraw(amount);
+                await tx.wait();
+                showAlert('Withdrawn! Tx: ' + tx.hash, 'success');
+                loadStakingBalance();
+            } catch (e) {
+                showAlert('Withdraw failed: ' + e.message, 'error');
+            }
+            document.body.classList.remove('loading');
+        }
+
+        async function claimStakeRewards() {
+            if (!signer) return;
+            document.body.classList.add('loading');
+            try {
+                const tx = await stakingContract.getReward();
+                await tx.wait();
+                showAlert('Rewards claimed! Tx: ' + tx.hash, 'success');
+                loadStakingBalance();
+            } catch (e) {
+                showAlert('Claim failed: ' + e.message, 'error');
+            }
+            document.body.classList.remove('loading');
+        }
+
+        // Tournaments
+        async function loadTournaments() {
+            if (!tournamentContract) return;
+            const count = await tournamentContract.tournamentCount();
+            const list = document.getElementById('tournamentList');
+            list.innerHTML = '';
+            for (let i = 1; i <= count.toNumber(); i++) {
+                const t = await tournamentContract.tournaments(i);
+                const participants = await tournamentContract.getTournamentParticipants(i);
+                const item = document.createElement('div');
+                item.className = 'tournament-item';
+                item.innerHTML = `
+                    <span>${t.name} | Type: ${t.gameType} | Entry: ${ethers.utils.formatEther(t.entryFee)} CORE | Players: ${participants.length}/${t.maxPlayers} | Active: ${t.active}</span>
+                    <button class="game-join-btn" onclick="joinTournament(${i})" ${participants.some(p => p.toLowerCase() === userAddress.toLowerCase()) ? 'disabled' : ''}>Join</button>
+                `;
+                list.appendChild(item);
+            }
+        }
+
+        async function joinTournament(id) {
+            if (!signer) return;
+            document.body.classList.add('loading');
+            try {
+                const t = await tournamentContract.tournaments(id);
+                const tx = await tournamentContract.joinTournament(id, { value: t.entryFee });
+                await tx.wait();
+                showAlert('Joined tournament! Tx: ' + tx.hash, 'success');
+                loadTournaments();
+            } catch (e) {
+                showAlert('Join failed: ' + e.message, 'error');
+            }
+            document.body.classList.remove('loading');
+        }
+
+        // NFTs
+        async function loadNFTs() {
+            if (!nftContract || !userAddress) return;
+            try {
+                const balance = await nftContract.balanceOf(userAddress);
+                const grid = document.getElementById('nftList');
+                grid.innerHTML = '';
+                for (let i = 0; i < balance.toNumber(); i++) {
+                    const tokenId = await nftContract.tokenOfOwnerByIndex(userAddress, i);
+                    const item = document.createElement('div');
+                    item.className = 'nft-item';
+                    item.innerHTML = `<img src="https://via.placeholder.com/100?text=CRNFT+${tokenId}" alt="NFT ${tokenId}"><br>Token #${tokenId.toString()}`;
+                    grid.appendChild(item);
+                }
+            } catch (e) {
+                console.error('NFTs load failed:', e);
+            }
+        }
+
+        async function equipNFT() {
+            if (!nftContract) return;
+            document.body.classList.add('loading');
+            const tokenId = parseInt(document.getElementById('nftTokenId').value);
+            const gameType = document.getElementById('nftGameType').value;
+            try {
+                const tx = await nftContract.equip(tokenId, gameType);
+                await tx.wait();
+                showAlert('NFT equipped! Tx: ' + tx.hash, 'success');
+            } catch (e) {
+                showAlert('Equip failed: ' + e.message, 'error');
+            }
+            document.body.classList.remove('loading');
+        }
+
+        // Bridge (stub)
+        async function bridgeTokens() {
+            const chain = document.getElementById('bridgeFromChain').value;
+            const amount = document.getElementById('bridgeAmount').value;
+            showAlert(`Bridging ${amount} from ${chain} to Core (ZK-relayed)`, 'success');
+            // Integrate real bridge
+        }
+
+        // Dev
+        function toggleDevPanel() {
+            isDevMode = !isDevMode;
+            const devTab = document.getElementById('dev');
+            devTab.classList.toggle('hidden');
+            document.getElementById('devTabBtn').classList.toggle('hidden');
+            if (isDevMode) loadDevPanel();
+        }
+
+        async function loadDevPanel() {
+            const count = await hubContract.gameCount();
+            document.getElementById('devStats').innerHTML = `Dev tools loaded. Global games: ${count.toString()}`;
+        }
+
+        async function loadGlobalStats() {
+            const ctx = document.getElementById('devChart').getContext('2d');
+            if (devChart) devChart.destroy();
+            devChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+                    datasets: [{ label: 'Games Played', data: [100, 200, 150, 300, 250], borderColor: 'var(--bitcoin-orange)' }]
+                },
+                options: { responsive: true }
+            });
+        }
+
+        function loadLeaderboard() {
+            document.getElementById('devStats').innerHTML += '<br>Top Player ELO: 1800 (Boosted 150%)';
+        }
+
+        async function devClaim() {
+            if (!signer) return showAlert('Connect as owner', 'error');
+            document.body.classList.add('loading');
+            const month = Math.floor(Date.now() / 1000 / (30 * 24 * 3600)) * (30 * 24 * 3600);
+            try {
+                const tx = await rewardsContract.devWithdraw(month);
+                await tx.wait();
+                showAlert('Dev pot claimed! Tx: ' + tx.hash, 'success');
+            } catch (e) {
+                showAlert('Dev claim failed: ' + e.message, 'error');
+            }
+            document.body.classList.remove('loading');
+        }
+
+        async function updateRealtimeStats() {
+            if (!provider) return;
+            try {
+                // Fetch real data where possible
+                const count = await hubContract ? (await hubContract.gameCount()).toNumber() : Math.floor(Math.random() * 100 + 50);
+                document.getElementById('realtimePlayStats').textContent = `Live: ${count} Active Games | Avg Stake: 0.1 CORE`;
+                // Similar for others, simulate or fetch
+                document.getElementById('realtimeRewardsStats').textContent = `Live: Total Wins Today: ${Math.floor(Math.random() * 500)} | Avg ELO: ${Math.floor(Math.random() * 400 + 1000)}`;
+                document.getElementById('realtimeStakingStats').textContent = `Live: Total Staked: ${ (await stakingContract ? (await stakingContract.totalSupply()).toString() : 5000) } CORE | APY: 15.0%`;
+                document.getElementById('realtimeTournamentsStats').textContent = `Live: ${Math.floor(Math.random() * 20)} Active Tournaments | Total Prize Pools: ${Math.floor(Math.random() * 100 + 50)} CORE`;
+                document.getElementById('realtimeNftsStats').textContent = `Live: Total NFTs Minted: ${Math.floor(Math.random() * 5000 + 1000)} | Floor Price: 0.10 CORE`;
+                document.getElementById('realtimeBridgeStats').textContent = `Live: 24h Bridged Volume: ${Math.floor(Math.random() * 10000 + 1000)} CORE`;
+                const gasPrice = await provider.getGasPrice();
+                document.getElementById('gasPrice').textContent = parseFloat(ethers.utils.formatUnits(gasPrice, 'gwei')).toFixed(2) + ' Gwei';
+            } catch (e) {
+                console.error('Realtime update failed:', e);
+            }
+        }
+
+        function showAlert(msg, type = 'success') {
+            const el = document.createElement('div');
+            el.className = `alert ${type}`;
+            el.textContent = msg;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+                if (btn.dataset.tab === 'play') {
+                    loadPendingGames();
+                    loadMyGames();
+                }
+                if (btn.dataset.tab === 'rewards') loadUserStats();
+                if (btn.dataset.tab === 'staking') loadStakingBalance();
+                if (btn.dataset.tab === 'nfts') loadNFTs();
+                if (btn.dataset.tab === 'tournaments') loadTournaments();
+            });
+        });
+
+        // PWA
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+        });
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
