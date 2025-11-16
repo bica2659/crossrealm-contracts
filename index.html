@@ -578,17 +578,17 @@
         }
         // Core Configs and Contracts (update addresses post-deploy)
         const CORE_MAINNET = {
-            chainId: '0x46c',
+            chainId: '0x45c', // 1116 in decimal
             chainName: 'Core',
             rpcUrls: ['https://rpc.coredao.org'],
             nativeCurrency: { name: 'Core', symbol: 'CORE', decimals: 18 },
             blockExplorerUrls: ['https://scan.coredao.org']
         };
-        const HUB_ADDRESS = '0xD2Ff26ff20F8ca249b33808d85C38C16e6b9721f'; // Update
-        const REWARDS_ADDRESS = '0x3fd3288144DFbFa5C728fD46aF126073526a5E22'; // Update
-        const NFT_ADDRESS = '0x16A88d66376791a508F1aAdBc6Df4c112074EB91'; // Update
-        const STAKING_ADDRESS = '0xDADa11419AC555Bf840e6492C4D7a212F90249DD'; // Update
-        const TOURNAMENT_ADDRESS = '0xD25474e4510bc0967c0876Ef6ef5088782Bb2e4E'; // Update
+        const HUB_ADDRESS = '0xD2Ff26ff20F8ca249b33808d85C38C16e6b9721f'; // Updated
+        const REWARDS_ADDRESS = '0x3fd3288144DFbFa5C728fD46aF126073526a5E22'; // Updated
+        const NFT_ADDRESS = '0x16A88d66376791a508F1aAdBc6Df4c112074EB91'; // Updated
+        const STAKING_ADDRESS = '0xDADa11419AC555Bf840e6492C4D7a212F90249DD'; // Updated
+        const TOURNAMENT_ADDRESS = '0xD25474e4510bc0967c0876Ef6ef5088782Bb2e4E'; // updated
         const CHAT_ADDRESS = '0xYourDeployedGameChat'; // Deploy and update
         const VERIFIER_ADDRESSES = { chess: '0xYourChessVerifier', checkers: '0xYourCheckersVerifier' }; // Deploy and update
         let provider, signer, userAddress, contract, rewardsContract, stakingContract, tournamentContract, nftContract, chatContract;
