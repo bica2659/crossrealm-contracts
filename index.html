@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>CrossRealm • On-Chain Chess & Checkers on Core</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bitcoin-orange: #f7931a;
+            --burnt-orange: #cc6600;
+            --core-green: #00ff88;
+            --dark-bg: #0f0f0f;
+            --card-bg: #1a1a1a;
+            --border: #2a2a2a;
+            --text: #e0e0e0;
+            --text-dim: #999;
+        }
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background: var(--dark-bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 10px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            background: var(--card-bg);
+            border: 2px solid var(--bitcoin-orange);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .logo { font-size: 28px; font-weight: bold; color: var(--bitcoin-orange); text-align: center; }
+        .tagline { font-size: 11px; color: var(--text-dim); text-align: center; margin-top: 5px; }
+        .wallet-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .wallet-info { display: flex; align-items: center; gap: 15px; font-size: 12px; }
+        .wallet-balance { color: var(--core-green); font-weight: bold; }
+        button { padding: 12px 24px; background: linear-gradient(135deg, var(--bitcoin-orange), var(--burnt-orange)); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-family: inherit; transition: all 0.3s; font-size: 12px; }
+        button:hover { transform: translateY(-2px); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button.danger { background: #ff4444; color: white; }
+        .tab-buttons { display: flex; gap: 10px; justify-content: center; margin: 20px 0; flex-wrap: wrap; }
+        .tab-btn { padding: 10px 20px; background: var(--border); color: var(--text-dim); border: 1px solid var(--border); cursor: pointer; border-radius: 4px; transition: all 0.3s; font-size: 12px; }
+        .tab-btn.active { background: var(--bitcoin-orange); color: #000; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .grid { display: grid; grid-template-columns: 1fr 400px 1fr; gap: 20px; }
+        @media (max-width: 1200px) { .grid { grid-template-columns: 1fr 400px; } }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        .card { background: var(--card-bg); border: 1px solid var(--border); padding: 20px; border-radius: 8px; }
+        .card h3 { color: var(--bitcoin-orange); margin-bottom: 15px; font-size: 14px; }
+        .card h4 { color: var(--core-green); margin: 15px 0 10px 0; font-size: 12px; }
+        .card input, .card select { width: 100%; padding: 10px; margin-bottom: 10px; background: var(--border); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 12px; }
+        .card input:focus, .card select:focus { outline: none; border-color: var(--bitcoin-orange); }
+        .card label { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer; font-size: 12px; }
+        .card label input[type="checkbox"] { width: auto; }
+        .board-container { display: grid; grid-template-columns: repeat(8, 1fr); border: 3px solid #8B4513; background: linear-gradient(135deg, #D2B48C, #8B4513); gap: 1px; width: 100%; max-width: 320px; height: 320px; margin: 15px auto; }
+        .board-square { display: flex; align-items: center; justify-content: center; font-size: 1.8rem; cursor: pointer; user-select: none; transition: all 0.1s; }
+        .board-square.light { background: #DEB887; }
+        .board-square.dark { background: #8B4513; }
+        .board-square.selected { background: #4169E1; box-shadow: inset 0 0 5px rgba(65, 105, 225, 0.8); }
+        .board-square:hover { opacity: 0.9; }
+        .game-info-box { background: rgba(0, 255, 136, 0.1); border: 1px solid var(--core-green); padding: 12px; border-radius: 4px; margin: 10px 0; font-size: 12px; text-align: center; }
+        .game-info-box strong { color: var(--core-green); }
+        .game-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+        .game-controls button { padding: 8px 12px; font-size: 11px; }
+        .chat-container { height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; margin-top: 10px; background: rgba(0,0,0,0.3); border-radius: 4px; }
+        .chat-container p { font-size: 10px; margin-bottom: 5px; word-break: break-word; }
+        .chat-input { width: 100%; padding: 8px; background: var(--border); color: var(--text); border: 1px solid var(--border); margin-top: 8px; border-radius: 4px; font-family: inherit; font-size: 11px; }
+        .alert { position: fixed; top: 20px; right: 20px; padding: 15px 20px; border-radius: 4px; color: #000; z-index: 1000; max-width: 300px; font-size: 12px; }
+        .alert.success { background: var(--core-green); }
+        .alert.error { background: #ff4444; }
+        .alert.info { background: #4169E1; color: #fff; }
+        .hidden { display: none !important; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 8px; }
+        .stat-card { text-align: center; padding: 12px; background: var(--border); border-radius: 4px; border: 1px solid var(--bitcoin-orange); font-size: 11px; }
+        .stat-card strong { color: var(--core-green); font-size: 14px; }
+        .game-item { 
+            padding: 10px; 
+            border-bottom: 1px solid var(--border); 
+            cursor: pointer; 
+            transition: all 0.2s; 
+            border-radius: 4px; 
+            margin-bottom: 5px; 
+            font-size: 11px;
+            background: rgba(247, 147, 26, 0.05);
+        }
+        .game-item:hover { background: rgba(247, 147, 26, 0.15); transform: translateX(4px); }
+        .game-item.vs-ai { border-left: 3px solid #ff6b6b; }
+        .game-item.vs-player { border-left: 3px solid var(--core-green); }
+        .game-item.waiting { border-left: 3px solid #ffd93d; }
+        .debug-log { background: #000; color: #0f0; padding: 8px; font-size: 9px; max-height: 100px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: 4px; font-family: monospace; }
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 3px; font-size: 10px; font-weight: bold; margin: 4px 0; }
+        .status-waiting { background: #ffd93d; color: #000; }
+        .status-active { background: var(--core-green); color: #000; }
+        .status-completed { background: #999; color: #fff; }
+        main { min-height: 60vh; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">♟️ CrossRealm Multiplayer</div>
+            <div class="tagline">On-Chain Chess & Checkers - Real Multiplayer Gaming</div>
+            <div class="wallet-bar">
+                <div class="wallet-info">
+                    <div id="walletStatus">Connect Wallet</div>
+                    <div class="wallet-balance" id="walletBalance">0 CORE</div>
+                    <span style="color: var(--bitcoin-orange);" id="walletAddress"></span>
+                </div>
+                <div>
+                    <button id="connectBtn" onclick="connectWallet()">Connect</button>
+                    <button id="disconnectBtn" class="hidden danger" onclick="disconnectWallet()">Disconnect</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="tab-buttons">
+            <button class="tab-btn active" data-tab="play" onclick="switchTab('play')">⚙️ Play</button>
+            <button class="tab-btn" data-tab="rewards" onclick="switchTab('rewards')">🏆 Rewards</button>
+            <button class="tab-btn" data-tab="staking" onclick="switchTab('staking')">💰 Staking</button>
+        </div>
+
+        <main>
+            <!-- PLAY TAB -->
+            <section id="play" class="tab-content active">
+                <div class="grid">
+                    <!-- CREATE GAME PANEL -->
+                    <div class="card">
+                        <h3>Create Game</h3>
+                        <select id="gameType">
+                            <option value="chess">♞ Chess</option>
+                            <option value="checkers">● Checkers</option>
+                        </select>
+                        <input type="number" id="stakeAmount" placeholder="Stake (CORE)" min="0.01" step="0.01" value="0.1">
+                        <label><input type="checkbox" id="isAI" checked> Play vs AI</label>
+                        <label><input type="checkbox" id="isPrivate"> Private Game</label>
+                        <button onclick="createGame()" style="width: 100%; margin-top: 10px;">Create Game</button>
+                        <p style="font-size: 10px; color: var(--text-dim); margin-top: 10px;">Entry fee: 3% to pot</p>
+                        <div class="debug-log" id="debugLog"></div>
+                    </div>
+
+                    <!-- BOARD PANEL -->
+                    <div class="card">
+                        <h3>♟️ Game Board</h3>
+                        <div class="game-info-box" id="gameInfoBox">
+                            No game loaded
+                        </div>
+                        <div class="board-container" id="boardContainer"></div>
+                        <div class="game-controls">
+                            <button id="moveBtn" onclick="makeMove()" disabled>Make Move</button>
+                            <button id="aiBtn" onclick="getAIMove()" disabled>AI Move</button>
+                        </div>
+                        <div class="chat-container" id="chatContainer"></div>
+                        <input type="text" id="chatInput" class="chat-input" placeholder="Chat..." onkeypress="handleChatKey(event)">
+                    </div>
+
+                    <!-- GAMES LIST PANEL -->
+                    <div class="card">
+                        <h3>🎮 Pending Games (Waiting for Player)</h3>
+                        <div id="pendingGames" style="max-height: 250px; overflow-y: auto; margin-bottom: 20px;"></div>
+                        
+                        <h3>👥 My Active Games</h3>
+                        <div id="myGames" style="max-height: 250px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- REWARDS TAB -->
+            <section id="rewards" class="tab-content">
+                <div class="card">
+                    <h3>📊 Your Stats</h3>
+                    <div class="stats-grid" id="userStats">
+                        <div class="stat-card"><strong>0</strong><br>Games</div>
+                        <div class="stat-card"><strong>0</strong><br>Wins</div>
+                        <div class="stat-card"><strong>0</strong><br>Losses</div>
+                        <div class="stat-card"><strong>1200</strong><br>ELO</div>
+                    </div>
+                    <div id="winRate" style="text-align: center; margin: 15px 0; font-size: 12px;">Win Rate: 0%</div>
+                    <button onclick="claimRewards()" style="width: 100%;">Claim Rewards</button>
+                </div>
+            </section>
+
+            <!-- STAKING TAB -->
+            <section id="staking" class="tab-content">
+                <div class="card">
+                    <h3>💎 Staking</h3>
+                    <input type="number" id="stakeInput" placeholder="Amount" min="0.01" step="0.01" value="1">
+                    <button onclick="stakeTokens()" style="width: 100%; margin: 5px 0;">Stake</button>
+                    <button onclick="withdrawStake()" style="width: 100%; margin: 5px 0;">Withdraw</button>
+                    <button onclick="claimStakingRewards()" style="width: 100%; margin: 5px 0;">Claim Rewards</button>
+                    <div id="stakingStats" style="margin-top: 15px; font-size: 12px;">Loading...</div>
+                </div>
+            </section>
+        </main>
+
+        <footer style="text-align: center; padding: 20px; font-size: 12px;">
+            <p>&copy; 2025 CrossRealm • Multiplayer On-Chain Gaming</p>
+        </footer>
+    </div>
+
+    <script>
+        const CORE_MAINNET = {
+            chainId: '0x45c',
+            chainName: 'Core',
+            rpcUrls: ['https://rpc.coredao.org'],
+            nativeCurrency: { name: 'Core', symbol: 'CORE', decimals: 18 },
+            blockExplorerUrls: ['https://scan.coredao.org']
+        };
+
+        const HUB_ADDRESS = '0xD2Ff26ff20F8ca249b33808d85C38C16e6b9721f';
+        const REWARDS_ADDRESS = '0x3fd3288144DFbFa5C728fD46aF126073526a5E22';
+        const STAKING_ADDRESS = '0xDADa11419AC555Bf840e6492C4D7a212F90249DD';
+        const CHAT_ADDRESS = '0x5ba3A7802301feAB9264eFcA597b884FB9D653Bc';
+        const VERIFIER_CHESS = '0xDf93DC108a7D14de8c444D85b173D68735199bB5';
+        const VERIFIER_CHECKERS = '0xE02f0c0f57a3c8B6a379b795baB3dA3077BCa83F';
+
+        const HUB_ABI = [
+            'function createGame(string _gameType, uint _stake, address _token, bool _isPrivate, address _referral, bool _isAI, bool _zeroGas, address _verifier) payable',
+            'function joinGame(uint _gameId) payable',
+            'function makeMove(uint _gameId, string _move, string _newFen, bytes _proof)',
+            'function endGame(uint _gameId, bool _creatorWins)',
+            'function getGame(uint _gameId) view returns (uint id, string gameType, uint stake, address token, address creator, address player2, bool isAI, bool isPrivate, address referral, bool zeroGas, bool active, string fen, address verifier, uint turn)',
+            'function gameCount() view returns (uint)',
+            'event GameCreated(uint indexed id, address creator, string gameType, uint stake)',
+            'event GameJoined(uint indexed id, address player2)',
+            'event MoveMade(uint indexed id, string move, string newFen)',
+            'event GameEnded(uint indexed id, address winner, uint payout)'
+        ];
+
+        const REWARDS_ABI = [
+            'function getUserStats(address _user) view returns (uint wins, uint losses, uint totalStakes, uint elo)',
+            'function getUserGamesCount(address _user) view returns (uint)',
+            'function claimRewards(address _user, uint _timestamp, address _token)'
+        ];
+
+        const STAKING_ABI = [
+            'function stake(uint amount) payable',
+            'function withdraw(uint amount)',
+            'function getReward()',
+            'function earned(address) view returns (uint)',
+            'function balances(address) view returns (uint)',
+            'function totalSupply() view returns (uint)'
+        ];
+
+        const CHAT_ABI = [
+            'function sendMessage(uint256 _gameId, string _text)',
+            'function getMessages(uint256 _gameId) view returns (tuple(address sender, string text, uint256 timestamp)[])'
+        ];
+
+        let provider, signer, userAddress;
+        let hubContract, rewardsContract, stakingContract, chatContract;
+        let currentGameId = null, currentGame = null, gameEngine = null;
+        let selectedSquare = null;
+        let gameCheckInterval = null;
+
+        const pieceUnicode = { 'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙', 'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟' };
+
+        function debug(msg) {
+            console.log(msg);
+            const log = document.getElementById('debugLog');
+            if (log) {
+                const time = new Date().toLocaleTimeString();
+                log.innerHTML = `[${time}] ${msg}\n` + log.innerHTML;
+                if (log.children.length > 15) log.removeChild(log.lastChild);
+            }
+        }
+
+        function showAlert(msg, type = 'success') {
+            const el = document.createElement('div');
+            el.className = `alert ${type}`;
+            el.textContent = msg;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 4000);
+        }
+
+        async function connectWallet() {
+            try {
+                if (!window.ethereum) throw new Error('MetaMask required');
+                await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [CORE_MAINNET] }).catch(e => {});
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                const accounts = await provider.send('eth_requestAccounts', []);
+                userAddress = accounts[0];
+                signer = provider.getSigner();
+
+                hubContract = new ethers.Contract(HUB_ADDRESS, HUB_ABI, signer);
+                rewardsContract = new ethers.Contract(REWARDS_ADDRESS, REWARDS_ABI, signer);
+                stakingContract = new ethers.Contract(STAKING_ADDRESS, STAKING_ABI, signer);
+                chatContract = new ethers.Contract(CHAT_ADDRESS, CHAT_ABI, signer);
+
+                // Setup game event listeners
+                hubContract.on('GameCreated', (id, creator) => {
+                    debug('✓ Game created: #' + id.toString());
+                    setTimeout(() => { loadPendingGames(); loadMyGames(); }, 1000);
+                });
+
+                hubContract.on('GameJoined', (id, player2) => {
+                    debug('✓ Player joined game #' + id.toString());
+                    setTimeout(() => { loadPendingGames(); loadMyGames(); if (currentGameId == id) loadGame(id); }, 1000);
+                });
+
+                hubContract.on('MoveMade', (id) => {
+                    debug('🎮 Move made in game #' + id.toString());
+                    if (currentGameId && parseInt(currentGameId) === parseInt(id.toString())) {
+                        loadGame(currentGameId);
+                    }
+                });
+
+                hubContract.on('GameEnded', (id, winner) => {
+                    debug('✓ Game #' + id.toString() + ' ended');
+                    loadMyGames();
+                });
+
+                document.getElementById('walletStatus').textContent = '✓ Connected';
+                document.getElementById('walletAddress').textContent = userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
+                document.getElementById('connectBtn').classList.add('hidden');
+                document.getElementById('disconnectBtn').classList.remove('hidden');
+
+                updateWalletBalance();
+                loadPendingGames();
+                loadMyGames();
+                loadUserStats();
+
+                // Poll for updates every 3 seconds
+                if (gameCheckInterval) clearInterval(gameCheckInterval);
+                gameCheckInterval = setInterval(() => {
+                    loadPendingGames();
+                    loadMyGames();
+                    if (currentGameId) loadGame(currentGameId);
+                }, 3000);
+
+                debug('✓ Connected to Core');
+            } catch (e) {
+                debug('✗ Connection error: ' + e.message);
+                showAlert(e.message, 'error');
+            }
+        }
+
+        function disconnectWallet() {
+            userAddress = null;
+            signer = null;
+            currentGameId = null;
+            gameEngine = null;
+            if (gameCheckInterval) clearInterval(gameCheckInterval);
+            document.getElementById('walletStatus').textContent = 'Connect Wallet';
+            document.getElementById('walletAddress').textContent = '';
+            document.getElementById('connectBtn').classList.remove('hidden');
+            document.getElementById('disconnectBtn').classList.add('hidden');
+            debug('Disconnected');
+        }
+
+        async function updateWalletBalance() {
+            if (!userAddress || !provider) return;
+            try {
+                const balance = await provider.getBalance(userAddress);
+                document.getElementById('walletBalance').textContent = parseFloat(ethers.utils.formatEther(balance)).toFixed(4) + ' CORE';
+            } catch (e) {}
+        }
+
+        async function createGame() {
+            if (!hubContract || !userAddress) return showAlert('Connect wallet first', 'error');
+            try {
+                const gameType = document.getElementById('gameType').value;
+                const stakeAmount = document.getElementById('stakeAmount').value || '0.1';
+                const isAI = document.getElementById('isAI').checked;
+                const isPrivate = document.getElementById('isPrivate').checked;
+                const stake = ethers.utils.parseEther(stakeAmount);
+                const verifier = gameType === 'chess' ? VERIFIER_CHESS : VERIFIER_CHECKERS;
+
+                debug(`Creating ${gameType} game: ${stakeAmount} CORE ${isAI ? '(vs AI)' : '(PvP)'}`);
+
+                const tx = await hubContract.createGame(
+                    gameType,
+                    stake,
+                    ethers.constants.AddressZero,
+                    isPrivate,
+                    ethers.constants.AddressZero,
+                    isAI,
+                    false,
+                    verifier,
+                    { value: stake }
+                );
+
+                debug('TX pending: ' + tx.hash.slice(0, 10) + '...');
+                const receipt = await tx.wait();
+                debug('✓ Game created!');
+                showAlert('Game #' + receipt.transactionHash.slice(0, 10) + ' created!', 'success');
+                
+                setTimeout(() => { loadPendingGames(); loadMyGames(); }, 2000);
+            } catch (e) {
+                debug('✗ Error: ' + e.message);
+                showAlert(e.message, 'error');
+            }
+        }
+
+        async function loadPendingGames() {
+            if (!hubContract) return;
+            try {
+                const count = await hubContract.gameCount();
+                const countNum = parseInt(count.toString());
+                const list = document.getElementById('pendingGames');
+                let html = '';
+
+                // Load last 30 games
+                for (let i = Math.max(1, countNum - 30); i <= countNum; i++) {
+                    try {
+                        const game = await hubContract.getGame(i);
+                        
+                        // Only show games waiting for player
+                        if (game.player2 === ethers.constants.AddressZero && game.active) {
+                            const stake = ethers.utils.formatEther(game.stake);
+                            const gameLabel = game.isAI ? '🤖 AI Match' : '👥 PvP Match';
+                            const badge = game.isAI ? 'vs-ai' : 'vs-player';
+                            
+                            html += `
+                                <div class="game-item ${badge} waiting">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <div>
+                                            <strong>Game #${i}</strong> ${gameLabel}<br>
+                                            <small>${game.gameType} • ${stake} CORE</small>
+                                        </div>
+                                        <span class="status-badge status-waiting">WAITING</span>
+                                    </div>
+                                    ${userAddress && game.creator.toLowerCase() !== userAddress.toLowerCase() ? 
+                                        `<button onclick="joinGame(${i})" style="width: 100%; margin-top: 8px; padding: 6px; font-size: 11px;">JOIN GAME</button>` 
+                                        : '<small style="color: var(--text-dim);">Your game</small>'}
+                                </div>
+                            `;
+                        }
+                    } catch (e) {}
+                }
+
+                list.innerHTML = html || '<p style="color: var(--text-dim); padding: 10px;">No pending games</p>';
+            } catch (e) {
+                debug('Load pending error: ' + e.message);
+            }
+        }
+
+        async function loadMyGames() {
+            if (!hubContract || !userAddress) return;
+            try {
+                const count = await hubContract.gameCount();
+                const countNum = parseInt(count.toString());
+                const list = document.getElementById('myGames');
+                let html = '';
+
+                for (let i = Math.max(1, countNum - 50); i <= countNum; i++) {
+                    try {
+                        const game = await hubContract.getGame(i);
+                        const isCreator = game.creator.toLowerCase() === userAddress.toLowerCase();
+                        const isPlayer2 = game.player2.toLowerCase() === userAddress.toLowerCase();
+
+                        if (game.active && (isCreator || isPlayer2)) {
+                            const myRole = isCreator ? 'Creator' : 'Opponent';
+                            const opponentRole = isCreator ? 'Player 2' : 'Creator';
+                            const waiting = game.player2 === ethers.constants.AddressZero;
+                            const myTurn = game.turn === 0 ? isCreator : isPlayer2;
+
+                            html += `
+                                <div class="game-item" style="border-left: 3px solid ${myTurn ? 'var(--core-green)' : '#ff6b6b'};">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <div>
+                                            <strong>Game #${i}</strong> (${game.gameType})<br>
+                                            <small>You: ${myRole} | ${ethers.utils.formatEther(game.stake)} CORE</small><br>
+                                            <small style="color: ${myTurn ? 'var(--core-green)' : '#ff6b6b'};">
+                                                ${myTurn ? '→ YOUR TURN ←' : waiting ? 'WAITING FOR OPPONENT' : 'Opponent Turn'}
+                                            </small>
+                                        </div>
+                                        <span class="status-badge ${myTurn ? 'status-active' : 'status-waiting'}">
+                                            ${myTurn ? 'PLAY' : 'WAIT'}
+                                        </span>
+                                    </div>
+                                    <button onclick="loadGame(${i})" style="width: 100%; margin-top: 8px; padding: 6px; font-size: 11px;">LOAD GAME</button>
+                                </div>
+                            `;
+                        }
+                    } catch (e) {}
+                }
+
+                list.innerHTML = html || '<p style="color: var(--text-dim); padding: 10px;">No active games</p>';
+            } catch (e) {
+                debug('Load my games error: ' + e.message);
+            }
+        }
+
+        async function joinGame(id) {
+            if (!hubContract) return;
+            try {
+                const game = await hubContract.getGame(id);
+                if (game.player2 !== ethers.constants.AddressZero) {
+                    showAlert('Game already joined', 'error');
+return;
+                }
+
+                debug(`Joining game #${id}...`);
+                const tx = await hubContract.joinGame(id, { value: game.stake });
+                debug('TX pending: ' + tx.hash.slice(0, 10) + '...');
+                const receipt = await tx.wait();
+                debug('✓ Joined game #' + id);
+                showAlert('Game joined! #' + id, 'success');
+                
+                await new Promise(r => setTimeout(r, 2000));
+                loadGame(id);
+                loadPendingGames();
+                loadMyGames();
+            } catch (e) {
+                debug('✗ Join error: ' + e.message);
+                showAlert('Join failed: ' + e.message, 'error');
+            }
+        }
+
+        async function loadGame(id) {
+            if (!hubContract) return;
+            try {
+                currentGameId = id;
+                const game = await hubContract.getGame(id);
+
+                // Get initial FEN or use default
+                const fen = game.fen && game.fen !== '' 
+                    ? game.fen 
+                    : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+                gameEngine = new Chess(fen);
+                currentGame = game;
+
+                const isCreator = game.creator.toLowerCase() === userAddress.toLowerCase();
+                const isPlayer2 = game.player2 && game.player2.toLowerCase() === userAddress.toLowerCase();
+                const myRole = isCreator ? 'Creator' : 'Opponent';
+                const myTurn = game.turn === 0 ? isCreator : isPlayer2;
+                const waiting = game.player2 === ethers.constants.AddressZero;
+                const stake = ethers.utils.formatEther(game.stake);
+
+                let gameStatus = '';
+                if (waiting) {
+                    gameStatus = '⏳ Waiting for opponent to join...';
+                } else if (myTurn) {
+                    gameStatus = '🎮 YOUR TURN - Make a move!';
+                } else {
+                    gameStatus = '⏳ Opponent\'s turn...';
+                }
+
+                document.getElementById('gameInfoBox').innerHTML = `
+                    <strong>Game #${id}</strong> | ${game.gameType.toUpperCase()}<br>
+                    You: ${myRole} | Stake: ${stake} CORE<br>
+                    <span style="color: ${myTurn ? 'var(--core-green)' : '#ff6b6b'};">${gameStatus}</span>
+                `;
+
+                document.getElementById('moveBtn').disabled = !myTurn || waiting;
+                document.getElementById('aiBtn').disabled = true;
+
+                renderBoard();
+                await loadChatMessages(id);
+
+                debug('✓ Game #' + id + ' loaded (FEN: ' + fen.substring(0, 20) + '...)');
+            } catch (e) {
+                debug('✗ Load game error: ' + e.message);
+                showAlert('Error loading game: ' + e.message, 'error');
+            }
+        }
+
+        function renderBoard() {
+            if (!gameEngine) return;
+
+            const container = document.getElementById('boardContainer');
+            container.innerHTML = '';
+            const board = gameEngine.board();
+
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    const isLight = (row + col) % 2 === 0;
+
+                    square.className = `board-square ${isLight ? 'light' : 'dark'}`;
+                    square.dataset.row = row;
+                    square.dataset.col = col;
+                    square.onclick = () => selectSquare(row, col);
+
+                    const piece = board[7 - row][col];
+                    if (piece) {
+                        square.innerHTML = pieceUnicode[piece.type.toUpperCase()] || piece.type;
+                        square.style.fontSize = piece.color === 'w' ? '1.8rem' : '1.8rem';
+                    }
+
+                    container.appendChild(square);
+                }
+            }
+        }
+
+        function selectSquare(row, col) {
+            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected'));
+            const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (square) {
+                square.classList.add('selected');
+                selectedSquare = { row, col };
+            }
+        }
+
+        async function makeMove() {
+            if (!gameEngine || !currentGameId) return showAlert('No game loaded', 'error');
+            if (!currentGame) return showAlert('Load game first', 'error');
+
+            try {
+                const isCreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
+                const myTurn = currentGame.turn === 0 ? isCreator : (currentGame.player2 && currentGame.player2.toLowerCase() === userAddress.toLowerCase());
+
+                if (!myTurn) return showAlert('Not your turn!', 'error');
+
+                const moves = gameEngine.moves({ verbose: true });
+                if (moves.length === 0) {
+                    showAlert('Checkmate or Stalemate!', 'info');
+                    return;
+                }
+
+                // Play first legal move
+                const move = moves[0];
+                gameEngine.move(move);
+                renderBoard();
+
+                // Submit on-chain
+                const proof = '0x0000000000000000000000000000000000000000000000000000000000000000';
+                debug(`Submitting move: ${move.san} in game #${currentGameId}`);
+
+                const tx = await hubContract.makeMove(
+                    currentGameId,
+                    move.san,
+                    gameEngine.fen(),
+                    proof
+                );
+
+                debug('TX pending: ' + tx.hash.slice(0, 10) + '...');
+                const receipt = await tx.wait();
+                debug('✓ Move confirmed on-chain: ' + move.san);
+                showAlert('Move: ' + move.san, 'success');
+
+                // Reload game state
+                await new Promise(r => setTimeout(r, 1500));
+                loadGame(currentGameId);
+            } catch (e) {
+                debug('✗ Move error: ' + e.message);
+                showAlert('Move failed: ' + e.message, 'error');
+            }
+        }
+
+        function getAIMove() {
+            showAlert('AI feature coming soon', 'info');
+        }
+
+        async function loadChatMessages(gameId) {
+            if (!chatContract) return;
+            try {
+                const messages = await chatContract.getMessages(gameId);
+                const container = document.getElementById('chatContainer');
+                container.innerHTML = '';
+
+                messages.slice(-8).forEach(msg => {
+                    const p = document.createElement('p');
+                    const addr = msg.sender.slice(0, 6) + '...' + msg.sender.slice(-4);
+                    const isYou = msg.sender.toLowerCase() === userAddress.toLowerCase();
+                    p.innerHTML = `<strong style="color: ${isYou ? 'var(--core-green)' : '#ff9800'};">${isYou ? 'You' : addr}:</strong> ${msg.text}`;
+                    container.appendChild(p);
+                });
+
+                container.scrollTop = container.scrollHeight;
+            } catch (e) {}
+        }
+
+        function handleChatKey(e) {
+            if (e.key === 'Enter' && currentGameId && chatContract) {
+                const msg = document.getElementById('chatInput').value.trim();
+                if (msg && msg.length > 0 && msg.length <= 280) {
+                    chatContract.sendMessage(currentGameId, msg)
+                        .then(() => {
+                            document.getElementById('chatInput').value = '';
+                            loadChatMessages(currentGameId);
+                            debug('✓ Message sent');
+                        })
+                        .catch(e => showAlert('Chat failed: ' + e.message, 'error'));
+                }
+            }
+        }
+
+        async function loadUserStats() {
+            if (!rewardsContract || !userAddress) return;
+            try {
+                const [wins, losses, totalStakes, elo] = await rewardsContract.getUserStats(userAddress);
+                const games = await rewardsContract.getUserGamesCount(userAddress);
+                const gNum = games.toNumber();
+                const winRate = gNum > 0 ? ((wins.toNumber() / gNum) * 100).toFixed(1) : 0;
+
+                document.getElementById('userStats').innerHTML = `
+                    <div class="stat-card"><strong>${gNum}</strong><br>Total</div>
+                    <div class="stat-card"><strong>${wins.toString()}</strong><br>Wins</div>
+                    <div class="stat-card"><strong>${losses.toString()}</strong><br>Losses</div>
+                    <div class="stat-card"><strong>${elo.toString()}</strong><br>ELO</div>
+                `;
+
+                document.getElementById('winRate').innerHTML = `<strong>Win Rate: ${winRate}%</strong> | Tier: ${gNum >= 50 ? '🏆 Legendary' : gNum >= 10 ? '⭐ Elite' : '🎮 Rookie'}`;
+                debug(`Stats: ${gNum} games, ${winRate}% WR, ${elo} ELO`);
+            } catch (e) {
+                debug('Stats error: ' + e.message);
+            }
+        }
+
+        async function claimRewards() {
+            if (!rewardsContract) return;
+            try {
+                debug('Claiming rewards...');
+                const timestamp = Math.floor(Date.now() / 1000);
+                const tx = await rewardsContract.claimRewards(userAddress, timestamp, ethers.constants.AddressZero);
+                debug('TX pending: ' + tx.hash.slice(0, 10) + '...');
+                const receipt = await tx.wait();
+                debug('✓ Rewards claimed');
+                showAlert('Rewards claimed!', 'success');
+                loadUserStats();
+            } catch (e) {
+                debug('✗ Claim error: ' + e.message);
+                showAlert('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function loadStakingStats() {
+            if (!stakingContract || !userAddress) return;
+            try {
+                const balance = await stakingContract.balances(userAddress);
+                const earned = await stakingContract.earned(userAddress);
+                const total = await stakingContract.totalSupply();
+
+                document.getElementById('stakingStats').innerHTML = `
+                    <strong>Your Stake:</strong> ${ethers.utils.formatEther(balance)} CORE<br>
+                    <strong>Earned Rewards:</strong> ${ethers.utils.formatEther(earned)} CORE<br>
+                    <strong>Total Staked (Network):</strong> ${ethers.utils.formatEther(total)} CORE<br>
+                    <strong style="color: var(--core-green);">APY: 15%</strong>
+                `;
+                debug('Staking stats loaded');
+            } catch (e) {
+                document.getElementById('stakingStats').innerHTML = '✗ Error loading staking stats';
+                debug('Staking error: ' + e.message);
+            }
+        }
+
+        async function stakeTokens() {
+            if (!stakingContract) return;
+            try {
+                const amount = ethers.utils.parseEther(document.getElementById('stakeInput').value || '1');
+                debug('Staking ' + ethers.utils.formatEther(amount) + ' CORE...');
+                const tx = await stakingContract.stake(amount, { value: amount });
+                debug('TX pending: ' + tx.hash.slice(0, 10) + '...');
+                const receipt = await tx.wait();
+                debug('✓ Staked successfully');
+                showAlert('Tokens staked!', 'success');
+                loadStakingStats();
+            } catch (e) {
+                debug('✗ Stake error: ' + e.message);
+                showAlert('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function withdrawStake() {
+            if (!stakingContract) return;
+            try {
+                const amount = ethers.utils.parseEther(document.getElementById('stakeInput').value || '1');
+                debug('Withdrawing ' + ethers.utils.formatEther(amount) + ' CORE...');
+                const tx = await stakingContract.withdraw(amount);
+                debug('TX pending: ' + tx.hash.slice(0, 10) + '...');
+                const receipt = await tx.wait();
+                debug('✓ Withdrawn successfully');
+                showAlert('Withdrawn!', 'success');
+                loadStakingStats();
+            } catch (e) {
+                debug('✗ Withdraw error: ' + e.message);
+                showAlert('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function claimStakingRewards() {
+            if (!stakingContract) return;
+            try {
+                debug('Claiming staking rewards...');
+                const tx = await stakingContract.getReward();
+                debug('TX pending: ' + tx.hash.slice(0, 10) + '...');
+                const receipt = await tx.wait();
+                debug('✓ Staking rewards claimed');
+                showAlert('Rewards claimed!', 'success');
+                loadStakingStats();
+            } catch (e) {
+                debug('✗ Claim error: ' + e.message);
+                showAlert('Error: ' + e.message, 'error');
+            }
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabName).classList.add('active');
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            if (tabName === 'rewards') loadUserStats();
+            if (tabName === 'staking') loadStakingStats();
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', () => {
+            debug('✓ CrossRealm Multiplayer Ready');
+        });
+
+        // Handle network changes
+        if (window.ethereum) {
+            window.ethereum.on('chainChanged', () => {
+                debug('Chain changed - reconnecting...');
+                disconnectWallet();
+            });
+
+            window.ethereum.on('accountsChanged', (accounts) => {
+                if (accounts.length === 0) {
+                    debug('Wallet disconnected');
+                    disconnectWallet();
+                } else if (accounts[0] !== userAddress) {
+                    debug('Account changed - reconnecting...');
+                    disconnectWallet();
+                    connectWallet();
+                }
+            });
+        }
+
+        console.log('%c♟️ CrossRealm Multiplayer Ready!', 'color: #f7931a; font-size: 16px; font-weight: bold;');
+    </script>
+</body>
+</html>
