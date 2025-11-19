@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrossRealm - Next-Gen On-Chain Gaming</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0a0a0a;
+            color: white;
+            overflow-x: hidden;
+        }
+        
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, #0a0a0a, #1a1a2e, #16213e);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            z-index: -1;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        /* Floating Particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+        }
+        
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: rgba(102, 126, 234, 0.5);
+            border-radius: 50%;
+            animation: float 20s infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100vh) translateX(100px); opacity: 0; }
+        }
+        
+        /* Header/Navigation */
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 20px 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            z-index: 1000;
+        }
+        
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .nav-link:hover {
+            color: #667eea;
+        }
+        
+        .connect-btn {
+            padding: 12px 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 25px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .connect-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+        
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 100px 20px 50px;
+            position: relative;
+        }
+        
+        .hero h1 {
+            font-size: 72px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: glow 2s ease-in-out infinite;
+        }
+        
+        @keyframes glow {
+            0%, 100% { filter: drop-shadow(0 0 20px rgba(102, 126, 234, 0.5)); }
+            50% { filter: drop-shadow(0 0 40px rgba(102, 126, 234, 0.8)); }
+        }
+        
+        .hero p {
+            font-size: 24px;
+            color: #aaa;
+            margin-bottom: 40px;
+            max-width: 800px;
+        }
+        
+        .hero-cta {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .btn {
+            padding: 16px 40px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 30px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid #667eea;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(102, 126, 234, 0.1);
+            transform: translateY(-3px);
+        }
+        
+        /* Stats Section */
+        .stats {
+            padding: 80px 50px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .stat-card {
+            text-align: center;
+            padding: 30px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-10px);
+            background: rgba(255,255,255,0.08);
+            border-color: #667eea;
+        }
+        
+        .stat-value {
+            font-size: 48px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+        
+        .stat-label {
+            font-size: 16px;
+            color: #aaa;
+        }
+        
+        /* Games Section */
+        .games-section {
+            padding: 100px 50px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .section-title {
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .section-subtitle {
+            text-align: center;
+            color: #aaa;
+            font-size: 18px;
+            margin-bottom: 60px;
+        }
+        
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+        }
+        
+        .game-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.4s;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .game-card:hover {
+            transform: translateY(-10px) scale(1.02);
+            border-color: #667eea;
+            box-shadow: 0 20px 60px rgba(102, 126, 234, 0.3);
+        }
+        
+        .game-card.coming-soon::after {
+            content: 'COMING SOON';
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .game-card.live::after {
+            content: 'LIVE NOW';
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .game-image {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 80px;
+        }
+        
+        .game-content {
+            padding: 25px;
+        }
+        
+        .game-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .game-description {
+            color: #aaa;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .game-features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .game-feature {
+            padding: 6px 12px;
+            background: rgba(102, 126, 234, 0.2);
+            border-radius: 15px;
+            font-size: 12px;
+            color: #667eea;
+        }
+        
+        .game-action {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .game-action:hover {
+            transform: scale(1.05);
+        }
+        
+        .game-action:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Roadmap */
+        .roadmap {
+            padding: 100px 50px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .timeline {
+            position: relative;
+            padding: 40px 0;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            height: 100%;
+            width: 2px;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .timeline-item {
+            position: relative;
+            margin-bottom: 60px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .timeline-item:nth-child(odd) {
+            flex-direction: row;
+            text-align: right;
+        }
+        
+        .timeline-item:nth-child(even) {
+            flex-direction: row-reverse;
+            text-align: left;
+        }
+        
+        .timeline-content {
+            width: 45%;
+            padding: 30px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s;
+        }
+        
+        .timeline-content:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: #667eea;
+            transform: scale(1.05);
+        }
+        
+        .timeline-dot {
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            border: 4px solid #0a0a0a;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1;
+        }
+        
+        .timeline-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #667eea;
+        }
+        
+        .timeline-date {
+            color: #aaa;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        .timeline-description {
+            color: #ccc;
+            line-height: 1.6;
+        }
+        
+        /* Features */
+        .features {
+            padding: 100px 50px;
+            background: rgba(255,255,255,0.02);
+        }
+        
+        .features-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+        }
+        
+        .feature-card {
+            padding: 40px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-10px);
+            border-color: #667eea;
+        }
+        
+        .feature-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+        
+        .feature-title {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        
+        .feature-description {
+            color: #aaa;
+            line-height: 1.6;
+        }
+        
+        /* Footer */
+        .footer {
+            padding: 60px 50px;
+            background: rgba(0,0,0,0.5);
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+        }
+        
+        .footer-section h3 {
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+        
+        .footer-links {
+            list-style: none;
+        }
+        
+        .footer-links li {
+            margin-bottom: 10px;
+        }
+        
+        .footer-links a {
+            color: #aaa;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .footer-links a:hover {
+            color: #667eea;
+        }
+        
+        .social-links {
+            display: flex;
+            gap: 15px;
+            font-size: 24px;
+        }
+        
+        .social-links a {
+            color: #aaa;
+            transition: all 0.3s;
+        }
+        
+        .social-links a:hover {
+            color: #667eea;
+            transform: translateY(-3px);
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: #1a1a2e;
+            padding: 40px;
+            border-radius: 20px;
+            max-width: 500px;
+            width: 90%;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .modal-close {
+            float: right;
+            font-size: 28px;
+            cursor: pointer;
+            color: #aaa;
+        }
+        
+        .modal-close:hover {
+            color: white;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 15px 20px;
+            }
+            
+            .hero h1 {
+                font-size: 42px;
+            }
+            
+            .hero p {
+                font-size: 18px;
+            }
+            
+            .games-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .timeline::before {
+                left: 20px;
+            }
+            
+            .timeline-item {
+                flex-direction: column !important;
+                text-align: left !important;
+            }
+            
+            .timeline-content {
+                width: 100%;
+                margin-left: 40px;
+            }
+            
+            .timeline-dot {
+                left: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation"></div>
+    
+    <!-- Particles -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="logo">🎮 CrossRealm</div>
+        <div class="nav-links">
+            <a href="#games" class="nav-link">Games</a>
+            <a href="#roadmap" class="nav-link">Roadmap</a>
+            <a href="#features" class="nav-link">Features</a>
+            <a href="#about" class="nav-link">About</a>
+            <button class="connect-btn" onclick="connectWallet()" id="connectBtn">
+                Connect Wallet
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <h1>Welcome to the Future of Gaming</h1>
+        <p>Experience true ownership, fair play, and real rewards in the world's first fully on-chain gaming multiverse</p>
+        <div class="hero-cta">
+            <button class="btn btn-primary" onclick="scrollToGames()">Start Playing</button>
+            <button class="btn btn-secondary" onclick="showModal('learn')">Learn More</button>
+        </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats">
+        <div class="stat-card">
+            <div class="stat-value" id="statGames">0</div>
+            <div class="stat-label">Games Played</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="statVolume">0</div>
+            <div class="stat-label">CORE Wagered</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="statPlayers">0</div>
+            <div class="stat-label">Active Players</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="statWinnings">0</div>
+            <div class="stat-label">Total Winnings</div>
+        </div>
+    </section>
+
+    <!-- Games Section -->
+    <section class="games-section" id="games">
+        <h2 class="section-title">Choose Your Game</h2>
+        <p class="section-subtitle">From classic strategy to futuristic VR battles</p>
+        
+        <div class="games-grid">
+            <!-- Chess - LIVE -->
+            <div class="game-card live" onclick="playGame('chess')">
+                <div class="game-image">♟️</div>
+                <div class="game-content">
+                    <h3 class="game-title">Chess</h3>
+                    <p class="game-description">
+                        Test your strategic mind in the timeless game of kings. Every move verified on-chain.
+                    </p>
+                    <div class="game-features">
+                        <span class="game-feature">On-Chain Verification</span>
+                        <span class="game-feature">Real Stakes</span>
+                        <span class="game-feature">ELO Rating</span>
+                    </div>
+                    <button class="game-action">Play Chess</button>
+                </div>
+            </div>
+
+            <!-- Checkers - LIVE -->
+            <div class="game-card live" onclick="playGame('checkers')">
+                <div class="game-image">🎯</div>
+                <div class="game-content">
+                    <h3 class="game-title">Checkers</h3>
+                    <p class="game-description">
+                        Fast-paced strategy meets blockchain. Jump your way to victory.
+                    </p>
+                    <div class="game-features">
+                        <span class="game-feature">Quick Games</span>
+                        <span class="game-feature">Fair Play</span>
+                        <span class="game-feature">Instant Payouts</span>
+                    </div>
+                    <button class="game-action">Play Checkers</button>
+                </div>
+            </div>
+
+            <!-- Fighting Game - COMING SOON -->
+            <div class="game-card coming-soon">
+                <div class="game-image">🥊</div>
+                <div class="game-content">
+                    <h3 class="game-title">Combat Arena</h3>
+                    <p class="game-description">
+                        Mortal Kombat meets blockchain. Choose your fighter and battle for glory and crypto rewards.
+                    </p>
+                    <div class="game-features">
+                        <span class="game-feature">Multiple Fighters</span>
+                        <span class="game-feature">Special Moves</span>
+                        <span class="game-feature">Combos</span>
+                        <span class="game-feature">NFT Characters</span>
+                    </div>
+                    <button class="game-action" disabled>Coming Q2 2025</button>
+                </div>
+            </div>
+
+            <!-- Racing Game - COMING SOON -->
+            <div class="game-card coming-soon">
+                <div class="game-image">🏎️</div>
+                <div class="game-content">
+                    <h3 class="game-title">Velocity Racers</h3>
+                    <p class="game-description">
+                        High-speed racing where every millisecond counts. Bet on yourself and cross the finish line first.
+                    </p>
+                    <div class="game-features">
+                        <span class="game-feature">Multiple Tracks</span>
+                        <span class="game-feature">Upgradable Cars</span>
+                        <span class="game-feature">Tournaments</span>
+                        <span class="game-feature">NFT Vehicles</span>
+                    </div>
+                    <button class="game-action" disabled>Coming Q3 2025</button>
+                </div>
+            </div>
+
+            <!-- Pool/Snooker - COMING SOON -->
+            <div class="game-card coming-soon">
+                <div class="game-image">🎱</div>
+                <div class="game-content">
+                    <h3 class="game-title">Crypto Billiards</h3>
+                    <p class="game-description">
+                        Precision and strategy in the classic game of pool. Physics-based gameplay meets blockchain rewards.
+                    </p>
+                    <div class="game-features">
+                        <span class="game-feature">8-Ball & 9-Ball</span>
+                        <span class="game-feature">Physics Engine</span>
+                        <span class="game-feature">Ranked Matches</span>
+                        <span class="game-feature">Trick Shots</span>
+                    </div>
+                    <button class="game-action" disabled>Coming Q4 2025</button>
+                </div>
+            </div>
+
+            <!-- VR Gaming - COMING SOON -->
+            <div class="game-card coming-soon">
+                <div class="game-image">🥽</div>
+                <div class="game-content">
+                    <h3 class="game-title">VR MetaRealm</h3>
+                    <p class="game-description">
+                        Full immersive 3D VR gaming. Step into the blockchain metaverse with VR devices and interact on-chain.
+                    </p>
+                    <div class="game-features">
+                        <span class="game-feature">VR Headset Support</span>
+                        <span class="game-feature">3D Worlds</span>
+                        <span class="game-feature">Social Interaction</span>
+                        <span class="game-feature">Full Body Tracking</span>
+                    </div>
+                    <button class="game-action" disabled>Coming 2026</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Roadmap -->
+    <section class="roadmap" id="roadmap">
+        <h2 class="section-title">The Journey Ahead</h2>
+        <p class="section-subtitle">Building the future of on-chain gaming, one phase at a time</p>
+        
+        <div class="timeline">
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <div class="timeline-title">Phase 1: Foundation ✅</div>
+                    <div class="timeline-date">Q4 2024 - COMPLETE</div>
+                    <div class="timeline-description">
+                        Core infrastructure deployed. Chess & Checkers live with full on-chain verification, 
+                        staking rewards, and NFT achievements.
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <div class="timeline-title">Phase 2: Multi-Token 🔄</div>
+                    <div class="timeline-date">Q1 2025 - READY</div>
+                    <div class="timeline-description">
+                        Enable players to stake with any token (USDT, USDC, etc.). Automatic swapping to CORE 
+                        via decentralized exchange integration.
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <div class="timeline-title">Phase 3: Cross-Chain 🌉</div>
+                    <div class="timeline-date">Q1 2025 - READY</div>
+                    <div class="timeline-description">
+                        Players from different blockchains can compete. LayerZero integration enables 
+                        seamless cross-chain gaming experiences.
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <div class="timeline-title">Phase 4: DAO Governance 🏛️</div>
+                    <div class="timeline-date">Q2 2025 - READY</div>
+                    <div class="timeline-description">
+                        Community-driven platform decisions. REALM token holders vote on new features, 
+                        games, and economic parameters.
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <div class="timeline-title">Phase 5: Combat Arena 🥊</div>
+                    <div class="timeline-date">Q2 2025</div>
+                    <div class="timeline-description">
+                        Launch of fighting game with Mortal Kombat-style gameplay. Multiple characters, 
+                        special moves, and tournament brackets.
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <div class="timeline-title">Phase 6: Racing & Pool 🏎️</div>
+                    <div class="timeline-date">Q3-Q4 2025</div>
+                    <div class="timeline-description">
+                        High-speed racing and precision pool games. Physics engines, upgradable vehicles, 
+                        and competitive ranked play.
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <div class="timeline-title">Phase 7: VR MetaRealm 🥽</div>
+                    <div class="timeline-date">2026</div>
+                    <div class="timeline-description">
+                        Full VR integration with 3D immersive worlds. Support for major VR headsets, 
+                        full body tracking, and social interactions—all on-chain.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features" id="features">
+        <h2 class="section-title">Why CrossRealm?</h2>
+        <p class="section-subtitle">The advantages of true blockchain gaming</p>
+        
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3 class="feature-title">Provably Fair</h3>
+                <p class="feature-description">
+                    Every move verified on-chain. No cheating, no manipulation. 
+                    The blockchain guarantees fair play.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">💰</div>
+                <h3 class="feature-title">Real Rewards</h3>
+                <p class="feature-description">
+                    Win crypto for your skills. Instant payouts, staking rewards, 
+                    and referral bonuses.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🏆</div>
+                <h3 class="feature-title">NFT Achievements</h3>
+                <p class="feature-description">
+                    Unlock rare NFTs for win streaks and tournaments. 
+                    True digital ownership of your gaming legacy.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🌐</div>
+                <h3 class="feature-title">Cross-Chain Play</h3>
+                <p class="feature-description">
+                    Play against anyone on any blockchain. 
+                    LayerZero bridges make it seamless.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3 class="feature-title">Low Fees</h3>
+                <p class="feature-description">
+                    Built on Core for minimal gas fees. 
+                    Play without worrying about transaction costs.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🎮</div>
+                <h3 class="feature-title">Growing Library</h3>
+                <p class="feature-description">
+                    From strategy to action to VR. 
+                    New games added regularly based on community votes.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>CrossRealm</h3>
+                <p style="color: #aaa;">
+                    The future of on-chain gaming. Play, compete, and earn in a truly decentralized gaming ecosystem.
+                </p>
+            </div>
+
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <ul class="footer-links">
+                    <li><a href="#games">Games</a></li>
+                    <li><a href="#roadmap">Roadmap</a></li>
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="admin-dashboard-mainnet.html" target="_blank">Admin Dashboard</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-section">
+                <h3>Resources</h3>
+                <ul class="footer-links">
+                    <li><a href="https://docs.crossrealm.io" target="_blank">Documentation</a></li>
+                    <li><a href="https://github.com/crossrealm" target="_blank">GitHub</a></li>
+                    <li><a href="https://scan.coredao.org/address/0x2D0FA241F72B8d9576876E43643374e7088C677f" target="_blank">Smart Contracts</a></li>
+                    <li><a href="#">Whitepaper</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-section">
+                <h3>Community</h3>
+                <div class="social-links">
+                    <a href="https://twitter.com/crossrealm" target="_blank">𝕏</a>
+                    <a href="https://discord.gg/crossrealm" target="_blank">💬</a>
+                    <a href="https://t.me/crossrealm" target="_blank">📱</a>
+                    <a href="https://github.com/crossrealm" target="_blank">⚙️</a>
+                </div>
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 40px; padding-top: 30px; border-top: 1px solid rgba(255,255,255,0.1); color: #666;">
+            © 2024 CrossRealm. All rights reserved. Built on Core Blockchain.
+        </div>
+    </footer>
+
+    <!-- Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== CONTRACT CONFIGURATION ====================
+        const CONTRACTS = {
+            HUB: '0x2D0FA241F72B8d9576876E43643374e7088C677f',
+            REWARDS: '0x1ab31E3FBbEE0228AB83276c2C74a42fe3DB3bDc',
+            STAKING: '0x0be0E11A9b2C214B8615C749F5f438C400B9e0DF',
+            VERIFIERS: {
+                CHESS: '0x252C94b74B52a44b6032c940369e9f50387E2AE1',
+                CHECKERS: '0x3Af55Fd76cfbFCa1584B4d3dE79Ce152729Dc521'
+            }
+        };
+
+        const HUB_ABI = [
+            'function gameCount() view returns (uint)',
+            'function createGame(string _gameType, uint _stake, address _token, bool _isPrivate, address _referral, bool _isAI, bool _zeroGas, address _verifier) external payable'
+        ];
+
+        let provider, signer, userAddress;
+
+        // ==================== INITIALIZATION ====================
+        window.addEventListener('load', () => {
+            createParticles();
+            loadStats();
+        });
+
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            for (let i = 0; i < 50; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        async function loadStats() {
+            try {
+                const tempProvider = new ethers.providers.JsonRpcProvider('https://rpc.coredao.org');
+                const hub = new ethers.Contract(CONTRACTS.HUB, HUB_ABI, tempProvider);
+                
+                const gameCount = await hub.gameCount();
+                animateValue('statGames', 0, gameCount.toNumber(), 2000);
+                animateValue('statVolume', 0, gameCount.toNumber() * 0.1, 2000);
+                animateValue('statPlayers', 0, Math.floor(gameCount.toNumber() / 2), 2000);
+                animateValue('statWinnings', 0, gameCount.toNumber() * 0.54 * 0.1, 2000);
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        function animateValue(id, start, end, duration) {
+            const element = document.getElementById(id);
+            const range = end - start;
+            const increment = range / (duration / 16);
+            let current = start;
+
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= end) {
+                    current = end;
+                    clearInterval(timer);
+                }
+                
+                if (id === 'statGames' || id === 'statPlayers') {
+                    element.textContent = Math.floor(current).toLocaleString();
+                } else {
+                    element.textContent = current.toFixed(2).toLocaleString();
+                }
+            }, 16);
+        }
+
+        // ==================== WALLET CONNECTION ====================
+        async function connectWallet() {
+            try {
+                if (!window.ethereum) {
+                    alert('Please install MetaMask!');
+                    return;
+                }
+
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
+                signer = provider.getSigner();
+                userAddress = await signer.getAddress();
+
+                document.getElementById('connectBtn').textContent = 
+                    userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
+                
+                alert('✅ Wallet connected!\n\nYou can now start playing games.');
+            } catch (error) {
+                console.error('Connection error:', error);
+                alert('Failed to connect wallet: ' + error.message);
+            }
+        }
+
+        // ==================== GAME ACTIONS ====================
+        function playGame(gameType) {
+            if (!userAddress) {
+                alert('Please connect your wallet first!');
+                return;
+            }
+
+            if (gameType === 'chess' || gameType === 'checkers') {
+                showCreateGameModal(gameType);
+            } else {
+                alert('This game is coming soon! Check the roadmap for release dates.');
+            }
+        }
+
+        function showCreateGameModal(gameType) {
+            const modalBody = document.getElementById('modalBody');
+            modalBody.innerHTML = `
+                <h2 style="margin-bottom: 20px;">Create ${gameType.charAt(0).toUpperCase() + gameType.slice(1)} Game</h2>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; color: #aaa;">Stake Amount (CORE)</label>
+                    <input type="number" id="stakeAmount" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #0a0a0a; color: white;" placeholder="0.1" step="0.01" min="0.01">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="playVsAI">
+                        <span style="color: #aaa;">Play vs AI</span>
+                    </label>
+                </div>
+                <button onclick="createGame('${gameType}')" class="btn btn-primary" style="width: 100%;">
+                    Create Game
+                </button>
+            `;
+            document.getElementById('modal').classList.add('active');
+        }
+
+        async function createGame(gameType) {
+            const stake = document.getElementById('stakeAmount').value;
+            const playAI = document.getElementById('playVsAI').checked;
+
+            if (!stake || stake <= 0) {
+                alert('Please enter a valid stake amount');
+                return;
+            }
+
+            try {
+                const hub = new ethers.Contract(CONTRACTS.HUB, HUB_ABI, signer);
+                const verifier = gameType === 'chess' ? CONTRACTS.VERIFIERS.CHESS : CONTRACTS.VERIFIERS.CHECKERS;
+                const value = ethers.utils.parseEther(stake);
+
+                const tx = await hub.createGame(
+                    gameType,
+                    value,
+                    ethers.constants.AddressZero,
+                    false,
+                    ethers.constants.AddressZero,
+                    playAI,
+                    false,
+                    verifier,
+                    { value }
+                );
+
+                closeModal();
+                alert('Transaction sent! Waiting for confirmation...');
+                
+                await tx.wait();
+                alert('✅ Game created successfully!\n\nShare the game link with your opponent or wait for someone to join.');
+                
+                loadStats();
+            } catch (error) {
+                console.error('Create game error:', error);
+                alert('Failed to create game: ' + error.message);
+            }
+        }
+
+        // ==================== MODAL FUNCTIONS ====================
+        function showModal(type) {
+            const modalBody = document.getElementById('modalBody');
+            
+            if (type === 'learn') {
+                modalBody.innerHTML = `
+                    <h2 style="margin-bottom: 20px;">How CrossRealm Works</h2>
+                    <p style="color: #aaa; line-height: 1.8; margin-bottom: 15px;">
+                        CrossRealm is the world's first fully on-chain gaming platform where every move is verified by smart contracts.
+                    </p>
+                    <p style="color: #aaa; line-height: 1.8; margin-bottom: 15px;">
+                        <strong style="color: white;">1. Connect Wallet</strong><br>
+                        Connect your MetaMask wallet to start playing.
+                    </p>
+                    <p style="color: #aaa; line-height: 1.8; margin-bottom: 15px;">
+                        <strong style="color: white;">2. Create or Join Games</strong><br>
+                        Choose your stake amount and create a game, or join an existing one.
+                    </p>
+                    <p style="color: #aaa; line-height: 1.8; margin-bottom: 15px;">
+                        <strong style="color: white;">3. Play & Win</strong><br>
+                        Every move is verified on-chain. Winner gets the pot, with bonuses for win streaks!
+                    </p>
+                    <p style="color: #aaa; line-height: 1.8;">
+                        <strong style="color: white;">4. Earn Rewards</strong><br>
+                        7% cashback on all games, plus staking rewards and NFT achievements.
+                    </p>
+                `;
+            }
+            
+            document.getElementById('modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        // ==================== NAVIGATION ====================
+        function scrollToGames() {
+            document.getElementById('games').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Close modal on outside click
+        document.getElementById('modal').addEventListener('click', (e) => {
+            if (e.target.id === 'modal') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
