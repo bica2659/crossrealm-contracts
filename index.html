@@ -1702,26 +1702,22 @@
     document.getElementById('aiThinking').classList.remove('hidden');
 
     try {
-        const bestMove = getBestMove(gameEngine, 3); // depth 3 = strong but fast
-        if (!bestMove) throw new Error("No legal moves");
+        const bestMove = getBestMove(gameEngine, 3);
+        if (!bestMove) throw new Error("No moves");
 
-        // ← THIS IS THE CRITICAL FIX: generate newFen properly
+        // FIX: generate newFen properly
         const tempChess = new Chess(gameEngine.fen());
         tempChess.move(bestMove);
         const newFen = tempChess.fen();
 
         const moveStr = bestMove.from + bestMove.to;
-        const proof = '0x'; // verifier ignores it
-
-        console.log('🤖 AI submitting move:', moveStr);
+        const proof = '0x';
 
         const tx = await hub.makeMove(currentGameId, moveStr, newFen, proof, {
-            gasLimit: 800000   // ← fixed gas to prevent early revert
+            gasLimit: 800000
         });
 
         showAlert('🤖 AI moved: ' + moveStr, 'success');
-
-        // Update local board immediately
         gameEngine.move(bestMove);
         renderChessBoard();
 
@@ -1730,8 +1726,8 @@
         await loadGame(currentGameId);
 
     } catch (e) {
-        console.error('AI move failed:', e);
-        showAlert('AI move failed: ' + (e.reason || e.message || 'Unknown error'), 'error');
+        console.error('AI error:', e);
+        showAlert('AI failed: ' + (e.reason || e.message), 'error');
     } finally {
         document.getElementById('aiThinking').classList.add('hidden');
     }
@@ -1969,7 +1965,6 @@
                 }
                 
                 // Format move as "a1b2" notation
-                const files = 'abcdefgh';
                 const moveStr = `${fromCol},${fromRank}-${toCol},${toRank}`;  // e.g. "4,2-5,3"
                 
                 console.log('=== CHECKERS MOVE ===');
@@ -2207,80 +2202,75 @@
         }
 
         // ==================== STAKING ====================
-        async function stakeTokens() {
-            if (!staking) return showAlert('Connect wallet first', 'error');
-            const amount = document.getElementById('stakeInput').value;
-            if (!amount || parseFloat(amount) <= 0) return showAlert('Enter valid amount', 'error');
+       async function stakeTokens() {
+    if (!staking) return showAlert('Connect wallet first', 'error');
+    const amount = document.getElementById('stakeInput').value;
+    if (!amount || parseFloat(amount) <= 0) return showAlert('Enter valid amount', 'error');
 
-            try {
-                const stake = ethers.utils.parseEther(amount);
-                
-                console.log('Staking:', {
-                    amount: amount,
-                    stake: stake.toString(),
-                    contract: CONTRACTS.STAKING
-                });
-                
-                // Estimate gas first
-                const gasEstimate = await staking.estimateGas.stake({ value: stake });
-                console.log('Gas estimate:', gasEstimate.toString());
-                
-                const tx = await staking.stake({ 
-                    value: stake, 
-                    gasLimit: gasEstimate.mul(120).div(100) // 20% buffer
-                });
-                
-                showAlert('⏳ Staking... Tx: ' + tx.hash.slice(0, 10) + '...', 'info');
-                const receipt = await tx.wait();
-                
-                console.log('Staking success:', receipt);
-                showAlert('✅ Staked successfully!', 'success');
-                await updateStakingInfo();
-                await updateBalance();
-            } catch (e) {
-                console.error('Staking error:', e);
-                let errorMsg = 'Transaction failed';
-                if (e.error && e.error.message) {
-                    errorMsg = e.error.message;
-                } else if (e.message) {
-                    errorMsg = e.message;
-                }
-                if (e.reason) errorMsg = e.reason;
-                showAlert('❌ Staking failed: ' + errorMsg, 'error');
-            }
-        }
+    try {
+        const stakeAmount = ethers.utils.parseEther(amount);
 
-        async function withdrawStake() {
-            if (!staking) return showAlert('Connect wallet first', 'error');
-            const amount = document.getElementById('stakeInput').value;
-            if (!amount || parseFloat(amount) <= 0) return showAlert('Enter valid amount', 'error');
+        console.log('Staking:', amount, 'CORE');
 
-            try {
-                const unstake = ethers.utils.parseEther(amount);
-                const tx = await staking.withdraw(unstake, { gasLimit: 300000 });
-                showAlert('⏳ Unstaking...', 'info');
-                await tx.wait();
-                showAlert('✅ Unstaked successfully!', 'success');
-                await updateStakingInfo();
-                await updateBalance();
-            } catch (e) {
-                showAlert('❌ Unstake failed: ' + (e.reason || e.message), 'error');
-            }
-        }
+        // Your Staking contract uses deposit(), NOT stake()
+        const tx = await staking.deposit({
+            value: stakeAmount,
+            gasLimit: 300000  // Fixed safe gas — no estimation needed
+        });
 
-        async function claimStakingRewards() {
-            if (!staking) return showAlert('Connect wallet first', 'error');
-            try {
-                const tx = await staking.claimRewards({ gasLimit: 300000 });
-                showAlert('⏳ Claiming rewards...', 'info');
-                await tx.wait();
-                showAlert('✅ Rewards claimed!', 'success');
-                await updateStakingInfo();
-                await updateBalance();
-            } catch (e) {
-                showAlert('❌ Claim failed: ' + (e.reason || e.message), 'error');
-            }
-        }
+        showAlert('⏳ Staking... Tx: ' + tx.hash.slice(0, 10) + '...', 'info');
+        const receipt = await tx.wait();
+
+        console.log('Staking success:', receipt);
+        showAlert('✅ Staked successfully!', 'success');
+
+        await updateStakingInfo();
+        await updateBalance();
+
+    } catch (e) {
+        console.error('Staking error:', e);
+        let errorMsg = 'Transaction failed';
+        if (e.reason) errorMsg = e.reason;
+        else if (e.error?.message) errorMsg = e.error.message;
+        else if (e.message) errorMsg = e.message;
+
+        showAlert('❌ Staking failed: ' + errorMsg, 'error');
+    }
+}
+       async function withdrawStake() {
+    if (!staking) return showAlert('Connect wallet first', 'error');
+    const amount = document.getElementById('stakeInput').value;
+    if (!amount || parseFloat(amount) <= 0) return showAlert('Enter valid amount', 'error');
+
+    try {
+        const withdrawAmount = ethers.utils.parseEther(amount);
+        const tx = await staking.withdraw(withdrawAmount, { gasLimit: 300000 });
+
+        showAlert('⏳ Unstaking...', 'info');
+        await tx.wait();
+        showAlert('✅ Unstaked successfully!', 'success');
+
+        await updateStakingInfo();
+        await updateBalance();
+    } catch (e) {
+        showAlert('❌ Unstake failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+async function claimStakingRewards() {
+    if (!staking) return showAlert('Connect wallet first', 'error');
+    try {
+        const tx = await staking.harvest({ gasLimit: 300000 });  // or getReward() if that's the function name
+        showAlert('⏳ Claiming rewards...', 'info');
+        await tx.wait();
+        showAlert('✅ Rewards claimed!', 'success');
+
+        await updateStakingInfo();
+        await updateBalance();
+    } catch (e) {
+        showAlert('❌ Claim failed: ' + (e.reason || e.message), 'error');
+    }
+}
 
         async function claimRewards() {
             if (!rewards) return showAlert('Connect wallet first', 'error');
