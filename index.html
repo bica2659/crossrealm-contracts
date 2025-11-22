@@ -1711,7 +1711,7 @@
                     
                     console.log('AI submitting move:', moveStr);
                     
-                    const tx = await hub.makeMove(currentGameId, moveStr, { gasLimit: 500000 });
+                    const tx = await hub.makeMove(currentGameId, moveStr, newFen, proof, { gasLimit: 800000 });
                     showAlert('🤖 AI is making a move...', 'info');
                     await tx.wait();
                     showAlert('AI moved: ' + bestMove.from + ' → ' + bestMove.to, 'success');
@@ -1960,7 +1960,7 @@
                 
                 // Format move as "a1b2" notation
                 const files = 'abcdefgh';
-                const moveStr = files[fromCol] + (8 - fromRow) + files[toCol] + (8 - toRow);
+                const moveStr = `${fromCol},${fromRank}-${toCol},${toRank}`;  // e.g. "4,2-5,3"
                 
                 console.log('=== CHECKERS MOVE ===');
                 console.log('From:', fromRow, fromCol, 'To:', toRow, toCol);
