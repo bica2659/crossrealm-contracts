@@ -1697,35 +1697,45 @@
 
         // ==================== AI ENGINE ====================
         async function makeAIMove() {
-            if (!gameEngine || !isAIGame || isMyTurn) return;
-            
-            document.getElementById('aiThinking').classList.remove('hidden');
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            try {
-                const bestMove = getBestMove(gameEngine, 2);
-                
-                if (bestMove) {
-                    const moveStr = bestMove.from + bestMove.to;
-                    
-                    console.log('AI submitting move:', moveStr);
-                    
-                    const tx = await hub.makeMove(currentGameId, moveStr, newFen, proof, { gasLimit: 800000 });
-                    showAlert('🤖 AI is making a move...', 'info');
-                    await tx.wait();
-                    showAlert('AI moved: ' + bestMove.from + ' → ' + bestMove.to, 'success');
-                    
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    await loadGame(currentGameId);
-                }
-            } catch (e) {
-                console.error('AI move error:', e);
-                showAlert('AI move failed: ' + (e.reason || e.message), 'error');
-            }
-            
-            document.getElementById('aiThinking').classList.add('hidden');
-        }
+    if (!gameEngine || !isAIGame || isMyTurn) return;
+
+    document.getElementById('aiThinking').classList.remove('hidden');
+
+    try {
+        const bestMove = getBestMove(gameEngine, 3); // depth 3 = strong but fast
+        if (!bestMove) throw new Error("No legal moves");
+
+        // ← THIS IS THE CRITICAL FIX: generate newFen properly
+        const tempChess = new Chess(gameEngine.fen());
+        tempChess.move(bestMove);
+        const newFen = tempChess.fen();
+
+        const moveStr = bestMove.from + bestMove.to;
+        const proof = '0x'; // verifier ignores it
+
+        console.log('🤖 AI submitting move:', moveStr);
+
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, proof, {
+            gasLimit: 800000   // ← fixed gas to prevent early revert
+        });
+
+        showAlert('🤖 AI moved: ' + moveStr, 'success');
+
+        // Update local board immediately
+        gameEngine.move(bestMove);
+        renderChessBoard();
+
+        await tx.wait();
+        await new Promise(r => setTimeout(r, 2000));
+        await loadGame(currentGameId);
+
+    } catch (e) {
+        console.error('AI move failed:', e);
+        showAlert('AI move failed: ' + (e.reason || e.message || 'Unknown error'), 'error');
+    } finally {
+        document.getElementById('aiThinking').classList.add('hidden');
+    }
+}
 
         function getBestMove(chess, depth) {
             const moves = chess.moves({ verbose: true });
