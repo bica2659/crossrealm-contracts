@@ -1185,23 +1185,27 @@ function selectLockPeriod(days) {
 }
 
 function startAutoRefresh() {
-    setInterval(() => {
-        if (currentGameId) {
-    // Only reload if game is still active
-    try {
-        const game = await hub.games(currentGameId);
-        if (game.active) {
-            loadGame(currentGameId);
-            loadChatMessages();
-        } else {
-            // Game ended — clear board
-            currentGameId = null;
-            document.getElementById('gameInfo').textContent = 'Game Over';
-            document.getElementById('boardContainer').innerHTML = '';
-            document.getElementById('forfeitBtn').disabled = true;
-            document.getElementById('shareBtn').disabled = true;
+    setInterval(async () => {  // ← ADD "async" HERE
+        if (!currentGameId || !hub) return;
+        
+        try {
+            const game = await hub.games(currentGameId);
+            if (game.active) {
+                await loadGame(currentGameId);
+                await loadChatMessages();
+            } else {
+                // Game ended
+                currentGameId = null;
+                document.getElementById('gameInfo').textContent = 'Game Over';
+                document.getElementById('boardContainer').innerHTML = '';
+                document.getElementById('forfeitBtn').disabled = true;
+                document.getElementById('shareBtn').disabled = true;
+                showAlert('Game has ended', 'info');
+            }
+        } catch (e) {
+            // Silent fail - normal if game deleted
         }
-    } catch (e) {}
+    }, 8000); // Refresh every 8 seconds
 }
 
 // ==================== STATISTICS ====================
