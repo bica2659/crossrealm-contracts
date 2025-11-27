@@ -732,7 +732,8 @@
         <header class="header">
             <div class="logo">⚡ CROSSREALM</div>
             <div class="tagline">
-                Next-Gen On-Chain Gaming Ecosystem<br>Built on Core Blockchain • Hermes Enabled
+                Skill-Based On-Chain Gaming • Winner Takes All<br>
+                Built on Core Blockchain • 7% Cashback • 10% Lifetime Referrals
             </div>
             <div class="wallet-bar">
                 <div class="wallet-info hidden" id="walletInfo">
@@ -808,12 +809,8 @@
                 <h3>🎯 Referral Dashboard</h3>
                 <div class="referral-stats">
                     <div class="referral-stat">
-                        <div class="value" id="refEarningsMonth">0.00</div>
-                        <div class="label">This Month Earnings</div>
-                    </div>
-                    <div class="referral-stat">
                         <div class="value" id="refEarningsTotal">0.00</div>
-                        <div class="label">Lifetime Earnings</div>
+                        <div class="label">Total Earnings (CORE)</div>
                     </div>
                     <div class="referral-stat">
                         <div class="value" id="refReferredBy">None</div>
@@ -830,14 +827,10 @@
                     • Build passive income by growing your gaming network! 🚀
                 </div>
                 
-                <button onclick="claimReferralRewards()" style="width: 100%; margin-top: 15px;" class="success">
-                    💰 Claim Referral Earnings
+                <button onclick="claimAllRewards()" style="width: 100%; margin-top: 15px;" class="success">
+                    💰 Claim All Rewards (Cashback + Referrals + Creator Bonus)
                 </button>
             </div>
-            
-            <button onclick="claimRewards()" style="width: 100%; margin-top: 25px;" class="success">
-                💎 Claim All Rewards
-            </button>
         </div>
 
         <!-- PLAY TAB -->
@@ -850,12 +843,20 @@
                         <option value="checkers">🎯 Checkers</option>
                     </select>
                     <input type="number" id="stakeAmount" placeholder="Stake (CORE)" min="0.01" step="0.01" value="0.1">
-                    <label><input type="checkbox" id="isPrivate"> 🔒 Private Game</label>
+                    
+                    <div class="info-badge" style="margin-bottom: 15px;">
+                        💰 <strong>Fee Breakdown:</strong> Pay 2.5% fee per player (5% total).<br>
+                        You get: <strong>7% cashback</strong> on your fee<br>
+                        Public game bonus: <strong>8% creator bonus</strong> + <strong>10% lifetime referral</strong> from joiners!<br>
+                        Winner takes all stakes! 🏆
+                    </div>
+                    
+                    <label><input type="checkbox" id="isPrivate"> 🔒 Private Game (no referrals, but 8% creator bonus)</label>
                     <label><input type="checkbox" id="isAI" checked> 🤖 Play vs AI</label>
                     <button onclick="createGame()" style="width: 100%;">Create Game</button>
                     <div class="info-badge">
-                        ✨ <strong>Trustless Gaming:</strong> All moves verified on-chain. AI opponent powered by advanced algorithms. Instant 7% cashback on every game!<br><br>
-                        🎯 <strong>Referral Bonus:</strong> Public games automatically recruit referrals! Earn 10% lifetime + 8% creator bonus.
+                        ✨ <strong>New to CrossRealm?</strong> Start with AI mode to learn, then challenge real players!<br>
+                        All moves verified on-chain. Instant payouts. No BS. 🎯
                     </div>
                 </div>
 
@@ -866,7 +867,7 @@
                             Load a game to start chatting
                         </p>
                     </div>
-                    <textarea id="chatInput" placeholder="Type your message..." rows="2"></textarea>
+                    <textarea id="chatInput" placeholder="Type your message (280 chars max)..." rows="2"></textarea>
                     <button onclick="sendChatMessage()" style="width: 100%;" id="sendChatBtn" disabled>Send Message</button>
                 </div>
             </div>
@@ -912,12 +913,12 @@
                 <div class="card">
                     <h3>💎 Stake CORE</h3>
                     <p style="color: var(--dim); margin-bottom: 20px; font-size: 13px;">
-                        Earn variable APY based on platform activity. Lock for bonus rewards! Enhanced with Hermes fast finality (2 blocks).
+                        Earn variable APY funded by platform revenue (10% of all game fees). Lock for bonus rates!
                     </p>
                     
                     <div class="variable-apy-badge">
-                        📊 Current Platform APY: <strong id="platformAPY">10-14%</strong><br>
-                        <small>Variable • Based on platform revenue • Lock for +1-2% bonus</small>
+                        📊 Current Base APY: <strong id="platformAPY">10-12%</strong> (Variable)<br>
+                        <small>Funded by platform fees • Lock for +1-2% bonus • No risk staking</small>
                     </div>
                     
                     <label>Select Lock Period</label>
@@ -937,7 +938,7 @@
                     </div>
                     
                     <input type="number" id="stakeInput" placeholder="Amount (CORE)" min="0.01" step="0.01" value="1">
-                    <button onclick="stakeTokens()" style="width: 100%; margin-bottom: 10px;">Stake</button>
+                    <button onclick="stakeTokens()" style="width: 100%; margin-bottom: 10px;">Stake CORE</button>
                     <button onclick="withdrawStake()" style="width: 100%; margin-bottom: 10px;">Withdraw</button>
                     <button onclick="claimStakingRewards()" style="width: 100%;" class="success">Claim Rewards</button>
                 </div>
@@ -946,29 +947,19 @@
                     <h3>📊 Staking Stats</h3>
                     <div style="font-size: 14px; line-height: 2;">
                         <p><strong>Your Stake:</strong> <span id="userStake">0 CORE</span></p>
-                        <p><strong>Your APY:</strong> <span style="color: var(--core-green);" id="userAPY">Variable</span></p>
+                        <p><strong>Your APY:</strong> <span style="color: var(--core-green);" id="userAPY">Variable (10-14%)</span></p>
                         <p><strong>Lock Period:</strong> <span id="lockPeriodDisplay">No Lock</span></p>
                         <p><strong>Earned Rewards:</strong> <span id="earnedRewards">0 CORE</span></p>
                         <p><strong>Total Platform Staked:</strong> <span id="totalStaked">0 CORE</span></p>
                     </div>
                     
-                    <div class="pool-card mt-2">
-                        <h4 style="color: var(--core-green); margin-bottom: 15px;">💰 Tournament Prize Pool</h4>
-                        <p style="color: var(--dim); font-size: 12px; margin-bottom: 15px;">
-                            Help grow the tournament prize pool and get community recognition!
-                        </p>
-                        <div class="pool-stats">
-                            <div class="pool-stat">
-                                <div class="value" id="totalPoolSize">0</div>
-                                <div class="label">Total Pool</div>
-                            </div>
-                            <div class="pool-stat">
-                                <div class="value" id="yourContribution">0</div>
-                                <div class="label">Your Contribution</div>
-                            </div>
-                        </div>
-                        <input type="number" id="poolContribution" placeholder="Amount (CORE)" min="0.01" step="0.01" value="0.1">
-                        <button onclick="contributeToPool()" style="width: 100%;" class="success">Contribute to Pool</button>
+                    <div class="info-badge mt-2">
+                        <strong>🎯 How Staking Works:</strong><br>
+                        • Platform takes 5% fee per game (2.5% from each player)<br>
+                        • 10% of fees go to staking APY pool<br>
+                        • 4% of fees go to staker bonus pool (30/90 day locks)<br>
+                        • APY adjusts based on platform activity (more games = higher APY)<br>
+                        • Lock longer for higher rewards! 🚀
                     </div>
                 </div>
             </div>
@@ -980,8 +971,8 @@
                 <div class="coming-soon-icon">🗺️</div>
                 <h2 class="coming-soon-title">CrossRealm Roadmap</h2>
                 <p class="coming-soon-description" style="font-size: 18px; margin-bottom: 50px;">
-                    From classic board games to arcade action, cross-chain gaming, and full DAO governance.<br>
-                    <strong>We're building the ultimate on-chain gaming ecosystem!</strong>
+                    From skill-based board games to competitive gaming metaverse with property ownership.<br>
+                    <strong>We're building the future of on-chain gaming!</strong>
                 </p>
 
                 <!-- Phase 1: LIVE -->
@@ -991,61 +982,137 @@
                         <span class="phase-badge live">LIVE NOW</span>
                     </h3>
                     <p style="color: var(--text); font-size: 16px; line-height: 1.8; margin-bottom: 15px;">
-                        Classic strategy board games with on-chain verification, AI opponents, and instant rewards.
+                        Skill-based strategy games with real stakes, AI opponents, instant rewards, and passive income.
                     </p>
                     <div class="feature-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                         <div style="background: rgba(0, 255, 136, 0.1); padding: 15px; border-radius: 8px;">
                             <div style="font-size: 32px; margin-bottom: 10px;">♟️</div>
                             <strong style="color: var(--core-green);">Chess</strong><br>
-                            <small style="color: var(--dim);">Full rules, AI opponent</small>
+                            <small style="color: var(--dim);">Full rules, AI opponent, on-chain verification</small>
                         </div>
                         <div style="background: rgba(0, 255, 136, 0.1); padding: 15px; border-radius: 8px;">
                             <div style="font-size: 32px; margin-bottom: 10px;">🎯</div>
                             <strong style="color: var(--core-green);">Checkers</strong><br>
-                            <small style="color: var(--dim);">International rules</small>
+                            <small style="color: var(--dim);">International rules, king promotions</small>
                         </div>
                         <div style="background: rgba(0, 255, 136, 0.1); padding: 15px; border-radius: 8px;">
                             <div style="font-size: 32px; margin-bottom: 10px;">💰</div>
-                            <strong style="color: var(--core-green);">Staking</strong><br>
-                            <small style="color: var(--dim);">Variable APY rewards</small>
+                            <strong style="color: var(--core-green);">Variable APY Staking</strong><br>
+                            <small style="color: var(--dim);">10-14% funded by fees</small>
+                        </div>
+                        <div style="background: rgba(0, 255, 136, 0.1); padding: 15px; border-radius: 8px;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">🎯</div>
+                            <strong style="color: var(--core-green);">10% Lifetime Referrals</strong><br>
+                            <small style="color: var(--dim);">Permanent passive income</small>
                         </div>
                         <div style="background: rgba(0, 255, 136, 0.1); padding: 15px; border-radius: 8px;">
                             <div style="font-size: 32px; margin-bottom: 10px;">💬</div>
-                            <strong style="color: var(--core-green);">Chat</strong><br>
-                            <small style="color: var(--dim);">In-game messaging</small>
+                            <strong style="color: var(--core-green);">On-Chain Chat</strong><br>
+                            <small style="color: var(--dim);">In-game messaging (280 chars)</small>
+                        </div>
+                        <div style="background: rgba(0, 255, 136, 0.1); padding: 15px; border-radius: 8px;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">🏆</div>
+                            <strong style="color: var(--core-green);">Tournaments</strong><br>
+                            <small style="color: var(--dim);">4-64 players, auto-start</small>
                         </div>
                     </div>
                 </div>
 
-                <!-- More phases... (keeping your full roadmap) -->
+                <!-- Phase 2: REALM Token -->
                 <div style="background: rgba(247, 147, 26, 0.1); border: 2px solid var(--bitcoin-orange); border-radius: 12px; padding: 30px; margin-bottom: 30px; text-align: left;">
                     <h3 style="color: var(--bitcoin-orange); margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between;">
-                        <span>🕹️ Phase 2: Arcade Arena</span>
+                        <span>🪙 Phase 2: REALM Token & Marketplace</span>
                         <span class="phase-badge soon">Q1 2026</span>
                     </h3>
                     <p style="color: var(--text); font-size: 16px; line-height: 1.8; margin-bottom: 15px;">
-                        Fast-paced arcade-style games with real-time action and competitive gameplay.
+                        Dual-token economy: CORE for gameplay, REALM for ownership. Deflationary tokenomics with property NFTs.
                     </p>
                     <div class="feature-grid">
                         <div class="feature-item">
-                            <div class="feature-icon">🥊</div>
-                            <div class="feature-name">Fighter Arena</div>
-                            <div class="feature-desc">Street fighter-style combat with character NFTs and special moves</div>
+                            <div class="feature-icon">🪙</div>
+                            <div class="feature-name">REALM Token Launch</div>
+                            <div class="feature-desc">Max 210M supply, 5% burn, governance, fee discounts, property purchases</div>
                         </div>
                         <div class="feature-item">
-                            <div class="feature-icon">🏎️</div>
-                            <div class="feature-name">Racing Circuit</div>
-                            <div class="feature-desc">High-speed racing with vehicle NFTs and track betting</div>
+                            <div class="feature-icon">🏪</div>
+                            <div class="feature-name">Property NFT Marketplace</div>
+                            <div class="feature-desc">Buy/sell land, homes, venues with REALM. Scarcity-based pricing</div>
                         </div>
                         <div class="feature-item">
-                            <div class="feature-icon">🎱</div>
-                            <div class="feature-name">Pool/Snooker</div>
-                            <div class="feature-desc">Physics-based billiards with tournament support</div>
+                            <div class="feature-icon">💱</div>
+                            <div class="feature-name">CORE→REALM Conversion</div>
+                            <div class="feature-desc">Platform buys REALM with 24% dev fund, burns 50%, rewards 50%</div>
                         </div>
                         <div class="feature-item">
-                            <div class="feature-icon">⚽</div>
-                            <div class="feature-name">Soccer Penalties</div>
-                            <div class="feature-desc">Penalty shootouts with team NFTs and leagues</div>
+                            <div class="feature-icon">🗳️</div>
+                            <div class="feature-name">DAO Governance</div>
+                            <div class="feature-desc">REALM holders vote on fees, games, features, treasury</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 3: 3D Metaverse -->
+                <div style="background: rgba(102, 126, 234, 0.1); border: 2px solid #667eea; border-radius: 12px; padding: 30px; margin-bottom: 30px; text-align: left;">
+                    <h3 style="color: #667eea; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between;">
+                        <span>🌐 Phase 3: 3D Gaming Metaverse</span>
+                        <span class="phase-badge soon">Q2-Q3 2026</span>
+                    </h3>
+                    <p style="color: var(--text); font-size: 16px; line-height: 1.8; margin-bottom: 15px;">
+                        Full 3D world (Ready Player One meets competitive gaming). Own venues, host games, earn revenue.
+                    </p>
+                    <div class="feature-grid">
+                        <div class="feature-item">
+                            <div class="feature-icon">🎮</div>
+                            <div class="feature-name">3D Avatar NFTs</div>
+                            <div class="feature-desc">Own 3D characters, spawn in HOME, explore realtime world</div>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">🏟️</div>
+                            <div class="feature-name">Venue Ownership</div>
+                            <div class="feature-desc">Own bars, casinos, stadiums. Earn 10% of games played on your property</div>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">🕹️</div>
+                            <div class="feature-name">In-World Gaming</div>
+                            <div class="feature-desc">Walk to chess table, sit, stake, play, win, continue exploring</div>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">🎯</div>
+                            <div class="feature-name">Cross-Platform</div>
+                            <div class="feature-desc">VR headsets, PS5, Xbox, PC, mobile - all connected</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 4: Cross-Chain -->
+                <div style="background: rgba(159, 122, 234, 0.1); border: 2px solid #9f7aea; border-radius: 12px; padding: 30px; text-align: left;">
+                    <h3 style="color: #9f7aea; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between;">
+                        <span>⛓️ Phase 4: Cross-Chain Expansion</span>
+                        <span class="phase-badge soon">Q4 2026</span>
+                    </h3>
+                    <p style="color: var(--text); font-size: 16px; line-height: 1.8; margin-bottom: 15px;">
+                        Bridge to Ethereum, BSC, Arbitrum, Polygon. Accept any token, auto-swap to CORE.
+                    </p>
+                    <div class="feature-grid">
+                        <div class="feature-item">
+                            <div class="feature-icon">🌉</div>
+                            <div class="feature-name">LayerZero Bridge</div>
+                            <div class="feature-desc">Bridge assets from any chain to Core seamlessly</div>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">💱</div>
+                            <div class="feature-name">Multi-Token Support</div>
+                            <div class="feature-desc">Stake with ETH, USDT, USDC, BTC - auto-convert to CORE</div>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">🌍</div>
+                            <div class="feature-name">Unified Dashboard</div>
+                            <div class="feature-desc">Track all assets across chains in one interface</div>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">🔄</div>
+                            <div class="feature-name">Cross-Chain Properties</div>
+                            <div class="feature-desc">Own property NFTs across multiple blockchains</div>
                         </div>
                     </div>
                 </div>
@@ -1053,7 +1120,8 @@
                 <div style="margin-top: 50px; padding: 30px; background: rgba(247, 147, 26, 0.1); border-radius: 12px;">
                     <h3 style="color: var(--bitcoin-orange); margin-bottom: 15px;">🚀 Join the Journey</h3>
                     <p style="color: var(--text); font-size: 16px; line-height: 1.8;">
-                        We're building CrossRealm together with the community. Every game you play shapes the future of on-chain gaming!
+                        We're building CrossRealm with the community. Every game you play, every referral you recruit, 
+                        and every stake you make shapes the future of on-chain gaming. Early players get REALM airdrop! 💎
                     </p>
                 </div>
             </div>
@@ -1061,15 +1129,19 @@
 
         <!-- Footer -->
         <footer style="text-align: center; padding: 30px; background: var(--card-bg); border-top: 1px solid var(--border); margin-top: 50px; border-radius: 8px;">
-            <p style="margin-bottom: 15px; font-size: 12px; color: var(--dim);">© 2025 CrossRealm • Built on Core Blockchain • Hermes Enabled</p>
+            <p style="margin-bottom: 15px; font-size: 12px; color: var(--dim);">© 2025 CrossRealm • Built on Core Blockchain</p>
             <p style="font-size: 11px; color: var(--dim); margin-top: 10px;">
-                All gameplay verified on-chain • Trustless • Transparent • Fast Finality (2 blocks)
+                All gameplay verified on-chain • Trustless • Transparent • Skill-Based Gaming
+            </p>
+            <p style="font-size: 10px; color: var(--dim); margin-top: 10px;">
+                🔗 <a href="https://scan.coredao.org/address/0xB190f69C14702aBd095a55EF904Ab9cFA23f49d0" target="_blank" style="color: var(--bitcoin-orange);">View Hub Contract</a> |
+                <a href="https://scan.coredao.org/address/0x484b852d82364c7018E5BfB72E996c16FA166003" target="_blank" style="color: var(--bitcoin-orange);">View Rewards Contract</a>
             </p>
         </footer>
     </div>
 
     <script>
-        // ==================== CONFIG ====================
+        // ==================== ✅ NEW DEPLOYED CONTRACT ADDRESSES ====================
         const CORE_MAINNET = {
             chainId: '0x45c',
             chainName: 'Core',
@@ -1079,1249 +1151,1186 @@
         };
 
         const CONTRACTS = {
-            HUB: '0x9a6ECcb7Ff845AEB88b3D05844F5C052043bA620',
-            REWARDS: '0x09b484cE108522bAb5121B0Cf0e57375A8EF6Aa2',
-            STAKING: '0x8306c35583AbEb3a3A928B875334A1C896F20F1d',
-            CHESS_VERIFIER: '0xA6a40f59252b047c9Fab32c9042b3706980993bF',
-            CHECKERS_VERIFIER: '0x4a216c9573113bA8D464b7116efa2Ea760edBb5d'
+            // ✅ NEW ADDRESSES FROM DEPLOYMENT
+            HUB: '0xB190f69C14702aBd095a55EF904Ab9cFA23f49d0',
+            REWARDS: '0x484b852d82364c7018E5BfB72E996c16FA166003',
+            STAKING: '0xB1eedd95b4d6DC4206ad1cd4250114CEA0fEd834',
+            GAMECHAT: '0x77C2DB22b83931F0B99cfDD2a883C3e336a80268',
+            TOURNAMENT: '0x8EeC9038c0FfdAD50a8f3B7dF3765760B181e8eb',
+            CHESS_VERIFIER: '0x85CdaFFd052B3F1A1ba6C2F57b7440F52443a933',
+            CHECKERS_VERIFIER: '0xfa0301872A1B96a01B770AC9f1b779638bc4aD0D'
         };
 
+        // ✅ UPDATED HUB ABI (matches new contract)
         const HUB_ABI = [
             'function gameCount() view returns (uint)',
-            'function games(uint) view returns (uint id, string gameType, uint stake, address token, address creator, address player2, bool isAI, bool isPrivate, address referral, bool zeroGas, bool active, string fen, address verifier, uint turn)',
-            'function createGame(string gameType, uint stake, address token, bool isPrivate, address referral, bool isAI, bool zeroGas, address verifier) external payable returns (uint)',
+            'function games(uint) view returns (uint id, string gameType, uint stake, address creator, address player2, bool isAI, bool isPrivate, bool active, string currentFen, uint createdAt)',
+            'function createGame(string gameType, uint stake, bool isPrivate, bool isAI) external payable returns (uint)',
             'function joinGame(uint gameId) external payable',
-            'function makeMove(uint gameId, string move, string newFen, bytes proof) external'
+            'function makeMove(uint gameId, string move, string newFen, bytes proof) external',
+            'function forfeitGame(uint gameId) external',
+            'function getInitialFen(string gameType) view returns (string)'
         ];
 
+        // ✅ UPDATED REWARDS ABI (matches new contract)
         const REWARDS_ABI = [
             'function playerCashbackCORE(address) view returns (uint256)',
-            'function getUserStats(address) view returns (uint256 wins, uint256 losses, uint256 totalStakes, uint256 elo)',
-            'function getUserGamesCount(address) view returns (uint256)',
-            'function getTotalClaimable(address user, address token, uint256 timestamp) view returns (uint256)',
-            'function claimRewards(address user, address token, uint256 timestamp) external',
+            'function referralEarningsCORE(address) view returns (uint256)',
+            'function creatorBonusCORE(address) view returns (uint256)',
             'function primaryReferrer(address) view returns (address)',
-            'function referralEarningsCORE(address, uint256) view returns (uint256)'
+            'function claimAllRewards() external'
         ];
 
+        // ✅ UPDATED STAKING ABI
         const STAKING_ABI = [
-            'function balances(address) view returns (uint256)',
-            'function totalSupply() view returns (uint256)',
-            'function stake(uint256 amount) payable',
+            'function stakes(address) view returns (uint amount, uint lockPeriod, uint lockedUntil, uint stakedAt, uint lastClaimTime)',
+            'function totalStaked() view returns (uint256)',
+            'function stake(uint256 lockPeriod) payable',
             'function withdraw(uint256 amount)',
-            'function getReward()'
+            'function claimRewards()',
+            'function calculateRewards(address user) view returns (uint256)',
+            'function getStakeInfo(address user) view returns (uint amount, uint lockPeriod, uint lockedUntil, uint pendingRewards)'
         ];
 
+        // ✅ UPDATED CHAT ABI
         const CHAT_ABI = [
             'function sendMessage(uint256 gameId, string message) external',
-            'function getMessages(uint256 gameId) view returns (tuple(address sender, string message, uint256 timestamp)[])'
+            'function getMessages(uint256 gameId) view returns (tuple(address sender, string message, uint256 timestamp)[])',
+            'function getMessageCount(uint256 gameId) view returns (uint256)'
         ];
 
-        const PIECE_UNICODE = {
-            'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
-            'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
-        };
+        // Piece Unicode
+const PIECE_UNICODE = {
+    'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
+    'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
+};
 
-        const PIECE_VALUES = {
-            'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000
-        };
+const PIECE_VALUES = {
+    'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000
+};
 
-        // ==================== STATE ====================
-        let provider, signer, userAddress;
-        let hub, rewards, gameChat, staking, currentGame = null, currentGameId = null;
-        let gameEngine = null, checkersBoard = null;
-        let isConnected = false, selectedLockPeriod = 0;
-        let moveFrom = null, isAIGame = false, isMyTurn = false;
-        let chatInterval = null;
-        let aiMoveInProgress = false;
-        let checkersSelectedSquare = null;
+// ==================== STATE ====================
+let provider, signer, userAddress;
+let hub, rewards, gameChat, staking, currentGame = null, currentGameId = null;
+let gameEngine = null, selectedSquare = null, checkersBoard = null;
+let isConnected = false, selectedLockPeriod = 0;
+let moveFrom = null, isAIGame = false, isMyTurn = false;
+let chatInterval = null;
+let aiMoveInProgress = false;
+let checkersSelectedSquare = null;
 
-        // ==================== UTILITIES ====================
-        function showAlert(msg, type = 'success') {
-            const el = document.createElement('div');
-            el.className = `alert ${type}`;
-            el.textContent = msg;
-            document.body.appendChild(el);
-            setTimeout(() => el.remove(), 4000);
-        }
+// ==================== UTILITIES ====================
+function showAlert(msg, type = 'success') {
+    const el = document.createElement('div');
+    el.className = `alert ${type}`;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+}
 
-        // ==================== WALLET ====================
-        async function toggleWallet() {
-            if (isConnected) {
-                disconnectWallet();
-            } else {
-                await connectWallet();
-            }
-        }
+// ==================== WALLET ====================
+async function toggleWallet() {
+    if (isConnected) {
+        disconnectWallet();
+    } else {
+        await connectWallet();
+    }
+}
 
-        async function connectWallet() {
-            try {
-                if (!window.ethereum) throw new Error('Install MetaMask');
+async function connectWallet() {
+    try {
+        if (!window.ethereum) throw new Error('Install MetaMask');
 
-                try {
-                    await window.ethereum.request({
-                        method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: CORE_MAINNET.chainId }]
-                    });
-                } catch (e) {
-                    if (e.code === 4902) {
-                        await window.ethereum.request({
-                            method: 'wallet_addEthereumChain',
-                            params: [CORE_MAINNET]
-                        });
-                    }
-                }
-
-                provider = new ethers.providers.Web3Provider(window.ethereum);
-                await provider.send('eth_requestAccounts', []);
-                signer = provider.getSigner();
-                userAddress = await signer.getAddress();
-                
-                hub = new ethers.Contract(CONTRACTS.HUB, HUB_ABI, signer);
-                rewards = new ethers.Contract(CONTRACTS.REWARDS, REWARDS_ABI, signer);
-                gameChat = new ethers.Contract(CONTRACTS.GAME_CHAT, CHAT_ABI, signer);
-                staking = new ethers.Contract(CONTRACTS.STAKING, STAKING_ABI, signer);
-
-                isConnected = true;
-                document.getElementById('walletAddress').textContent = userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
-                document.getElementById('walletInfo').classList.remove('hidden');
-                document.getElementById('connectBtn').textContent = 'Disconnect';
-                document.getElementById('connectBtn').classList.add('connected');
-
-                updateBalance();
-                loadPendingGames();
-                loadMyGames();
-                startAutoRefresh();
-
-                showAlert('Connected to Core!', 'success');
-            } catch (e) {
-                showAlert('Connection failed: ' + e.message, 'error');
-            }
-        }
-
-        function disconnectWallet() {
-            isConnected = false;
-            userAddress = null;
-            if (chatInterval) clearInterval(chatInterval);
-            document.getElementById('walletInfo').classList.add('hidden');
-            document.getElementById('connectBtn').textContent = 'Connect Wallet';
-            document.getElementById('connectBtn').classList.remove('connected');
-            showAlert('Wallet disconnected', 'info');
-        }
-
-        async function updateBalance() {
-            if (!provider || !userAddress) return;
-            try {
-                const balance = await provider.getBalance(userAddress);
-                document.getElementById('walletBalance').textContent = 
-                    parseFloat(ethers.utils.formatEther(balance)).toFixed(4) + ' CORE';
-            } catch (e) {
-                console.error('Balance update error:', e);
-            }
-        }
-
-        function selectLockPeriod(days) {
-            selectedLockPeriod = days;
-            document.querySelectorAll('.lock-option').forEach(opt => {
-                opt.classList.remove('selected');
-                if (parseInt(opt.dataset.period) === days) {
-                    opt.classList.add('selected');
-                }
+        try {
+            await window.ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: CORE_MAINNET.chainId }]
             });
-            
-            const labels = { 0: 'No Lock', 30: '30 Days', 90: '90 Days' };
-            document.getElementById('lockPeriodDisplay').textContent = labels[days];
-        }
-
-        function startAutoRefresh() {
-            setInterval(() => {
-                if (hub && isConnected) {
-                    loadPendingGames();
-                    loadMyGames();
-                    updateBalance();
-                    if (currentGameId) {
-                        loadGame(currentGameId);
-                        loadChatMessages();
-                    }
-                }
-            }, 15000);
-        }
-
-        // ==================== STATISTICS ====================
-        function openStatsModal() {
-            if (!isConnected) {
-                showAlert('Connect wallet first', 'error');
-                return;
-            }
-            document.getElementById('statsOverlay').classList.add('active');
-            document.getElementById('statsModal').classList.add('active');
-            loadUserStats();
-            loadReferralStats();
-        }
-
-        function closeStatsModal() {
-            document.getElementById('statsOverlay').classList.remove('active');
-            document.getElementById('statsModal').classList.remove('active');
-        }
-
-        async function loadUserStats() {
-            if (!rewards || !userAddress) return;
-            try {
-                const cashback = await rewards.playerCashbackCORE(userAddress);
-                document.getElementById('statCashback').textContent = 
-                    parseFloat(ethers.utils.formatEther(cashback)).toFixed(4);
-
-                const currentTime = Math.floor(Date.now() / 1000);
-                const totalClaimable = await rewards.getTotalClaimable(
-                    userAddress,
-                    ethers.constants.AddressZero,
-                    currentTime
-                );
-                document.getElementById('statTotalClaimable').textContent = 
-                    parseFloat(ethers.utils.formatEther(totalClaimable)).toFixed(4);
-
-                const stats = await rewards.getUserStats(userAddress);
-                const gamesPlayed = await rewards.getUserGamesCount(userAddress);
-
-                document.getElementById('statGamesPlayed').textContent = gamesPlayed.toString();
-                document.getElementById('statWins').textContent = stats.wins.toString();
-                document.getElementById('statLosses').textContent = stats.losses.toString();
-                document.getElementById('statTotalStaked').textContent = 
-                    parseFloat(ethers.utils.formatEther(stats.totalStakes)).toFixed(4);
-                document.getElementById('statELO').textContent = stats.elo.toString();
-
-                const totalGames = stats.wins.add(stats.losses);
-                const winRate = totalGames.gt(0) ? 
-                    (stats.wins.toNumber() / totalGames.toNumber() * 100).toFixed(1) : 0;
-                document.getElementById('statWinRate').textContent = winRate + '%';
-
-            } catch (e) {
-                console.error('Error loading stats:', e);
-            }
-        }
-
-        async function loadReferralStats() {
-            if (!rewards || !userAddress) return;
-            try {
-                const currentTime = Math.floor(Date.now() / 1000);
-                const month = Math.floor(currentTime / (30 * 24 * 60 * 60)) * (30 * 24 * 60 * 60);
-                
-                const monthlyEarnings = await rewards.referralEarningsCORE(userAddress, month);
-                document.getElementById('refEarningsMonth').textContent = 
-                    parseFloat(ethers.utils.formatEther(monthlyEarnings)).toFixed(4);
-
-                document.getElementById('refEarningsTotal').textContent = 
-                    parseFloat(ethers.utils.formatEther(monthlyEarnings)).toFixed(4);
-
-                const referrer = await rewards.primaryReferrer(userAddress);
-                if (referrer === ethers.constants.AddressZero) {
-                    document.getElementById('refReferredBy').textContent = 'None';
-                } else {
-                    document.getElementById('refReferredBy').textContent = 
-                        referrer.slice(0, 6) + '...' + referrer.slice(-4);
-                }
-
-            } catch (e) {
-                console.error('Error loading referral stats:', e);
-            }
-        }
-
-        async function claimReferralRewards() {
-            if (!rewards || !userAddress) return showAlert('Connect wallet first', 'error');
-            try {
-                const currentTime = Math.floor(Date.now() / 1000);
-                const tx = await rewards.claimRewards(
-                    userAddress,
-                    ethers.constants.AddressZero,
-                    currentTime,
-                    { gasLimit: 500000 }
-                );
-                showAlert('⏳ Claiming referral rewards...', 'info');
-                await tx.wait();
-                showAlert('✅ Referral rewards claimed!', 'success');
-                updateBalance();
-                loadReferralStats();
-            } catch (e) {
-                showAlert('❌ Claim failed: ' + (e.reason || e.message), 'error');
-            }
-        }
-
-        // ==================== GAMES ====================
-        async function createGame() {
-            if (!hub) return showAlert('Connect wallet first', 'error');
-            try {
-                const gameType = document.getElementById('gameType').value;
-                const stakeAmount = document.getElementById('stakeAmount').value || '0.1';
-                
-                if (parseFloat(stakeAmount) < 0.01) {
-                    return showAlert('Minimum stake is 0.01 CORE', 'error');
-                }
-                
-                const stake = ethers.utils.parseEther(stakeAmount);
-                const isPrivate = document.getElementById('isPrivate').checked;
-                const isAI = document.getElementById('isAI').checked;
-
-                const verifierAddress = gameType === 'chess' ? 
-                    CONTRACTS.CHESS_VERIFIER : CONTRACTS.CHECKERS_VERIFIER;
-
-                // ✅ CRITICAL FIX: Correct referral handling for Hub upgrade
-                const referralAddress = isPrivate ? ethers.constants.AddressZero : userAddress;
-
-                showAlert('⏳ Creating game...', 'info');
-                
-                const tx = await hub.createGame(
-                    gameType,
-                    stake,
-                    ethers.constants.AddressZero,
-                    isPrivate,
-                    referralAddress,  // ✅ FIXED
-                    isAI,
-                    false,
-                    verifierAddress,
-                    { value: stake, gasLimit: 800000 }
-                );
-                
-                await tx.wait();
-                
-                showAlert('✅ Game created!', 'success');
-                
-                const gameCount = await hub.gameCount();
-                await loadPendingGames();
-                await loadMyGames();
-                
-                if (isAI) {
-                    setTimeout(() => loadGame(gameCount.toNumber()), 1500);
-                }
-                
-            } catch (e) {
-                console.error('Create game error:', e);
-                let errorMsg = 'Failed to create game';
-                if (e.code === 4001) errorMsg = 'Transaction rejected';
-                else if (e.message?.includes('insufficient funds')) errorMsg = 'Insufficient CORE';
-                else if (e.reason) errorMsg = e.reason;
-                else if (e.message) errorMsg = e.message;
-                showAlert('❌ ' + errorMsg, 'error');
-            }
-        }
-
-        async function loadPendingGames() {
-            if (!hub) return;
-            const list = document.getElementById('gamesList');
-            try {
-                const count = await hub.gameCount();
-                let html = '';
-
-                for (let i = count.toNumber(); i >= Math.max(1, count.toNumber() - 20); i--) {
-                    try {
-                        const g = await hub.games(i);
-                        if (g.player2 === ethers.constants.AddressZero && g.active && !g.isPrivate && !g.isAI) {
-                            const stake = ethers.utils.formatEther(g.stake);
-                            html += `<div class="game-item" onclick="joinGame(${i})">
-                                <div class="game-id">🟢 Game #${i}</div>
-                                <div class="game-info">${g.gameType.toUpperCase()} • ${stake} CORE • vs Player</div>
-                            </div>`;
-                        }
-                    } catch (e) {
-                        console.error('Error loading game', i, e);
-                    }
-                }
-
-                list.innerHTML = html || '<p class="text-center" style="color: var(--dim);">No games available</p>';
-            } catch (e) {
-                console.error('Error loading pending games:', e);
-                list.innerHTML = '<p style="color: #ff4444;">Error loading</p>';
-            }
-        }
-
-        async function loadMyGames() {
-            if (!hub || !userAddress) return;
-            const list = document.getElementById('myGamesList');
-            try {
-                const count = await hub.gameCount();
-                let html = '';
-                for (let i = count.toNumber(); i >= 1; i--) {
-                    try {
-                        const g = await hub.games(i);
-                        const isPlayer = g.creator.toLowerCase() === userAddress.toLowerCase() || 
-                                        g.player2.toLowerCase() === userAddress.toLowerCase();
-                        if (g.active && isPlayer) {
-                            html += `<div class="game-item" onclick="loadGame(${i})">
-                                <div class="game-id">⚔️ Game #${i}</div>
-                                <div class="game-info">${g.gameType.toUpperCase()} • ${g.isAI ? '🤖 AI' : '👥 P2P'}</div>
-                            </div>`;
-                        }
-                    } catch (e) {
-                        console.error('Error loading my game', i, e);
-                    }
-                }
-                list.innerHTML = html || '<p class="text-center" style="color: var(--dim);">No active games</p>';
-            } catch (e) {
-                console.error('Error loading my games:', e);
-            }
-        }
-
-        async function joinGame(id) {
-            if (!hub) return;
-            try {
-                const game = await hub.games(id);
-                const tx = await hub.joinGame(id, { value: game.stake, gasLimit: 500000 });
-                showAlert('⏳ Joining game...', 'info');
-                await tx.wait();
-                showAlert('✅ Joined game!', 'success');
-                loadGame(id);
-                loadPendingGames();
-                loadMyGames();
-            } catch (e) {
-                showAlert('❌ Join failed: ' + (e.reason || e.message), 'error');
-            }
-        }
-
-        async function loadGame(id) {
-            if (!hub) return;
-            try {
-                currentGameId = id;
-                const g = await hub.games(id);
-                currentGame = g;
-                isAIGame = g.isAI;
-
-                // ✅ CRITICAL FIX: Use correct default FEN format
-                let fen = g.fen;
-                if (!fen || fen === '') {
-                    if (g.gameType === 'chess') {
-                        fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-                    } else {
-                        // ✅ FIXED: Correct checkers FEN (w not r)
-                        fen = 'bwbw/4/4/4/4/wbwb/4/4 b';
-                    }
-                }
-                
-                if (g.gameType === 'chess') {
-                    gameEngine = new Chess(fen);
-                    
-                    const fenParts = fen.split(' ');
-                    const turnColor = fenParts[1];
-                    const amIWhite = g.creator.toLowerCase() === userAddress.toLowerCase();
-                    
-                    if (isAIGame) {
-                        isMyTurn = turnColor === 'w';
-                    } else {
-                        isMyTurn = (turnColor === 'w' && amIWhite) || (turnColor === 'b' && !amIWhite);
-                    }
-
-                    const turnIndicator = isMyTurn ? 
-                        '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
-                        '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
-
-                    document.getElementById('gameInfo').innerHTML = 
-                        `Game #${id} • CHESS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
-                    document.getElementById('boardTitle').innerHTML = 
-                        `<span>♟️ Chess Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
-
-                    renderChessBoard();
-                    
-                    if (isAIGame && !isMyTurn && !gameEngine.game_over() && !aiMoveInProgress) {
-                        setTimeout(() => {
-                            if (!aiMoveInProgress) makeAIMove();
-                        }, 2000);
-                    }
-                } else {
-                    // ✅ FIXED: Checkers with correct FEN
-                    initCheckersBoard(fen);
-                    renderCheckersBoard();
-                    
-                    const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
-                    
-                    if (g.isAI) {
-                        isMyTurn = (g.turn === 0);
-                    } else {
-                        isMyTurn = (g.turn === 0 && amICreator) || (g.turn === 1 && !amICreator);
-                    }
-                    
-                    const turnIndicator = isMyTurn ? 
-                        '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
-                        '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
-                    
-                    document.getElementById('gameInfo').innerHTML = 
-                        `Game #${id} • CHECKERS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
-                    document.getElementById('boardTitle').innerHTML = 
-                        `<span>🎯 Checkers Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
-                }
-
-                document.getElementById('forfeitBtn').disabled = false;
-                document.getElementById('shareBtn').disabled = false;
-                document.getElementById('sendChatBtn').disabled = false;
-                
-                loadChatMessages();
-                startChatPolling();
-
-                showAlert('Game loaded!', 'info');
-            } catch (e) {
-                console.error('Load game error:', e);
-                showAlert('❌ Load failed: ' + e.message, 'error');
-            }
-        }
-
-        // ==================== CHESS BOARD ====================
-        function renderChessBoard() {
-            if (!gameEngine) return;
-            const container = document.getElementById('boardContainer');
-            container.innerHTML = '';
-            const board = gameEngine.board();
-
-            for (let row = 0; row < 8; row++) {
-                for (let col = 0; col < 8; col++) {
-                    const square = document.createElement('div');
-                    const isLight = (row + col) % 2 === 0;
-                    square.className = `board-square ${isLight ? 'light' : 'dark'}`;
-                    square.dataset.row = row;
-                    square.dataset.col = col;
-                    
-                    if (isMyTurn) {
-                        square.onclick = () => selectChessSquare(row, col);
-                    }
-
-                    const piece = board[row][col];
-                    if (piece) {
-                        const pieceChar = piece.type.toUpperCase();
-                        const unicode = PIECE_UNICODE[piece.color === 'w' ? pieceChar : pieceChar.toLowerCase()];
-                        const pieceEl = document.createElement('span');
-                        pieceEl.className = `chess-piece ${piece.color === 'w' ? 'white' : 'black'}`;
-                        pieceEl.textContent = unicode;
-                        square.appendChild(pieceEl);
-                    }
-
-                    container.appendChild(square);
-                }
-            }
-        }
-
-        function selectChessSquare(row, col) {
-            if (!gameEngine || !isMyTurn) return;
-            
-            const files = 'abcdefgh';
-            const clickedSquare = files[col] + (8 - row);
-            
-            if (!moveFrom) {
-                const piece = gameEngine.get(clickedSquare);
-                if (piece) {
-                    const fenParts = gameEngine.fen().split(' ');
-                    const turnColor = fenParts[1];
-                    
-                    if (piece.color !== turnColor) {
-                        showAlert('Not your piece!', 'error');
-                        return;
-                    }
-                    
-                    moveFrom = clickedSquare;
-                    document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-                    document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
-                    
-                    const moves = gameEngine.moves({ square: clickedSquare, verbose: true });
-                    moves.forEach(m => {
-                        const toCol = m.to.charCodeAt(0) - 'a'.charCodeAt(0);
-                        const toRow = 8 - parseInt(m.to[1]);
-                        document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`)?.classList.add('possible');
-                    });
-                }
-            } else {
-                makePlayerMove(clickedSquare);
-            }
-        }
-
-        async function makePlayerMove(toSquare) {
-            if (!moveFrom || !hub || !currentGameId) return;
-            
-            try {
-                if (moveFrom === toSquare) {
-                    moveFrom = null;
-                    document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-                    return;
-                }
-                
-                const move = gameEngine.move({ from: moveFrom, to: toSquare, promotion: 'q' });
-                if (!move) {
-                    showAlert('Invalid move!', 'error');
-                    moveFrom = null;
-                    document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-                    return;
-                }
-                
-                const moveStr = moveFrom + toSquare;
-                const newFen = gameEngine.fen();
-                
-                renderChessBoard();
-                showAlert('⏳ Submitting move...', 'info');
-                
-                const tx = await hub.makeMove(currentGameId, moveStr, newFen, '0x', { gasLimit: 600000 });
-                
-                showAlert('⏳ Waiting for confirmation...', 'info');
-                await tx.wait();
-                
-                moveFrom = null;
-                document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-                
-                showAlert('✅ Move successful!', 'success');
-                
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                await loadGame(currentGameId);
-                
-            } catch (e) {
-                console.error('Move error:', e);
-                
-                gameEngine.undo();
-                moveFrom = null;
-                document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-                
-                let errorMsg = 'Transaction failed';
-                if (e.error && e.error.message) errorMsg = e.error.message;
-                else if (e.message) errorMsg = e.message;
-                if (e.reason) errorMsg = e.reason;
-                
-                showAlert('❌ Move failed: ' + errorMsg, 'error');
-                renderChessBoard();
-            }
-        }
-
-        // ==================== AI ENGINE ====================
-        async function makeAIMove() {
-            if (!gameEngine || !isAIGame || isMyTurn || gameEngine.game_over() || aiMoveInProgress) {
-                return;
-            }
-            
-            aiMoveInProgress = true;
-            
-            try {
-                document.getElementById('aiThinking').classList.remove('hidden');
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                
-                if (!gameEngine || gameEngine.game_over()) return;
-                
-                const bestMove = getBestMove(gameEngine, 2);
-                if (!bestMove) return;
-                
-                const moveStr = bestMove.from + bestMove.to;
-                const testMove = gameEngine.move(bestMove);
-                if (!testMove) return;
-                
-                const newFen = gameEngine.fen();
-                
-                showAlert('🤖 AI is making a move...', 'info');
-                
-                const tx = await hub.makeMove(currentGameId, moveStr, newFen, '0x', { 
-                    gasLimit: 600000 
+        } catch (e) {
+            if (e.code === 4902) {
+                await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [CORE_MAINNET]
                 });
-                
-                await tx.wait();
-                
-                showAlert('✅ AI moved: ' + bestMove.from + ' → ' + bestMove.to, 'success');
-                
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                await loadGame(currentGameId);
-                
-            } catch (e) {
-                console.error('AI move error:', e);
-                if (gameEngine) {
-                    try { gameEngine.undo(); } 
-                    catch (undoError) { console.error('Failed to undo:', undoError); }
-                }
-                showAlert('❌ AI move failed: ' + (e.reason || e.message), 'error');
-            } finally {
-                aiMoveInProgress = false;
-                document.getElementById('aiThinking').classList.add('hidden');
             }
         }
 
-        function getBestMove(chess, depth) {
-            const moves = chess.moves({ verbose: true });
-            if (moves.length === 0) return null;
-            
-            let bestMove = moves[0];
-            let bestValue = -9999;
-            
-            for (let move of moves) {
-                chess.move(move);
-                let boardValue = -minimax(chess, depth - 1, -10000, 10000, false);
-                chess.undo();
-                
-                if (boardValue > bestValue) {
-                    bestValue = boardValue;
-                    bestMove = move;
-                }
-            }
-            
-            return bestMove;
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send('eth_requestAccounts', []);
+        signer = provider.getSigner();
+        userAddress = await signer.getAddress();
+        
+        hub = new ethers.Contract(CONTRACTS.HUB, HUB_ABI, signer);
+        rewards = new ethers.Contract(CONTRACTS.REWARDS, REWARDS_ABI, signer);
+        gameChat = new ethers.Contract(CONTRACTS.GAMECHAT, CHAT_ABI, signer);
+        staking = new ethers.Contract(CONTRACTS.STAKING, STAKING_ABI, signer);
+
+        isConnected = true;
+        document.getElementById('walletAddress').textContent = userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
+        document.getElementById('walletInfo').classList.remove('hidden');
+        document.getElementById('connectBtn').textContent = 'Disconnect';
+        document.getElementById('connectBtn').classList.add('connected');
+
+        updateBalance();
+        loadPendingGames();
+        loadMyGames();
+        startAutoRefresh();
+
+        showAlert('Connected to Core Blockchain!', 'success');
+    } catch (e) {
+        console.error('Connection error:', e);
+        showAlert('Connection failed: ' + e.message, 'error');
+    }
+}
+
+function disconnectWallet() {
+    isConnected = false;
+    userAddress = null;
+    if (chatInterval) clearInterval(chatInterval);
+    document.getElementById('walletInfo').classList.add('hidden');
+    document.getElementById('connectBtn').textContent = 'Connect Wallet';
+    document.getElementById('connectBtn').classList.remove('connected');
+    showAlert('Wallet disconnected', 'info');
+}
+
+async function updateBalance() {
+    if (!provider || !userAddress) return;
+    try {
+        const balance = await provider.getBalance(userAddress);
+        document.getElementById('walletBalance').textContent = 
+            parseFloat(ethers.utils.formatEther(balance)).toFixed(4) + ' CORE';
+    } catch (e) {
+        console.error('Balance update error:', e);
+    }
+}
+
+function selectLockPeriod(days) {
+    selectedLockPeriod = days;
+    document.querySelectorAll('.lock-option').forEach(opt => {
+        opt.classList.remove('selected');
+        if (parseInt(opt.dataset.period) === days) {
+            opt.classList.add('selected');
         }
+    });
+    
+    const labels = { 0: 'No Lock', 30: '30 Days', 90: '90 Days' };
+    document.getElementById('lockPeriodDisplay').textContent = labels[days];
+}
 
-        function minimax(chess, depth, alpha, beta, isMaximizing) {
-            if (depth === 0) return evaluateBoard(chess.board());
-            
-            const moves = chess.moves({ verbose: true });
-            
-            if (moves.length === 0) {
-                if (chess.in_checkmate()) {
-                    return isMaximizing ? -9999 : 9999;
-                }
-                return 0;
-            }
-            
-            if (isMaximizing) {
-                let maxEval = -10000;
-                for (let move of moves) {
-                    chess.move(move);
-                    let evaluation = minimax(chess, depth - 1, alpha, beta, false);
-                    chess.undo();
-                    maxEval = Math.max(maxEval, evaluation);
-                    alpha = Math.max(alpha, evaluation);
-                    if (beta <= alpha) break;
-                }
-                return maxEval;
-            } else {
-                let minEval = 10000;
-                for (let move of moves) {
-                    chess.move(move);
-                    let evaluation = minimax(chess, depth - 1, alpha, beta, true);
-                    chess.undo();
-                    minEval = Math.min(minEval, evaluation);
-                    beta = Math.min(beta, evaluation);
-                    if (beta <= alpha) break;
-                }
-                return minEval;
-            }
-        }
-
-        function evaluateBoard(board) {
-            let totalEvaluation = 0;
-            for (let i = 0; i < 8; i++) {
-                for (let j = 0; j < 8; j++) {
-                    const piece = board[i][j];
-                    if (piece) {
-                        totalEvaluation += getPieceValue(piece, i, j);
-                    }
-                }
-            }
-            return totalEvaluation;
-        }
-
-        function getPieceValue(piece, x, y) {
-            const type = piece.type.toLowerCase();
-            const isWhite = piece.color === 'w';
-            
-            let value = PIECE_VALUES[type];
-            
-            if (type === 'p') {
-                value += isWhite ? (7 - x) * 10 : x * 10;
-            } else if (type === 'n' || type === 'b') {
-                value += (Math.abs(3.5 - x) + Math.abs(3.5 - y)) * -2;
-            }
-            
-            return isWhite ? value : -value;
-        }
-
-        // ==================== CHECKERS ====================
-        // ✅ CRITICAL FIX: Parse correct FEN format (w not r)
-        function initCheckersBoard(fen) {
-            checkersBoard = [];
-            for (let i = 0; i < 8; i++) {
-                checkersBoard[i] = [];
-                for (let j = 0; j < 8; j++) {
-                    checkersBoard[i][j] = 0;
-                }
-            }
-            
-            if (!fen || fen === '') {
-                // ✅ FIXED: Default FEN
-                fen = 'bwbw/4/4/4/4/wbwb/4/4 b';
-            }
-            
-            const fenParts = fen.split(' ')[0];
-            const rows = fenParts.split('/');
-            
-            for (let row = 0; row < 8; row++) {
-                let col = 0;
-                for (let char of rows[row]) {
-                    if (char >= '0' && char <= '9') {
-                        col += parseInt(char);
-                    } else {
-                        // ✅ FIXED: w = white/red man
-                        if (char === 'b') checkersBoard[row][col] = 1;      // Black man
-                        else if (char === 'w') checkersBoard[row][col] = 2; // White/red man
-                        else if (char === 'B') checkersBoard[row][col] = 3; // Black king
-                        else if (char === 'W') checkersBoard[row][col] = 4; // White/red king
-                        col++;
-                    }
-                }
-            }
-        }
-
-        function renderCheckersBoard() {
-            const container = document.getElementById('boardContainer');
-            container.innerHTML = '';
-
-            for (let row = 0; row < 8; row++) {
-                for (let col = 0; col < 8; col++) {
-                    const square = document.createElement('div');
-                    const isLight = (row + col) % 2 === 0;
-                    square.className = `board-square ${isLight ? 'light' : 'dark'}`;
-                    square.dataset.row = row;
-                    square.dataset.col = col;
-
-                    if (isMyTurn && !isLight) {
-                        square.onclick = () => selectCheckersSquare(row, col);
-                    }
-
-                    const piece = checkersBoard[row][col];
-                    if (piece > 0) {
-                        const pieceEl = document.createElement('div');
-                        const isRed = piece === 2 || piece === 4;
-                        pieceEl.className = `checker-piece ${isRed ? 'red' : 'black'} ${piece >= 3 ? 'king' : ''}`;
-                        square.appendChild(pieceEl);
-                    }
-
-                    container.appendChild(square);
-                }
-            }
-        }
-
-        function selectCheckersSquare(row, col) {
-            if (!isMyTurn) return;
-
-            const piece = checkersBoard[row][col];
-            const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
-            const myPieceTypes = amICreator ? [2, 4] : [1, 3];
-            
-            if (!checkersSelectedSquare) {
-                if (myPieceTypes.includes(piece)) {
-                    checkersSelectedSquare = { row, col };
-                    document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-                    document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
-                    showCheckersPossibleMoves(row, col, piece);
-                } else if (piece > 0) {
-                    showAlert('Not your piece!', 'error');
-                }
-            } else {
-                if (row === checkersSelectedSquare.row && col === checkersSelectedSquare.col) {
-                    checkersSelectedSquare = null;
-                    document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-                } else if (piece === 0) {
-                    makeCheckersMove(checkersSelectedSquare.row, checkersSelectedSquare.col, row, col);
-                } else if (myPieceTypes.includes(piece)) {
-                    checkersSelectedSquare = { row, col };
-                    document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-                    document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
-                    showCheckersPossibleMoves(row, col, piece);
-                }
-            }
-        }
-
-        function showCheckersPossibleMoves(row, col, piece) {
-            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('possible'));
-            const isKing = piece >= 3;
-            const isRed = piece === 2 || piece === 4;
-            const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
-            
-            const directions = [];
-            if (isKing || (amICreator && isRed) || (!amICreator && !isRed)) {
-                directions.push([-1, -1], [-1, 1]);
-            }
-            if (isKing || (!amICreator && isRed) || (amICreator && !isRed)) {
-                directions.push([1, -1], [1, 1]);
-            }
-            
-            directions.forEach(([dRow, dCol]) => {
-                const newRow = row + dRow;
-                const newCol = col + dCol;
-                
-                if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-                    if (checkersBoard[newRow][newCol] === 0) {
-                        const square = document.querySelector(`[data-row="${newRow}"][data-col="${newCol}"]`);
-                        if (square) square.classList.add('possible');
-                    }
-                    
-                    const jumpRow = row + dRow * 2;
-                    const jumpCol = col + dCol * 2;
-                    if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8) {
-                        const middlePiece = checkersBoard[newRow][newCol];
-                        const opponentPieces = amICreator ? [1, 3] : [2, 4];
-                        if (opponentPieces.includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
-                            const square = document.querySelector(`[data-row="${jumpRow}"][data-col="${jumpCol}"]`);
-                            if (square) square.classList.add('possible');
-                        }
-                    }
-                }
-            });
-        }
-
-        async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
-            try {
-                const rowDiff = Math.abs(toRow - fromRow);
-                const colDiff = Math.abs(toCol - fromCol);
-                
-                if (rowDiff !== colDiff || (rowDiff !== 1 && rowDiff !== 2)) {
-                    showAlert('Invalid move! Must be diagonal.', 'error');
-                    checkersSelectedSquare = null;
-                    document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-                    return;
-                }
-                
-                const originalBoard = checkersBoard.map(row => [...row]);
-                
-                // ✅ CORRECT MOVE FORMAT
-                const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
-                
-                checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
-                checkersBoard[fromRow][fromCol] = 0;
-                
-                if (rowDiff === 2) {
-                    const captureRow = Math.floor((fromRow + toRow) / 2);
-                    const captureCol = Math.floor((fromCol + toCol) / 2);
-                    checkersBoard[captureRow][captureCol] = 0;
-                }
-                
-                const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
-                if ((amICreator && toRow === 0) || (!amICreator && toRow === 7)) {
-                    if (checkersBoard[toRow][toCol] === 1) checkersBoard[toRow][toCol] = 3;
-                    if (checkersBoard[toRow][toCol] === 2) checkersBoard[toRow][toCol] = 4;
-                }
-                
-                const newFen = checkersToFen();
-                
-                renderCheckersBoard();
-                checkersSelectedSquare = null;
-                document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-                
-                showAlert('⏳ Submitting move...', 'info');
-                
-                try {
-                    const tx = await hub.makeMove(currentGameId, moveStr, newFen, '0x', { 
-                        gasLimit: 600000 
-                    });
-                    
-                    showAlert('⏳ Waiting for confirmation...', 'info');
-                    await tx.wait();
-                    
-                    showAlert('✅ Move successful!', 'success');
-                    
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    await loadGame(currentGameId);
-                    
-                } catch (txError) {
-                    checkersBoard = originalBoard;
-                    renderCheckersBoard();
-                    throw txError;
-                }
-                
-            } catch (e) {
-                console.error('Checkers move error:', e);
-                checkersSelectedSquare = null;
-                document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-                
-                let errorMsg = 'Transaction failed';
-                if (e.error && e.error.message) errorMsg = e.error.message;
-                else if (e.message) errorMsg = e.message;
-                if (e.reason) errorMsg = e.reason;
-                
-                showAlert('❌ Move failed: ' + errorMsg, 'error');
-                setTimeout(() => loadGame(currentGameId), 1000);
-            }
-        }
-
-        // ✅ FIXED: Generate correct FEN (w not r)
-        function checkersToFen() {
-            let fen = '';
-            for (let row = 0; row < 8; row++) {
-                let emptyCount = 0;
-                for (let col = 0; col < 8; col++) {
-                    const piece = checkersBoard[row][col];
-                    if (piece === 0) {
-                        emptyCount++;
-                    } else {
-                        if (emptyCount > 0) {
-                            fen += emptyCount;
-                            emptyCount = 0;
-                        }
-                        if (piece === 1) fen += 'b';      // Black man
-                        else if (piece === 2) fen += 'w'; // ✅ FIXED: White/red man
-                        else if (piece === 3) fen += 'B'; // Black king
-                        else if (piece === 4) fen += 'W'; // ✅ FIXED: White/red king
-                    }
-                }
-                if (emptyCount > 0) fen += emptyCount;
-                if (row < 7) fen += '/';
-            }
-            return fen + ' b';
-        }
-
-        // ==================== CHAT ====================
-        function startChatPolling() {
-            if (chatInterval) clearInterval(chatInterval);
-            chatInterval = setInterval(() => {
-                if (currentGameId) loadChatMessages();
-            }, 10000);
-        }
-
-        async function loadChatMessages() {
-            if (!gameChat || !currentGameId) return;
-            try {
-                const messages = await gameChat.getMessages(currentGameId);
-                const chatBox = document.getElementById('chatBox');
-                
-                if (messages.length === 0) {
-                    chatBox.innerHTML = '<p class="text-center" style="color: var(--dim); padding: 20px;">No messages yet</p>';
-                    return;
-                }
-
-                let html = '';
-                messages.forEach(msg => {
-                    const sender = msg.sender.toLowerCase() === userAddress.toLowerCase() ? 'You' : 
-                                   msg.sender.slice(0, 6) + '...' + msg.sender.slice(-4);
-                    const time = new Date(msg.timestamp.toNumber() * 1000).toLocaleTimeString();
-                    html += `
-                        <div class="chat-message">
-                            <div class="sender">${sender}</div>
-                            <div class="text">${escapeHtml(msg.message)}</div>
-                            <div class="time">${time}</div>
-                        </div>
-                    `;
-                });
-                
-                chatBox.innerHTML = html;
-                chatBox.scrollTop = chatBox.scrollHeight;
-            } catch (e) {
-                console.error('Chat load error:', e);
-            }
-        }
-
-        async function sendChatMessage() {
-            const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-            
-            if (!message || !gameChat || !currentGameId) return;
-            
-            try {
-                const tx = await gameChat.sendMessage(currentGameId, message, { gasLimit: 300000 });
-                input.value = '';
-                showAlert('⏳ Sending message...', 'info');
-                await tx.wait();
-                showAlert('✅ Message sent!', 'success');
-                loadChatMessages();
-            } catch (e) {
-                showAlert('❌ Send failed: ' + (e.reason || e.message), 'error');
-            }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // ==================== STAKING ====================
-        async function stakeTokens() {
-            if (!staking) return showAlert('Connect wallet first', 'error');
-            const amount = document.getElementById('stakeInput').value;
-            if (!amount || parseFloat(amount) <= 0) return showAlert('Enter valid amount', 'error');
-
-            try {
-                const stake = ethers.utils.parseEther(amount);
-                const tx = await staking.stake(stake, { value: stake, gasLimit: 300000 });
-                showAlert('⏳ Staking...', 'info');
-                await tx.wait();
-                showAlert('✅ Staked successfully!', 'success');
-                loadStakingData();
-                updateBalance();
-            } catch (e) {
-                showAlert('❌ Staking failed: ' + (e.reason || e.message), 'error');
-            }
-        }
-
-        async function withdrawStake() {
-            if (!staking) return showAlert('Connect wallet first', 'error');
-            const amount = document.getElementById('stakeInput').value;
-            if (!amount || parseFloat(amount) <= 0) return showAlert('Enter valid amount', 'error');
-
-            try {
-                const withdraw = ethers.utils.parseEther(amount);
-                const tx = await staking.withdraw(withdraw, { gasLimit: 300000 });
-                showAlert('⏳ Withdrawing...', 'info');
-                await tx.wait();
-                showAlert('✅ Withdrawn successfully!', 'success');
-                loadStakingData();
-                updateBalance();
-            } catch (e) {
-                showAlert('❌ Withdraw failed: ' + (e.reason || e.message), 'error');
-            }
-        }
-
-        async function claimStakingRewards() {
-            if (!staking) return showAlert('Connect wallet first', 'error');
-            try {
-                const tx = await staking.getReward({ gasLimit: 300000 });
-                showAlert('⏳ Claiming rewards...', 'info');
-                await tx.wait();
-                showAlert('✅ Rewards claimed!', 'success');
-                loadStakingData();
-                updateBalance();
-            } catch (e) {
-                showAlert('❌ Claim failed: ' + (e.reason || e.message), 'error');
-            }
-        }
-
-        async function loadStakingData() {
-            if (!staking || !userAddress) return;
-            try {
-                const userStake = await staking.balances(userAddress);
-                document.getElementById('userStake').textContent = 
-                    parseFloat(ethers.utils.formatEther(userStake)).toFixed(4) + ' CORE';
-
-                const totalStaked = await staking.totalSupply();
-                document.getElementById('totalStaked').textContent = 
-                    parseFloat(ethers.utils.formatEther(totalStaked)).toFixed(4) + ' CORE';
-
-                const hubBalance = await provider.getBalance(CONTRACTS.HUB);
-                const poolSize = parseFloat(ethers.utils.formatEther(hubBalance)) * 0.05;
-                document.getElementById('totalPoolSize').textContent = poolSize.toFixed(2);
-                document.getElementById('yourContribution').textContent = '0.00';
-            } catch (e) {
-                console.error('Staking load error:', e);
-            }
-        }
-
-        async function contributeToPool() {
-            const amount = document.getElementById('poolContribution').value;
-            if (!amount || parseFloat(amount) <= 0) return showAlert('Enter valid amount', 'error');
-            if (!signer) return showAlert('Connect wallet first', 'error');
-
-            try {
-                const value = ethers.utils.parseEther(amount);
-                const tx = await signer.sendTransaction({
-                    to: CONTRACTS.HUB,
-                    value: value,
-                    gasLimit: 100000
-                });
-                showAlert('⏳ Contributing to pool...', 'info');
-                await tx.wait();
-                showAlert('✅ Thank you for your contribution!', 'success');
-                document.getElementById('poolContribution').value = '';
-                loadStakingData();
-            } catch (e) {
-                showAlert('❌ Contribution failed: ' + (e.reason || e.message), 'error');
-            }
-        }
-
-        // ==================== REWARDS ====================
-        async function claimRewards() {
-            if (!rewards || !userAddress) return showAlert('Connect wallet first', 'error');
-            try {
-                const currentTime = Math.floor(Date.now() / 1000);
-                const tx = await rewards.claimRewards(
-                    userAddress,
-                    ethers.constants.AddressZero,
-                    currentTime,
-                    { gasLimit: 500000 }
-                );
-                showAlert('⏳ Claiming all rewards...', 'info');
-                await tx.wait();
-                showAlert('✅ All rewards claimed!', 'success');
-                updateBalance();
-                loadUserStats();
-                loadReferralStats();
-                closeStatsModal();
-            } catch (e) {
-                showAlert('❌ Claim failed: ' + (e.reason || e.message), 'error');
-            }
-        }
-
-        // ==================== GAME ACTIONS ====================
-        function forfeitGame() {
-            showAlert('Forfeit feature coming soon!', 'info');
-        }
-
-        function shareGame() {
-            if (!currentGameId) return;
-            const url = window.location.origin + window.location.pathname + '?game=' + currentGameId;
-            navigator.clipboard.writeText(url);
-            showAlert('✅ Game link copied to clipboard!', 'success');
-        }
-
-        function toggleBoard() {
-            const content = document.getElementById('boardContent');
-            const toggle = document.getElementById('boardToggle');
-            
-            const isHidden = window.getComputedStyle(content).display === 'none';
-            
-            if (isHidden) {
-                content.style.display = 'block';
-                toggle.textContent = '▼';
-            } else {
-                content.style.display = 'none';
-                toggle.textContent = '▶';
-            }
-        }
-
-        // ==================== TAB SWITCHING ====================
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
-            
-            if (tabName === 'staking' && isConnected) {
-                loadStakingData();
-            }
-        }
-
-        // ==================== INITIALIZATION ====================
-        window.addEventListener('load', () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const gameId = urlParams.get('game');
-            
-            if (gameId) {
-                setTimeout(() => {
-                    if (window.ethereum) {
-                        connectWallet().then(() => {
-                            setTimeout(() => loadGame(parseInt(gameId)), 1000);
-                        });
-                    }
-                }, 500);
-            }
-        });
-
-        document.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                const chatInput = document.getElementById('chatInput');
-                if (document.activeElement === chatInput) {
-                    sendChatMessage();
-                }
-            }
-        });
-
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && isConnected && currentGameId) {
+function startAutoRefresh() {
+    setInterval(() => {
+        if (hub) {
+            loadPendingGames();
+            loadMyGames();
+            updateBalance();
+            if (currentGameId) {
                 loadGame(currentGameId);
                 loadChatMessages();
             }
-        });
+        }
+    }, 15000);
+}
 
-        console.log(`
+// ==================== STATISTICS ====================
+function openStatsModal() {
+    if (!isConnected) {
+        showAlert('Connect wallet first', 'error');
+        return;
+    }
+    document.getElementById('statsOverlay').classList.add('active');
+    document.getElementById('statsModal').classList.add('active');
+    loadUserStats();
+}
+
+function closeStatsModal() {
+    document.getElementById('statsOverlay').classList.remove('active');
+    document.getElementById('statsModal').classList.remove('active');
+}
+
+async function loadUserStats() {
+    if (!rewards || !userAddress) return;
+    try {
+        // Load cashback
+        const cashback = await rewards.playerCashbackCORE(userAddress);
+        document.getElementById('statCashback').textContent = 
+            parseFloat(ethers.utils.formatEther(cashback)).toFixed(4);
+
+        // Load referral earnings
+        const refEarnings = await rewards.referralEarningsCORE(userAddress);
+        document.getElementById('refEarningsTotal').textContent = 
+            parseFloat(ethers.utils.formatEther(refEarnings)).toFixed(4);
+
+        // Load creator bonus
+        const creatorBonus = await rewards.creatorBonusCORE(userAddress);
+        
+        // Total claimable
+        const totalClaimable = cashback.add(refEarnings).add(creatorBonus);
+        document.getElementById('statTotalClaimable').textContent = 
+            parseFloat(ethers.utils.formatEther(totalClaimable)).toFixed(4);
+
+        // Referrer
+        const referrer = await rewards.primaryReferrer(userAddress);
+        if (referrer === ethers.constants.AddressZero) {
+            document.getElementById('refReferredBy').textContent = 'None';
+        } else {
+            document.getElementById('refReferredBy').textContent = 
+                referrer.slice(0, 6) + '...' + referrer.slice(-4);
+        }
+
+        // NOTE: Game stats require contract updates - showing placeholder
+        document.getElementById('statGamesPlayed').textContent = '0';
+        document.getElementById('statWins').textContent = '0';
+        document.getElementById('statLosses').textContent = '0';
+        document.getElementById('statWinRate').textContent = '0%';
+        document.getElementById('statTotalStaked').textContent = '0.00';
+        document.getElementById('statELO').textContent = '1200';
+
+    } catch (e) {
+        console.error('Error loading stats:', e);
+    }
+}
+
+async function claimAllRewards() {
+    if (!rewards || !userAddress) return showAlert('Connect wallet first', 'error');
+    try {
+        const tx = await rewards.claimAllRewards({ gasLimit: 500000 });
+        showAlert('⏳ Claiming all rewards...', 'info');
+        await tx.wait();
+        showAlert('✅ All rewards claimed!', 'success');
+        updateBalance();
+        loadUserStats();
+        closeStatsModal();
+    } catch (e) {
+        showAlert('❌ Claim failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+// ==================== GAMES ====================
+async function createGame() {
+    if (!hub || !signer) return showAlert('Connect wallet first', 'error');
+    
+    try {
+        const gameType = document.getElementById('gameType').value;
+        const stakeAmount = document.getElementById('stakeAmount').value || '0.1';
+        
+        const stakeFloat = parseFloat(stakeAmount);
+        if (stakeFloat < 0.01) {
+            return showAlert('Minimum stake is 0.01 CORE', 'error');
+        }
+        
+        const stake = ethers.utils.parseEther(stakeAmount);
+        const isPrivate = document.getElementById('isPrivate').checked;
+        const isAI = document.getElementById('isAI').checked;
+
+        // Calculate fee (2.5% = 250 basis points)
+        const fee = stake.mul(250).div(10000);
+        const totalPayment = stake.add(fee);
+
+        showAlert('⏳ Creating game...', 'info');
+        
+        const tx = await hub.createGame(
+            gameType,
+            stake,
+            isPrivate,
+            isAI,
+            { 
+                value: totalPayment,
+                gasLimit: 800000
+            }
+        );
+        
+        showAlert('⏳ Waiting for confirmation...', 'info');
+        await tx.wait();
+        
+        showAlert('✅ Game created successfully!', 'success');
+        
+        await loadPendingGames();
+        await loadMyGames();
+        
+        const gameCount = await hub.gameCount();
+        if (isAI) {
+            setTimeout(() => loadGame(gameCount.toNumber()), 1500);
+        }
+        
+    } catch (e) {
+        console.error('Create game error:', e);
+        
+        let errorMsg = 'Failed to create game';
+        if (e.code === 4001) {
+            errorMsg = 'Transaction rejected by user';
+        } else if (e.message) {
+            if (e.message.includes('insufficient funds')) {
+                errorMsg = 'Insufficient CORE balance';
+            } else if (e.message.includes('execution reverted')) {
+                errorMsg = 'Contract rejected transaction';
+            } else {
+                errorMsg = e.message;
+            }
+        }
+        if (e.reason) errorMsg = e.reason;
+        
+        showAlert('❌ ' + errorMsg, 'error');
+    }
+}
+
+async function loadPendingGames() {
+    if (!hub) return;
+    const list = document.getElementById('gamesList');
+    try {
+        const count = await hub.gameCount();
+        let html = '';
+
+        for (let i = count.toNumber(); i >= Math.max(1, count.toNumber() - 20); i--) {
+            try {
+                const g = await hub.games(i);
+                if (g.player2 === ethers.constants.AddressZero && g.active && !g.isPrivate && !g.isAI) {
+                    const stake = ethers.utils.formatEther(g.stake);
+                    html += `<div class="game-item" onclick="joinGame(${i})">
+                        <div class="game-id">🟢 Game #${i}</div>
+                        <div class="game-info">${g.gameType.toUpperCase()} • ${stake} CORE • vs Player</div>
+                    </div>`;
+                }
+            } catch (e) {
+                console.error('Error loading game', i, e);
+            }
+        }
+
+        list.innerHTML = html || '<p class="text-center" style="color: var(--dim);">No games available</p>';
+    } catch (e) {
+        console.error('Error loading pending games:', e);
+        list.innerHTML = '<p style="color: #ff4444;">Error loading</p>';
+    }
+}
+
+async function loadMyGames() {
+    if (!hub || !userAddress) return;
+    const list = document.getElementById('myGamesList');
+    try {
+        const count = await hub.gameCount();
+        let html = '';
+        for (let i = count.toNumber(); i >= 1; i--) {
+            try {
+                const g = await hub.games(i);
+                const isPlayer = g.creator.toLowerCase() === userAddress.toLowerCase() || 
+                                g.player2.toLowerCase() === userAddress.toLowerCase();
+                if (g.active && isPlayer) {
+                    html += `<div class="game-item" onclick="loadGame(${i})">
+                        <div class="game-id">⚔️ Game #${i}</div>
+                        <div class="game-info">${g.gameType.toUpperCase()} • ${g.isAI ? '🤖 AI' : '👥 P2P'}</div>
+                    </div>`;
+                }
+            } catch (e) {
+                console.error('Error loading my game', i, e);
+            }
+        }
+        list.innerHTML = html || '<p class="text-center" style="color: var(--dim);">No active games</p>';
+    } catch (e) {
+        console.error('Error loading my games:', e);
+    }
+}
+
+async function joinGame(id) {
+    if (!hub) return;
+    try {
+        const game = await hub.games(id);
+        const fee = game.stake.mul(250).div(10000);
+        const totalPayment = game.stake.add(fee);
+        
+        const tx = await hub.joinGame(id, { value: totalPayment, gasLimit: 500000 });
+        showAlert('⏳ Joining game...', 'info');
+        await tx.wait();
+        showAlert('✅ Joined game!', 'success');
+        loadGame(id);
+        loadPendingGames();
+        loadMyGames();
+    } catch (e) {
+        showAlert('❌ Join failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+async function loadGame(id) {
+    if (!hub) return;
+    try {
+        currentGameId = id;
+        const g = await hub.games(id);
+        currentGame = g;
+        isAIGame = g.isAI;
+
+        let fen = g.currentFen;
+        if (!fen || fen === '') {
+            fen = await hub.getInitialFen(g.gameType);
+        }
+        
+        if (g.gameType === 'chess') {
+            gameEngine = new Chess(fen);
+            
+            const fenParts = fen.split(' ');
+            const turnColor = fenParts[1];
+            const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
+            
+            if (isAIGame) {
+                isMyTurn = turnColor === 'w';
+            } else {
+                isMyTurn = (turnColor === 'w' && amICreator) || (turnColor === 'b' && !amICreator);
+            }
+
+            const turnIndicator = isMyTurn ? 
+                '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
+                '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
+
+            document.getElementById('gameInfo').innerHTML = 
+                `Game #${id} • CHESS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
+            document.getElementById('boardTitle').innerHTML = 
+                `<span>♟️ Chess Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
+
+            renderChessBoard();
+            
+            if (isAIGame && !isMyTurn && !gameEngine.game_over() && !aiMoveInProgress) {
+                setTimeout(() => makeAIMove(), 2000);
+            }
+        } else {
+            initCheckersBoard(fen);
+            renderCheckersBoard();
+            
+            const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
+            
+            // Simple turn: extract from FEN or count moves
+            const fenTurn = fen.split(' ')[1];
+            const isWhiteTurn = !fenTurn || fenTurn === 'b';
+            
+            if (g.isAI) {
+                isMyTurn = isWhiteTurn;
+            } else {
+                isMyTurn = (isWhiteTurn && amICreator) || (!isWhiteTurn && !amICreator);
+            }
+            
+            const turnIndicator = isMyTurn ? 
+                '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
+                '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
+            
+            document.getElementById('gameInfo').innerHTML = 
+                `Game #${id} • CHECKERS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
+            document.getElementById('boardTitle').innerHTML = 
+                `<span>🎯 Checkers Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
+        }
+
+        document.getElementById('forfeitBtn').disabled = false;
+        document.getElementById('shareBtn').disabled = false;
+        document.getElementById('sendChatBtn').disabled = false;
+        
+        loadChatMessages();
+        startChatPolling();
+
+        showAlert('Game loaded!', 'info');
+    } catch (e) {
+        console.error('Load game error:', e);
+        showAlert('❌ Load failed: ' + e.message, 'error');
+    }
+}
+
+// ==================== CHESS BOARD ====================
+function renderChessBoard() {
+    if (!gameEngine) return;
+    const container = document.getElementById('boardContainer');
+    container.innerHTML = '';
+    const board = gameEngine.board();
+
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const square = document.createElement('div');
+            const isLight = (row + col) % 2 === 0;
+            square.className = `board-square ${isLight ? 'light' : 'dark'}`;
+            square.dataset.row = row;
+            square.dataset.col = col;
+            
+            if (isMyTurn) {
+                square.onclick = () => selectChessSquare(row, col);
+            }
+
+            const piece = board[row][col];
+            if (piece) {
+                const pieceChar = piece.type.toUpperCase();
+                const unicode = PIECE_UNICODE[piece.color === 'w' ? pieceChar : pieceChar.toLowerCase()];
+                const pieceEl = document.createElement('span');
+                pieceEl.className = `chess-piece ${piece.color === 'w' ? 'white' : 'black'}`;
+                pieceEl.textContent = unicode;
+                square.appendChild(pieceEl);
+            }
+
+            container.appendChild(square);
+        }
+    }
+}
+
+function selectChessSquare(row, col) {
+    if (!gameEngine || !isMyTurn) return;
+    
+    const files = 'abcdefgh';
+    const clickedSquare = files[col] + (8 - row);
+    
+    if (!moveFrom) {
+        const piece = gameEngine.get(clickedSquare);
+        if (piece) {
+            const fenParts = gameEngine.fen().split(' ');
+            const turnColor = fenParts[1];
+            
+            if (piece.color !== turnColor) {
+                showAlert('Not your piece!', 'error');
+                return;
+            }
+            
+            moveFrom = clickedSquare;
+            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+            document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
+            
+            const moves = gameEngine.moves({ square: clickedSquare, verbose: true });
+            moves.forEach(m => {
+                const toCol = m.to.charCodeAt(0) - 'a'.charCodeAt(0);
+                const toRow = 8 - parseInt(m.to[1]);
+                document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`)?.classList.add('possible');
+            });
+        }
+    } else {
+        makePlayerMove(clickedSquare);
+    }
+}
+
+async function makePlayerMove(toSquare) {
+    if (!moveFrom || !hub || !currentGameId) return;
+    
+    try {
+        if (moveFrom === toSquare) {
+            moveFrom = null;
+            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+            return;
+        }
+        
+        const move = gameEngine.move({ from: moveFrom, to: toSquare, promotion: 'q' });
+        if (!move) {
+            showAlert('Invalid move!', 'error');
+            moveFrom = null;
+            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+            return;
+        }
+        
+        const moveStr = moveFrom + toSquare;
+        const newFen = gameEngine.fen();
+        
+        renderChessBoard();
+        showAlert('⏳ Submitting move...', 'info');
+        
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, '0x', { gasLimit: 600000 });
+        await tx.wait();
+        
+        moveFrom = null;
+        document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+        
+        showAlert('✅ Move successful!', 'success');
+        
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await loadGame(currentGameId);
+        
+    } catch (e) {
+        console.error('Move error:', e);
+        gameEngine.undo();
+        moveFrom = null;
+        document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+        showAlert('❌ Move failed: ' + (e.reason || e.message), 'error');
+        renderChessBoard();
+    }
+}
+
+// ==================== AI ENGINE ====================
+async function makeAIMove() {
+    if (!gameEngine || !isAIGame || isMyTurn || gameEngine.game_over() || aiMoveInProgress) return;
+    
+    aiMoveInProgress = true;
+    
+    try {
+        document.getElementById('aiThinking').classList.remove('hidden');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        if (!gameEngine || gameEngine.game_over()) return;
+        
+        const bestMove = getBestMove(gameEngine, 2);
+        if (!bestMove) return;
+        
+        const moveStr = bestMove.from + bestMove.to;
+        const testMove = gameEngine.move(bestMove);
+        if (!testMove) return;
+        
+        const newFen = gameEngine.fen();
+        
+        showAlert('🤖 AI is making a move...', 'info');
+        
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, '0x', { gasLimit: 600000 });
+        await tx.wait();
+        
+        showAlert('✅ AI moved: ' + bestMove.from + ' → ' + bestMove.to, 'success');
+        
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        await loadGame(currentGameId);
+        
+    } catch (e) {
+        console.error('AI move error:', e);
+        if (gameEngine) gameEngine.undo();
+        showAlert('❌ AI move failed: ' + (e.reason || e.message), 'error');
+    } finally {
+        aiMoveInProgress = false;
+        document.getElementById('aiThinking').classList.add('hidden');
+    }
+}
+
+function getBestMove(chess, depth) {
+    const moves = chess.moves({ verbose: true });
+    if (moves.length === 0) return null;
+    
+    let bestMove = moves[0];
+    let bestValue = -9999;
+    
+    for (let move of moves) {
+        chess.move(move);
+        let boardValue = -minimax(chess, depth - 1, -10000, 10000, false);
+        chess.undo();
+        
+        if (boardValue > bestValue) {
+            bestValue = boardValue;
+            bestMove = move;
+        }
+    }
+    
+    return bestMove;
+}
+
+function minimax(chess, depth, alpha, beta, isMaximizing) {
+    if (depth === 0) return evaluateBoard(chess.board());
+    
+    const moves = chess.moves({ verbose: true });
+    
+    if (moves.length === 0) {
+        if (chess.in_checkmate()) {
+            return isMaximizing ? -9999 : 9999;
+        }
+        return 0;
+    }
+    
+    if (isMaximizing) {
+        let maxEval = -10000;
+        for (let move of moves) {
+            chess.move(move);
+            let evaluation = minimax(chess, depth - 1, alpha, beta, false);
+            chess.undo();
+            maxEval = Math.max(maxEval, evaluation);
+            alpha = Math.max(alpha, evaluation);
+            if (beta <= alpha) break;
+        }
+        return maxEval;
+    } else {
+        let minEval = 10000;
+        for (let move of moves) {
+            chess.move(move);
+            let evaluation = minimax(chess, depth - 1, alpha, beta, true);
+            chess.undo();
+            minEval = Math.min(minEval, evaluation);
+            beta = Math.min(beta, evaluation);
+            if (beta <= alpha) break;
+        }
+        return minEval;
+    }
+}
+
+function evaluateBoard(board) {
+    let totalEvaluation = 0;
+    for (let i = 0; i < 8; i++) {
+        for (let j = 0; j < 8; j++) {
+            const piece = board[i][j];
+            if (piece) {
+                totalEvaluation += getPieceValue(piece, i, j);
+            }
+        }
+    }
+    return totalEvaluation;
+}
+
+function getPieceValue(piece, x, y) {
+    const type = piece.type.toLowerCase();
+    const isWhite = piece.color === 'w';
+    
+    let value = PIECE_VALUES[type];
+    
+    if (type === 'p') {
+        value += isWhite ? (7 - x) * 10 : x * 10;
+    } else if (type === 'n' || type === 'b') {
+        value += (Math.abs(3.5 - x) + Math.abs(3.5 - y)) * -2;
+    }
+    
+    return isWhite ? value : -value;
+}
+
+// ==================== CHECKERS ====================
+function initCheckersBoard(fen) {
+    checkersBoard = [];
+    for (let i = 0; i < 8; i++) {
+        checkersBoard[i] = [];
+        for (let j = 0; j < 8; j++) {
+            checkersBoard[i][j] = 0;
+        }
+    }
+    
+    if (!fen || fen === '') {
+        fen = 'bwbw/4/4/4/4/wbwb/4/4 b';
+    }
+    
+    const fenParts = fen.split(' ')[0];
+    const rows = fenParts.split('/');
+    
+    for (let row = 0; row < 8; row++) {
+        let col = 0;
+        for (let char of rows[row]) {
+            if (char >= '0' && char <= '9') {
+                col += parseInt(char);
+            } else {
+                if (char === 'b') checkersBoard[row][col] = 1;
+                else if (char === 'w') checkersBoard[row][col] = 2;
+                else if (char === 'B') checkersBoard[row][col] = 3;
+                else if (char === 'W') checkersBoard[row][col] = 4;
+                col++;
+            }
+        }
+    }
+}
+
+function renderCheckersBoard() {
+    const container = document.getElementById('boardContainer');
+    container.innerHTML = '';
+
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const square = document.createElement('div');
+            const isLight = (row + col) % 2 === 0;
+            square.className = `board-square ${isLight ? 'light' : 'dark'}`;
+            square.dataset.row = row;
+            square.dataset.col = col;
+
+            if (isMyTurn && !isLight) {
+                square.onclick = () => selectCheckersSquare(row, col);
+            }
+
+            const piece = checkersBoard[row][col];
+            if (piece > 0) {
+                const pieceEl = document.createElement('div');
+                const isRed = piece === 2 || piece === 4;
+                pieceEl.className = `checker-piece ${isRed ? 'red' : 'black'} ${piece >= 3 ? 'king' : ''}`;
+                square.appendChild(pieceEl);
+            }
+
+            container.appendChild(square);
+        }
+    }
+}
+
+function selectCheckersSquare(row, col) {
+    if (!isMyTurn) return;
+
+    const piece = checkersBoard[row][col];
+    const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
+    const myPieceTypes = amICreator ? [2, 4] : [1, 3];
+    
+    if (!checkersSelectedSquare) {
+        if (myPieceTypes.includes(piece)) {
+            checkersSelectedSquare = { row, col };
+            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+            document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
+            showCheckersPossibleMoves(row, col, piece);
+        } else if (piece > 0) {
+            showAlert('Not your piece!', 'error');
+        }
+    } else {
+        if (row === checkersSelectedSquare.row && col === checkersSelectedSquare.col) {
+            checkersSelectedSquare = null;
+            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+        } else if (piece === 0) {
+            makeCheckersMove(checkersSelectedSquare.row, checkersSelectedSquare.col, row, col);
+        } else if (myPieceTypes.includes(piece)) {
+            checkersSelectedSquare = { row, col };
+            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+            document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
+            showCheckersPossibleMoves(row, col, piece);
+        }
+    }
+}
+
+function showCheckersPossibleMoves(row, col, piece) {
+    document.querySelectorAll('.board-square').forEach(s => s.classList.remove('possible'));
+    const isKing = piece >= 3;
+    const isRed = piece === 2 || piece === 4;
+    const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
+    
+    const directions = [];
+    if (isKing || (amICreator && isRed) || (!amICreator && !isRed)) {
+        directions.push([-1, -1], [-1, 1]);
+    }
+    if (isKing || (!amICreator && isRed) || (amICreator && !isRed)) {
+        directions.push([1, -1], [1, 1]);
+    }
+    
+    directions.forEach(([dRow, dCol]) => {
+        const newRow = row + dRow;
+        const newCol = col + dCol;
+        
+        if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+            if (checkersBoard[newRow][newCol] === 0) {
+                const square = document.querySelector(`[data-row="${newRow}"][data-col="${newCol}"]`);
+                if (square) square.classList.add('possible');
+            }
+            
+            const jumpRow = row + dRow * 2;
+            const jumpCol = col + dCol * 2;
+            if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8) {
+                const middlePiece = checkersBoard[newRow][newCol];
+                const opponentPieces = amICreator ? [1, 3] : [2, 4];
+                if (opponentPieces.includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
+                    const square = document.querySelector(`[data-row="${jumpRow}"][data-col="${jumpCol}"]`);
+                    if (square) square.classList.add('possible');
+                }
+            }
+        }
+    });
+}
+
+async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
+    try {
+        const rowDiff = Math.abs(toRow - fromRow);
+        const colDiff = Math.abs(toCol - fromCol);
+        
+        if (rowDiff !== colDiff || (rowDiff !== 1 && rowDiff !== 2)) {
+            showAlert('Invalid move! Must be diagonal.', 'error');
+            checkersSelectedSquare = null;
+            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+            return;
+        }
+        
+        const originalBoard = checkersBoard.map(row => [...row]);
+        const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
+        
+        checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
+        checkersBoard[fromRow][fromCol] = 0;
+        
+        if (rowDiff === 2) {
+            const captureRow = Math.floor((fromRow + toRow) / 2);
+            const captureCol = Math.floor((fromCol + toCol) / 2);
+            checkersBoard[captureRow][captureCol] = 0;
+        }
+        
+        const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
+        if ((amICreator && toRow === 0) || (!amICreator && toRow === 7)) {
+            if (checkersBoard[toRow][toCol] === 1) checkersBoard[toRow][toCol] = 3;
+            if (checkersBoard[toRow][toCol] === 2) checkersBoard[toRow][toCol] = 4;
+        }
+        
+        const newFen = checkersToFen();
+        
+        renderCheckersBoard();
+        checkersSelectedSquare = null;
+        document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+        
+        showAlert('⏳ Submitting move...', 'info');
+        
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, '0x', { gasLimit: 600000 });
+        await tx.wait();
+        
+        showAlert('✅ Move successful!', 'success');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await loadGame(currentGameId);
+        
+    } catch (e) {
+        console.error('Checkers move error:', e);
+        checkersSelectedSquare = null;
+        document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+        showAlert('❌ Move failed: ' + (e.reason || e.message), 'error');
+        setTimeout(() => loadGame(currentGameId), 1000);
+    }
+}
+
+function checkersToFen() {
+    let fen = '';
+    for (let row = 0; row < 8; row++) {
+        let emptyCount = 0;
+        for (let col = 0; col < 8; col++) {
+            const piece = checkersBoard[row][col];
+            if (piece === 0) {
+                emptyCount++;
+            } else {
+                if (emptyCount > 0) {
+                    fen += emptyCount;
+                    emptyCount = 0;
+                }
+                if (piece === 1) fen += 'b';
+                else if (piece === 2) fen += 'w';
+                else if (piece === 3) fen += 'B';
+                else if (piece === 4) fen += 'W';
+            }
+        }
+        if (emptyCount > 0) fen += emptyCount;
+        if (row < 7) fen += '/';
+    }
+    return fen + ' b';
+}
+
+// ==================== CHAT ====================
+function startChatPolling() {
+    if (chatInterval) clearInterval(chatInterval);
+    chatInterval = setInterval(() => {
+        if (currentGameId) loadChatMessages();
+    }, 10000);
+}
+
+async function loadChatMessages() {
+    if (!gameChat || !currentGameId) return;
+    try {
+        const messages = await gameChat.getMessages(currentGameId);
+        const chatBox = document.getElementById('chatBox');
+        
+        if (messages.length === 0) {
+            chatBox.innerHTML = '<p class="text-center" style="color: var(--dim); padding: 20px;">No messages yet</p>';
+            return;
+        }
+
+        let html = '';
+        messages.forEach(msg => {
+            const sender = msg.sender.toLowerCase() === userAddress.toLowerCase() ? 'You' : 
+                           msg.sender.slice(0, 6) + '...' + msg.sender.slice(-4);
+            const time = new Date(msg.timestamp.toNumber() * 1000).toLocaleTimeString();
+            html += `
+                <div class="chat-message">
+                    <div class="sender">${sender}</div>
+                    <div class="text">${escapeHtml(msg.message)}</div>
+                    <div class="time">${time}</div>
+                </div>
+            `;
+        });
+        
+        chatBox.innerHTML = html;
+        chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (e) {
+        console.error('Chat load error:', e);
+    }
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    
+    if (!message || !gameChat || !currentGameId) return;
+    if (message.length > 280) return showAlert('Message too long (max 280 chars)', 'error');
+    
+    try {
+        const tx = await gameChat.sendMessage(currentGameId, message, { gasLimit: 300000 });
+        input.value = '';
+        showAlert('⏳ Sending message...', 'info');
+        await tx.wait();
+        showAlert('✅ Message sent!', 'success');
+        loadChatMessages();
+    } catch (e) {
+        showAlert('❌ Send failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ==================== STAKING ====================
+async function stakeTokens() {
+    if (!staking) return showAlert('Connect wallet first', 'error');
+    const amount = document.getElementById('stakeInput').value;
+    if (!amount || parseFloat(amount) <= 0) return showAlert('Enter valid amount', 'error');
+
+    try {
+        const stake = ethers.utils.parseEther(amount);
+        const lockPeriodSeconds = selectedLockPeriod * 24 * 60 * 60;
+        const tx = await staking.stake(lockPeriodSeconds, { value: stake, gasLimit: 300000 });
+        showAlert('⏳ Staking...', 'info');
+        await tx.wait();
+        showAlert('✅ Staked successfully!', 'success');
+        loadStakingData();
+        updateBalance();
+    } catch (e) {
+        showAlert('❌ Staking failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+async function withdrawStake() {
+    if (!staking) return showAlert('Connect wallet first', 'error');
+    const amount = document.getElementById('stakeInput').value;
+    if (!amount || parseFloat(amount) <= 0) return showAlert('Enter valid amount', 'error');
+
+    try {
+        const withdraw = ethers.utils.parseEther(amount);
+        const tx = await staking.withdraw(withdraw, { gasLimit: 300000 });
+        showAlert('⏳ Withdrawing...', 'info');
+        await tx.wait();
+        showAlert('✅ Withdrawn successfully!', 'success');
+        loadStakingData();
+        updateBalance();
+    } catch (e) {
+        showAlert('❌ Withdraw failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+async function claimStakingRewards() {
+    if (!staking) return showAlert('Connect wallet first', 'error');
+    try {
+        const tx = await staking.claimRewards({ gasLimit: 300000 });
+        showAlert('⏳ Claiming rewards...', 'info');
+        await tx.wait();
+        showAlert('✅ Rewards claimed!', 'success');
+        loadStakingData();
+        updateBalance();
+    } catch (e) {
+        showAlert('❌ Claim failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+async function loadStakingData() {
+    if (!staking || !userAddress) return;
+    try {
+        const stakeInfo = await staking.getStakeInfo(userAddress);
+        document.getElementById('userStake').textContent = 
+            parseFloat(ethers.utils.formatEther(stakeInfo.amount)).toFixed(4) + ' CORE';
+
+        document.getElementById('earnedRewards').textContent = 
+            parseFloat(ethers.utils.formatEther(stakeInfo.pendingRewards)).toFixed(4) + ' CORE';
+
+        const totalStaked = await staking.totalStaked();
+        document.getElementById('totalStaked').textContent = 
+            parseFloat(ethers.utils.formatEther(totalStaked)).toFixed(4) + ' CORE';
+            
+        const lockDays = stakeInfo.lockPeriod.toNumber() / (24 * 60 * 60);
+        const lockLabels = { 0: 'No Lock', 30: '30 Days', 90: '90 Days' };
+        document.getElementById('lockPeriodDisplay').textContent = lockLabels[lockDays] || lockDays + ' days';
+        
+        const baseAPY = 10;
+        const bonus = lockDays === 30 ? 1 : lockDays === 90 ? 2 : 0;
+        document.getElementById('userAPY').textContent = (baseAPY + bonus) + '% (Variable)';
+    } catch (e) {
+        console.error('Staking load error:', e);
+    }
+}
+
+// ==================== GAME ACTIONS ====================
+async function forfeitGame() {
+    if (!hub || !currentGameId) return;
+    try {
+        const tx = await hub.forfeitGame(currentGameId, { gasLimit: 300000 });
+        showAlert('⏳ Forfeiting game...', 'info');
+        await tx.wait();
+        showAlert('Game forfeited', 'info');
+        currentGameId = null;
+        loadMyGames();
+    } catch (e) {
+        showAlert('❌ Forfeit failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+function shareGame() {
+    if (!currentGameId) return;
+    const url = window.location.origin + window.location.pathname + '?game=' + currentGameId;
+    navigator.clipboard.writeText(url);
+    showAlert('✅ Game link copied to clipboard!', 'success');
+}
+
+function toggleBoard() {
+    const content = document.getElementById('boardContent');
+    const toggle = document.getElementById('boardToggle');
+    
+    const isHidden = window.getComputedStyle(content).display === 'none';
+    
+    if (isHidden) {
+        content.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        content.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// ==================== TAB SWITCHING ====================
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    document.getElementById(tabName).classList.add('active');
+    event.target.classList.add('active');
+    
+    if (tabName === 'staking' && isConnected) {
+        loadStakingData();
+    }
+}
+
+// ==================== INITIALIZATION ====================
+window.addEventListener('load', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const gameId = urlParams.get('game');
+    
+    if (gameId) {
+        setTimeout(() => {
+            if (window.ethereum) {
+                connectWallet().then(() => {
+                    setTimeout(() => loadGame(parseInt(gameId)), 1000);
+                });
+            }
+        }, 500);
+    }
+});
+
+document.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        const chatInput = document.getElementById('chatInput');
+        if (document.activeElement === chatInput) {
+            sendChatMessage();
+        }
+    }
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && isConnected && currentGameId) {
+        loadGame(currentGameId);
+        loadChatMessages();
+    }
+});
+
+console.log(`
 ╔═══════════════════════════════════════════╗
-║   ⚡ CROSSREALM - FULLY FIXED VERSION ⚡   ║
+║                                           ║
+║        ⚡ CROSSREALM ON-CHAIN GAMING ⚡    ║
+║                                           ║
+║   Built on Core Blockchain               ║
+║   Skill-Based • Winner Takes All         ║
+║                                           ║
+║   Hub: ${CONTRACTS.HUB.slice(0, 8)}...        ║
+║                                           ║
 ╚═══════════════════════════════════════════╝
 
-✅ ALL FIXES APPLIED:
-   • createGame with Hub upgrade ✅
-   • Checkers FEN format (w not r) ✅
-   • AI move prevention ✅
-   • Turn calculation ✅
-   • Move format ✅
+✅ LIVE & READY:
+• Chess & Checkers with AI
+• On-chain move verification  
+• Variable APY staking (10-14%)
+• 7% cashback on fees
+• 10% lifetime referral earnings
+• 8% public game creator bonus
+• In-game chat (280 chars)
+• Tournaments (4-64 players)
 
-Ready to play! Connect your wallet 🎮
-        `);
-    </script>
+Ready to play? Connect your wallet! 🚀
+`);
+ </script>
 </body>
 </html>
