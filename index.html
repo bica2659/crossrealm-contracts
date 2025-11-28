@@ -845,10 +845,10 @@
                     <input type="number" id="stakeAmount" placeholder="Stake (CORE)" min="0.01" step="0.01" value="0.1">
                     
                     <div class="info-badge" style="margin-bottom: 15px;">
-                        💰 <strong>Fee Breakdown:</strong> Pay 2.5% fee per player (5% total).<br>
-                        You get: <strong>7% cashback</strong> on your fee<br>
-                        Public game bonus: <strong>8% creator bonus</strong> + <strong>10% lifetime referral</strong> from joiners!<br>
-                        Winner takes all stakes! 🏆
+                        💰 <strong>Cost:</strong> Your stake + 2.5% fee<br>
+                        <strong>Example:</strong> 0.1 CORE game = pay 0.1025 CORE total<br>
+                        <strong>Rewards:</strong> 7% cashback on fee + 8% creator bonus (public games)<br>
+                        <strong>Winner gets:</strong> Both stakes (minus fees) 🏆
                     </div>
                     
                     <label><input type="checkbox" id="isPrivate"> 🔒 Private Game (no referrals, but 8% creator bonus)</label>
@@ -1162,12 +1162,13 @@
         };
 
         // ✅ UPDATED HUB ABI (matches new contract)
+        // ✅ NEW (CORRECT - 5 parameters):
         const HUB_ABI = [
             'function gameCount() view returns (uint)',
-            'function games(uint) view returns (uint id, string gameType, uint stake, address creator, address player2, bool isAI, bool isPrivate, bool active, string currentFen, uint createdAt)',
-            'function createGame(string gameType, uint stake, address token, bool isPrivate, address referral, bool isAI, bool zeroGas, address verifier) external payable returns (uint)',
+            'function games(uint) view returns (uint id, string gameType, uint stake, address creator, address player2, bool isAI, bool isPrivate, bool active, string fen, address verifier, uint turn, uint lastMoveTime, uint createdAt)',
+            'function createGame(string gameType, uint stake, bool isPrivate, bool isAI, address verifier) external payable returns (uint)',
             'function joinGame(uint gameId) external payable',
-            'function makeMove(uint gameId, string move, string newFen, bytes proof) external',
+            'function makeMove(uint gameId, string move, string newFen) external',
             'function forfeitGame(uint gameId) external',
             'function getInitialFen(string gameType) view returns (string)'
         ];
@@ -1422,38 +1423,33 @@ async function createGame() {
         const isPrivate = document.getElementById('isPrivate').checked;
         const isAI = document.getElementById('isAI').checked;
 
-        // Calculate fee (2.5% = 250 basis points)
+        // ✅ Calculate fee (2.5% = 250 basis points)
         const fee = stake.mul(250).div(10000);
         const totalPayment = stake.add(fee);
 
-        // ✅ Get verifier address
+        // Get verifier address
         const verifierAddress = gameType === 'chess' ? 
             CONTRACTS.CHESS_VERIFIER : CONTRACTS.CHECKERS_VERIFIER;
-
-        // ✅ Referral logic
-        const referralAddress = isPrivate ? ethers.constants.AddressZero : userAddress;
 
         console.log('Creating game:', {
             gameType,
             stake: ethers.utils.formatEther(stake),
+            fee: ethers.utils.formatEther(fee),
             totalPayment: ethers.utils.formatEther(totalPayment),
             verifier: verifierAddress
         });
 
         showAlert('⏳ Creating game...', 'info');
         
-        // ✅ CORRECT FUNCTION CALL with 8 parameters
+        // ✅ FIXED: Only 5 parameters, send stake + fee!
         const tx = await hub.createGame(
-            gameType,                        // string gameType
-            stake,                           // uint stake
-            ethers.constants.AddressZero,    // address token (CORE = zero address)
-            isPrivate,                       // bool isPrivate
-            referralAddress,                 // address referral
-            isAI,                            // bool isAI
-            false,                           // bool zeroGas
-            verifierAddress,                 // address verifier
+            gameType,           // string gameType
+            stake,              // uint stake
+            isPrivate,          // bool isPrivate
+            isAI,               // bool isAI
+            verifierAddress,    // address verifier
             { 
-                value: totalPayment,         // Send CORE + fee
+                value: totalPayment,  // ✅ stake + fee!
                 gasLimit: 800000
             }
         );
@@ -1469,6 +1465,8 @@ async function createGame() {
         await loadMyGames();
         
         const gameCount = await hub.gameCount();
+        console.log('Game created with ID:', gameCount.toString());
+        
         if (isAI) {
             setTimeout(() => loadGame(gameCount.toNumber()), 1500);
         }
@@ -1478,19 +1476,14 @@ async function createGame() {
         
         let errorMsg = 'Transaction failed';
         
-        // Better error parsing
         if (e.code === 4001) {
             errorMsg = 'You rejected the transaction';
-        } else if (e.code === -32603 || e.code === -32000) {
-            if (e.data && e.data.message) {
-                errorMsg = e.data.message;
-            } else if (e.message.includes('insufficient funds')) {
-                errorMsg = 'Insufficient CORE balance (need stake + fee)';
-            } else {
-                errorMsg = 'Internal error - check console';
-            }
-        } else if (e.error && e.error.message) {
-            errorMsg = e.error.message;
+        } else if (e.message.includes('insufficient funds')) {
+            errorMsg = 'Insufficient CORE balance';
+        } else if (e.message.includes('Incorrect payment')) {
+            errorMsg = 'Incorrect payment amount';
+        } else if (e.message.includes('Stake below minimum')) {
+            errorMsg = 'Minimum stake is 0.01 CORE';
         } else if (e.message) {
             errorMsg = e.message;
         }
@@ -1498,15 +1491,6 @@ async function createGame() {
         if (e.reason) errorMsg = e.reason;
         
         showAlert('❌ ' + errorMsg, 'error');
-        
-        // Log full error for debugging
-        console.error('Full error object:', {
-            code: e.code,
-            message: e.message,
-            data: e.data,
-            error: e.error,
-            reason: e.reason
-        });
     }
 }
 
