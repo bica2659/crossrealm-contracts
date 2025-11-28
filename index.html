@@ -1740,7 +1740,7 @@ async function makePlayerMove(toSquare) {
         renderChessBoard();
         showAlert('⏳ Submitting move...', 'info');
         
-        const tx = await hub.makeMove(currentGameId, moveStr, newFen, '0x', { gasLimit: 600000 });
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
         await tx.wait();
         
         moveFrom = null;
@@ -1784,7 +1784,7 @@ async function makeAIMove() {
         
         showAlert('🤖 AI is making a move...', 'info');
         
-        const tx = await hub.makeMove(currentGameId, moveStr, newFen, '0x', { gasLimit: 600000 });
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
         await tx.wait();
         
         showAlert('✅ AI moved: ' + bestMove.from + ' → ' + bestMove.to, 'success');
@@ -1888,7 +1888,8 @@ function getPieceValue(piece, x, y) {
     return isWhite ? value : -value;
 }
 
-// ==================== CHECKERS ====================
+// ==================== FIXED CHECKERS CODE ====================
+
 function initCheckersBoard(fen) {
     checkersBoard = [];
     for (let i = 0; i < 8; i++) {
@@ -1898,32 +1899,57 @@ function initCheckersBoard(fen) {
         }
     }
     
+    // ✅ FIXED: Better default FEN
     if (!fen || fen === '') {
-        fen = 'bwbw/4/4/4/4/wbwb/4/4 b';
+        // Standard checkers starting position
+        // Rows 0-2: Black pieces (1)
+        // Rows 5-7: Red/White pieces (2)
+        fen = 'b1b1b1b1/1b1b1b1b/b1b1b1b1/8/8/w2w2w2w/2w2w2w2w/w2w2w2w b';
     }
+    
+    console.log('Initializing checkers with FEN:', fen);
     
     const fenParts = fen.split(' ')[0];
     const rows = fenParts.split('/');
     
-    for (let row = 0; row < 8; row++) {
+    for (let row = 0; row < 8 && row < rows.length; row++) {
         let col = 0;
         for (let char of rows[row]) {
             if (char >= '0' && char <= '9') {
                 col += parseInt(char);
             } else {
-                if (char === 'b') checkersBoard[row][col] = 1;
-                else if (char === 'w') checkersBoard[row][col] = 2;
-                else if (char === 'B') checkersBoard[row][col] = 3;
-                else if (char === 'W') checkersBoard[row][col] = 4;
-                col++;
+                if (col < 8) {
+                    if (char === 'b') checkersBoard[row][col] = 1;      // Black piece
+                    else if (char === 'w') checkersBoard[row][col] = 2; // White/Red piece
+                    else if (char === 'B') checkersBoard[row][col] = 3; // Black king
+                    else if (char === 'W') checkersBoard[row][col] = 4; // White/Red king
+                    col++;
+                }
             }
         }
     }
+    
+    console.log('Checkers board initialized:', checkersBoard);
 }
 
 function renderCheckersBoard() {
     const container = document.getElementById('boardContainer');
+    if (!container) {
+        console.error('Board container not found!');
+        return;
+    }
+    
     container.innerHTML = '';
+    container.style.display = 'grid';
+    container.style.gridTemplateColumns = 'repeat(8, 1fr)';
+    container.style.gridTemplateRows = 'repeat(8, 1fr)';
+    container.style.width = '600px';
+    container.style.height = '600px';
+    container.style.gap = '0';
+
+    console.log('Rendering checkers board. Current turn:', isMyTurn);
+    console.log('User address:', userAddress);
+    console.log('Creator:', currentGame?.creator);
 
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
@@ -1932,8 +1958,18 @@ function renderCheckersBoard() {
             square.className = `board-square ${isLight ? 'light' : 'dark'}`;
             square.dataset.row = row;
             square.dataset.col = col;
+            
+            // ✅ FIXED: Better styling
+            square.style.width = '100%';
+            square.style.height = '100%';
+            square.style.display = 'flex';
+            square.style.alignItems = 'center';
+            square.style.justifyContent = 'center';
+            square.style.position = 'relative';
 
-            if (isMyTurn && !isLight) {
+            // ✅ FIXED: Always allow clicking on dark squares (checkers only on dark squares)
+            if (!isLight) {
+                square.style.cursor = isMyTurn ? 'pointer' : 'default';
                 square.onclick = () => selectCheckersSquare(row, col);
             }
 
@@ -1941,70 +1977,156 @@ function renderCheckersBoard() {
             if (piece > 0) {
                 const pieceEl = document.createElement('div');
                 const isRed = piece === 2 || piece === 4;
-                pieceEl.className = `checker-piece ${isRed ? 'red' : 'black'} ${piece >= 3 ? 'king' : ''}`;
+                const isKing = piece >= 3;
+                
+                pieceEl.className = `checker-piece ${isRed ? 'red' : 'black'} ${isKing ? 'king' : ''}`;
+                
+                // ✅ FIXED: Better piece styling
+                pieceEl.style.width = '60px';
+                pieceEl.style.height = '60px';
+                pieceEl.style.borderRadius = '50%';
+                pieceEl.style.border = '3px solid ' + (isRed ? '#8B0000' : '#333');
+                pieceEl.style.backgroundColor = isRed ? '#FF4444' : '#000';
+                pieceEl.style.position = 'relative';
+                pieceEl.style.display = 'flex';
+                pieceEl.style.alignItems = 'center';
+                pieceEl.style.justifyContent = 'center';
+                
+                if (isKing) {
+                    pieceEl.innerHTML = '♔';
+                    pieceEl.style.fontSize = '30px';
+                    pieceEl.style.color = isRed ? '#FFD700' : '#FFD700';
+                }
+                
                 square.appendChild(pieceEl);
+                
+                console.log(`Piece at [${row},${col}]: type ${piece} (${isRed ? 'red' : 'black'}${isKing ? ' king' : ''})`);
             }
 
             container.appendChild(square);
         }
     }
+    
+    console.log('Checkers board rendered!');
 }
 
 function selectCheckersSquare(row, col) {
-    if (!isMyTurn) return;
+    console.log('Clicked square:', row, col);
+    console.log('Is my turn:', isMyTurn);
+    console.log('Current game:', currentGame);
+    
+    if (!isMyTurn) {
+        showAlert('⏸️ Not your turn!', 'error');
+        return;
+    }
 
     const piece = checkersBoard[row][col];
     const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
-    const myPieceTypes = amICreator ? [2, 4] : [1, 3];
+    const myPieceTypes = amICreator ? [2, 4] : [1, 3]; // Creator plays red (2,4), Player2 plays black (1,3)
+    
+    console.log('Am I creator:', amICreator);
+    console.log('My piece types:', myPieceTypes);
+    console.log('Clicked piece:', piece);
     
     if (!checkersSelectedSquare) {
+        // First click - select a piece
         if (myPieceTypes.includes(piece)) {
             checkersSelectedSquare = { row, col };
-            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-            document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible');
+            });
+            const selectedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (selectedSquare) {
+                selectedSquare.classList.add('selected');
+                selectedSquare.style.boxShadow = 'inset 0 0 0 4px #FFD700';
+            }
             showCheckersPossibleMoves(row, col, piece);
+            console.log('Selected piece at:', row, col);
         } else if (piece > 0) {
-            showAlert('Not your piece!', 'error');
+            showAlert('❌ Not your piece!', 'error');
+        } else {
+            showAlert('❌ No piece here!', 'error');
         }
     } else {
+        // Second click - move or reselect
         if (row === checkersSelectedSquare.row && col === checkersSelectedSquare.col) {
+            // Deselect
             checkersSelectedSquare = null;
-            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible');
+                s.style.boxShadow = '';
+            });
+            console.log('Deselected piece');
         } else if (piece === 0) {
+            // Move to empty square
+            console.log('Attempting move to:', row, col);
             makeCheckersMove(checkersSelectedSquare.row, checkersSelectedSquare.col, row, col);
         } else if (myPieceTypes.includes(piece)) {
+            // Reselect different piece
             checkersSelectedSquare = { row, col };
-            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-            document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible');
+                s.style.boxShadow = '';
+            });
+            const selectedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (selectedSquare) {
+                selectedSquare.classList.add('selected');
+                selectedSquare.style.boxShadow = 'inset 0 0 0 4px #FFD700';
+            }
             showCheckersPossibleMoves(row, col, piece);
+            console.log('Reselected piece at:', row, col);
+        } else {
+            showAlert('❌ Invalid move!', 'error');
         }
     }
 }
 
 function showCheckersPossibleMoves(row, col, piece) {
-    document.querySelectorAll('.board-square').forEach(s => s.classList.remove('possible'));
+    document.querySelectorAll('.board-square').forEach(s => {
+        s.classList.remove('possible');
+        if (!s.classList.contains('selected')) {
+            s.style.boxShadow = '';
+        }
+    });
+    
     const isKing = piece >= 3;
     const isRed = piece === 2 || piece === 4;
     const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
     
     const directions = [];
-    if (isKing || (amICreator && isRed) || (!amICreator && !isRed)) {
-        directions.push([-1, -1], [-1, 1]);
-    }
-    if (isKing || (!amICreator && isRed) || (amICreator && !isRed)) {
-        directions.push([1, -1], [1, 1]);
+    
+    // Red pieces (2,4) move up (row decreases), Black pieces (1,3) move down (row increases)
+    if (isKing) {
+        // Kings can move in all diagonal directions
+        directions.push([-1, -1], [-1, 1], [1, -1], [1, 1]);
+    } else {
+        if (isRed) {
+            // Red moves up (toward row 0)
+            directions.push([-1, -1], [-1, 1]);
+        } else {
+            // Black moves down (toward row 7)
+            directions.push([1, -1], [1, 1]);
+        }
     }
     
+    console.log('Possible move directions for piece', piece, ':', directions);
+    
     directions.forEach(([dRow, dCol]) => {
+        // Normal move (1 square)
         const newRow = row + dRow;
         const newCol = col + dCol;
         
         if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
             if (checkersBoard[newRow][newCol] === 0) {
                 const square = document.querySelector(`[data-row="${newRow}"][data-col="${newCol}"]`);
-                if (square) square.classList.add('possible');
+                if (square) {
+                    square.classList.add('possible');
+                    square.style.boxShadow = 'inset 0 0 0 3px #00FF00';
+                    console.log('Normal move possible to:', newRow, newCol);
+                }
             }
             
+            // Jump move (2 squares, capturing opponent)
             const jumpRow = row + dRow * 2;
             const jumpCol = col + dCol * 2;
             if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8) {
@@ -2012,7 +2134,11 @@ function showCheckersPossibleMoves(row, col, piece) {
                 const opponentPieces = amICreator ? [1, 3] : [2, 4];
                 if (opponentPieces.includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
                     const square = document.querySelector(`[data-row="${jumpRow}"][data-col="${jumpCol}"]`);
-                    if (square) square.classList.add('possible');
+                    if (square) {
+                        square.classList.add('possible');
+                        square.style.boxShadow = 'inset 0 0 0 3px #FF0000';
+                        console.log('Jump move possible to:', jumpRow, jumpCol, '(capturing', middlePiece, ')');
+                    }
                 }
             }
         }
@@ -2024,41 +2150,61 @@ async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
         const rowDiff = Math.abs(toRow - fromRow);
         const colDiff = Math.abs(toCol - fromCol);
         
+        console.log('Making move:', fromRow, fromCol, '->', toRow, toCol);
+        
+        // Validate diagonal move
         if (rowDiff !== colDiff || (rowDiff !== 1 && rowDiff !== 2)) {
-            showAlert('Invalid move! Must be diagonal.', 'error');
+            showAlert('❌ Invalid move! Must be diagonal (1 or 2 squares).', 'error');
             checkersSelectedSquare = null;
-            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible');
+                s.style.boxShadow = '';
+            });
             return;
         }
         
-        const originalBoard = checkersBoard.map(row => [...row]);
         const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
+        console.log('Move string:', moveStr);
         
+        // Make the move
         checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
         checkersBoard[fromRow][fromCol] = 0;
         
+        // Handle capture
         if (rowDiff === 2) {
             const captureRow = Math.floor((fromRow + toRow) / 2);
             const captureCol = Math.floor((fromCol + toCol) / 2);
+            console.log('Capturing piece at:', captureRow, captureCol);
             checkersBoard[captureRow][captureCol] = 0;
         }
         
+        // Promote to king
         const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
         if ((amICreator && toRow === 0) || (!amICreator && toRow === 7)) {
-            if (checkersBoard[toRow][toCol] === 1) checkersBoard[toRow][toCol] = 3;
-            if (checkersBoard[toRow][toCol] === 2) checkersBoard[toRow][toCol] = 4;
+            console.log('Promoting piece to king!');
+            if (checkersBoard[toRow][toCol] === 1) checkersBoard[toRow][toCol] = 3; // Black -> Black King
+            if (checkersBoard[toRow][toCol] === 2) checkersBoard[toRow][toCol] = 4; // Red -> Red King
         }
         
         const newFen = checkersToFen();
+        console.log('New FEN:', newFen);
         
+        // Update display
         renderCheckersBoard();
         checkersSelectedSquare = null;
-        document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+        document.querySelectorAll('.board-square').forEach(s => {
+            s.classList.remove('selected', 'possible');
+            s.style.boxShadow = '';
+        });
         
         showAlert('⏳ Submitting move...', 'info');
         
-        const tx = await hub.makeMove(currentGameId, moveStr, newFen, '0x', { gasLimit: 600000 });
+        // ✅ FIXED: Only 3 parameters!
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
+        console.log('Transaction sent:', tx.hash);
+        
         await tx.wait();
+        console.log('Transaction confirmed!');
         
         showAlert('✅ Move successful!', 'success');
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -2067,7 +2213,10 @@ async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
     } catch (e) {
         console.error('Checkers move error:', e);
         checkersSelectedSquare = null;
-        document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+        document.querySelectorAll('.board-square').forEach(s => {
+            s.classList.remove('selected', 'possible');
+            s.style.boxShadow = '';
+        });
         showAlert('❌ Move failed: ' + (e.reason || e.message), 'error');
         setTimeout(() => loadGame(currentGameId), 1000);
     }
@@ -2086,16 +2235,27 @@ function checkersToFen() {
                     fen += emptyCount;
                     emptyCount = 0;
                 }
-                if (piece === 1) fen += 'b';
-                else if (piece === 2) fen += 'w';
-                else if (piece === 3) fen += 'B';
-                else if (piece === 4) fen += 'W';
+                if (piece === 1) fen += 'b';       // Black piece
+                else if (piece === 2) fen += 'w';  // Red/White piece
+                else if (piece === 3) fen += 'B';  // Black king
+                else if (piece === 4) fen += 'W';  // Red/White king
             }
         }
         if (emptyCount > 0) fen += emptyCount;
         if (row < 7) fen += '/';
     }
     return fen + ' b';
+}
+
+// ✅ ADD: Debug function to test board
+function debugCheckersBoard() {
+    console.log('=== CHECKERS DEBUG ===');
+    console.log('Board state:', checkersBoard);
+    console.log('Current game:', currentGame);
+    console.log('Is my turn:', isMyTurn);
+    console.log('User address:', userAddress);
+    console.log('Selected square:', checkersSelectedSquare);
+    console.log('====================');
 }
 
 // ==================== CHAT ====================
