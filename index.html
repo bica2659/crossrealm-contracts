@@ -1165,7 +1165,7 @@
         const HUB_ABI = [
             'function gameCount() view returns (uint)',
             'function games(uint) view returns (uint id, string gameType, uint stake, address creator, address player2, bool isAI, bool isPrivate, bool active, string currentFen, uint createdAt)',
-            'function createGame(string gameType, uint stake, bool isPrivate, bool isAI) external payable returns (uint)',
+            'function createGame(string gameType, uint stake, address token, bool isPrivate, address referral, bool isAI, bool zeroGas, address verifier) external payable returns (uint)',
             'function joinGame(uint gameId) external payable',
             'function makeMove(uint gameId, string move, string newFen, bytes proof) external',
             'function forfeitGame(uint gameId) external',
@@ -1426,23 +1426,44 @@ async function createGame() {
         const fee = stake.mul(250).div(10000);
         const totalPayment = stake.add(fee);
 
+        // ✅ Get verifier address
+        const verifierAddress = gameType === 'chess' ? 
+            CONTRACTS.CHESS_VERIFIER : CONTRACTS.CHECKERS_VERIFIER;
+
+        // ✅ Referral logic
+        const referralAddress = isPrivate ? ethers.constants.AddressZero : userAddress;
+
+        console.log('Creating game:', {
+            gameType,
+            stake: ethers.utils.formatEther(stake),
+            totalPayment: ethers.utils.formatEther(totalPayment),
+            verifier: verifierAddress
+        });
+
         showAlert('⏳ Creating game...', 'info');
         
+        // ✅ CORRECT FUNCTION CALL with 8 parameters
         const tx = await hub.createGame(
-            gameType,
-            stake,
-            isPrivate,
-            isAI,
+            gameType,                        // string gameType
+            stake,                           // uint stake
+            ethers.constants.AddressZero,    // address token (CORE = zero address)
+            isPrivate,                       // bool isPrivate
+            referralAddress,                 // address referral
+            isAI,                            // bool isAI
+            false,                           // bool zeroGas
+            verifierAddress,                 // address verifier
             { 
-                value: totalPayment,
+                value: totalPayment,         // Send CORE + fee
                 gasLimit: 800000
             }
         );
         
+        console.log('TX hash:', tx.hash);
         showAlert('⏳ Waiting for confirmation...', 'info');
+        
         await tx.wait();
         
-        showAlert('✅ Game created successfully!', 'success');
+        showAlert('✅ Game created!', 'success');
         
         await loadPendingGames();
         await loadMyGames();
@@ -1455,21 +1476,37 @@ async function createGame() {
     } catch (e) {
         console.error('Create game error:', e);
         
-        let errorMsg = 'Failed to create game';
+        let errorMsg = 'Transaction failed';
+        
+        // Better error parsing
         if (e.code === 4001) {
-            errorMsg = 'Transaction rejected by user';
-        } else if (e.message) {
-            if (e.message.includes('insufficient funds')) {
-                errorMsg = 'Insufficient CORE balance';
-            } else if (e.message.includes('execution reverted')) {
-                errorMsg = 'Contract rejected transaction';
+            errorMsg = 'You rejected the transaction';
+        } else if (e.code === -32603 || e.code === -32000) {
+            if (e.data && e.data.message) {
+                errorMsg = e.data.message;
+            } else if (e.message.includes('insufficient funds')) {
+                errorMsg = 'Insufficient CORE balance (need stake + fee)';
             } else {
-                errorMsg = e.message;
+                errorMsg = 'Internal error - check console';
             }
+        } else if (e.error && e.error.message) {
+            errorMsg = e.error.message;
+        } else if (e.message) {
+            errorMsg = e.message;
         }
+        
         if (e.reason) errorMsg = e.reason;
         
         showAlert('❌ ' + errorMsg, 'error');
+        
+        // Log full error for debugging
+        console.error('Full error object:', {
+            code: e.code,
+            message: e.message,
+            data: e.data,
+            error: e.error,
+            reason: e.reason
+        });
     }
 }
 
@@ -2163,22 +2200,113 @@ async function stakeTokens() {
 }
 
 async function withdrawStake() {
-    if (!staking) return showAlert('Connect wallet first', 'error');
-    const amount = document.getElementById('stakeInput').value;
-    if (!amount || parseFloat(amount) <= 0) return showAlert('Enter valid amount', 'error');
-
+    if (!staking || !userAddress) return showAlert('Connect wallet first', 'error');
+    
     try {
-        const withdraw = ethers.utils.parseEther(amount);
-        const tx = await staking.withdraw(withdraw, { gasLimit: 300000 });
+        // First, get user's stake info
+        const stakeInfo = await staking.getStakeInfo(userAddress);
+        const userStakeAmount = stakeInfo.amount;
+        const lockExpiry = stakeInfo.lockedUntil.toNumber();
+        const currentTime = Math.floor(Date.now() / 1000);
+        
+        console.log('Stake info:', {
+            amount: ethers.utils.formatEther(userStakeAmount),
+            lockedUntil: lockExpiry,
+            currentTime: currentTime,
+            isLocked: lockExpiry > currentTime
+        });
+        
+        // Check if locked
+        if (lockExpiry > currentTime) {
+            const daysLeft = Math.ceil((lockExpiry - currentTime) / 86400);
+            return showAlert(`❌ Stake is locked for ${daysLeft} more days`, 'error');
+        }
+        
+        // Check if user has stake
+        if (userStakeAmount.eq(0)) {
+            return showAlert('❌ No stake to withdraw', 'error');
+        }
+        
+        const amount = document.getElementById('stakeInput').value;
+        
+        let withdrawAmount;
+        if (!amount || parseFloat(amount) <= 0) {
+            // Withdraw all if no amount specified
+            withdrawAmount = userStakeAmount;
+            console.log('Withdrawing all:', ethers.utils.formatEther(withdrawAmount));
+        } else {
+            withdrawAmount = ethers.utils.parseEther(amount);
+            
+            // Check if trying to withdraw more than staked
+            if (withdrawAmount.gt(userStakeAmount)) {
+                return showAlert('❌ Amount exceeds your stake', 'error');
+            }
+        }
+
+        console.log('Attempting withdraw:', {
+            amount: ethers.utils.formatEther(withdrawAmount),
+            userStake: ethers.utils.formatEther(userStakeAmount)
+        });
+
         showAlert('⏳ Withdrawing...', 'info');
+        
+        const tx = await staking.withdraw(withdrawAmount, { gasLimit: 350000 });
+        
+        console.log('TX hash:', tx.hash);
         await tx.wait();
+        
         showAlert('✅ Withdrawn successfully!', 'success');
+        
         loadStakingData();
         updateBalance();
+        
     } catch (e) {
-        showAlert('❌ Withdraw failed: ' + (e.reason || e.message), 'error');
+        console.error('Withdraw error:', e);
+        
+        let errorMsg = 'Withdraw failed';
+        
+        if (e.code === 4001) {
+            errorMsg = 'You rejected the transaction';
+        } else if (e.message) {
+            if (e.message.includes('Stake is locked')) {
+                errorMsg = 'Your stake is still locked';
+            } else if (e.message.includes('Insufficient stake')) {
+                errorMsg = 'Amount exceeds your stake';
+            } else if (e.message.includes('No stake')) {
+                errorMsg = 'You have no stake to withdraw';
+            } else if (e.message.includes('execution reverted')) {
+                // Try to extract revert reason
+                if (e.data && e.data.message) {
+                    errorMsg = e.data.message;
+                } else {
+                    errorMsg = 'Contract rejected withdraw';
+                }
+            } else {
+                errorMsg = e.message;
+            }
+        }
+        
+        if (e.reason) errorMsg = e.reason;
+        
+        showAlert('❌ ' + errorMsg, 'error');
+        
+        console.error('Full error:', {
+            code: e.code,
+            message: e.message,
+            data: e.data,
+            reason: e.reason
+        });
     }
 }
+
+// ✅ ADDITIONAL FIX: Better error logging
+window.addEventListener('error', (e) => {
+    console.error('Global error caught:', e);
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+    console.error('Unhandled promise rejection:', e.reason);
+});
 
 async function claimStakingRewards() {
     if (!staking) return showAlert('Connect wallet first', 'error');
