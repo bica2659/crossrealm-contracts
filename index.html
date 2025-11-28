@@ -1688,10 +1688,18 @@ async function loadGame(id) {
     }
 }
 // ==================== CHESS BOARD ====================
+// ==================== CHESS BOARD ====================
 function renderChessBoard() {
-    if (!gameEngine) return;
+    if (!gameEngine) {
+        console.error('Chess engine not initialized');
+        return;
+    }
+    
     const container = document.getElementById('boardContainer');
     container.innerHTML = '';
+    
+    console.log('Rendering chess board. FEN:', gameEngine.fen());
+    
     const board = gameEngine.board();
 
     for (let row = 0; row < 8; row++) {
@@ -1702,9 +1710,9 @@ function renderChessBoard() {
             square.dataset.row = row;
             square.dataset.col = col;
             
-            if (isMyTurn) {
-                square.onclick = () => selectChessSquare(row, col);
-            }
+            // ✅ CRITICAL: Set pointer cursor and click handler
+            square.style.cursor = 'pointer';
+            square.onclick = () => selectChessSquare(row, col);
 
             const piece = board[row][col];
             if (piece) {
@@ -1719,83 +1727,188 @@ function renderChessBoard() {
             container.appendChild(square);
         }
     }
+    
+    console.log('Chess board rendered successfully');
 }
 
 function selectChessSquare(row, col) {
-    if (!gameEngine || !isMyTurn) return;
+    console.log('=== SQUARE CLICKED ===');
+    console.log('Row:', row, 'Col:', col);
+    console.log('Is my turn:', isMyTurn);
+    console.log('moveFrom:', moveFrom);
+    
+    if (!gameEngine) {
+        console.error('Chess engine not initialized');
+        return;
+    }
+    
+    if (!isMyTurn) {
+        showAlert('⏸️ Not your turn!', 'error');
+        return;
+    }
     
     const files = 'abcdefgh';
     const clickedSquare = files[col] + (8 - row);
     
+    console.log('Clicked square notation:', clickedSquare);
+    
     if (!moveFrom) {
+        // First click - selecting piece
         const piece = gameEngine.get(clickedSquare);
-        if (piece) {
-            const fenParts = gameEngine.fen().split(' ');
-            const turnColor = fenParts[1];
-            
-            if (piece.color !== turnColor) {
-                showAlert('Not your piece!', 'error');
-                return;
-            }
-            
-            moveFrom = clickedSquare;
-            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-            document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
-            
-            const moves = gameEngine.moves({ square: clickedSquare, verbose: true });
-            moves.forEach(m => {
-                const toCol = m.to.charCodeAt(0) - 'a'.charCodeAt(0);
-                const toRow = 8 - parseInt(m.to[1]);
-                document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`)?.classList.add('possible');
-            });
+        console.log('Piece at square:', piece);
+        
+        if (!piece) {
+            console.log('No piece at this square');
+            return;
         }
+        
+        const fenParts = gameEngine.fen().split(' ');
+        const turnColor = fenParts[1];
+        
+        console.log('Turn color:', turnColor, 'Piece color:', piece.color);
+        
+        if (piece.color !== turnColor) {
+            showAlert('❌ Not your piece!', 'error');
+            return;
+        }
+        
+        // Select this piece
+        moveFrom = clickedSquare;
+        console.log('Selected piece at:', moveFrom);
+        
+        // Highlight selected square
+        document.querySelectorAll('.board-square').forEach(s => {
+            s.classList.remove('selected', 'possible');
+        });
+        document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
+        
+        // Show possible moves
+        const moves = gameEngine.moves({ square: clickedSquare, verbose: true });
+        console.log('Possible moves:', moves.length);
+        
+        moves.forEach(m => {
+            const toCol = m.to.charCodeAt(0) - 'a'.charCodeAt(0);
+            const toRow = 8 - parseInt(m.to[1]);
+            const targetSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
+            if (targetSquare) {
+                targetSquare.classList.add('possible');
+            }
+        });
+        
     } else {
+        // Second click - moving piece
+        console.log('Attempting move from', moveFrom, 'to', clickedSquare);
         makePlayerMove(clickedSquare);
     }
 }
 
 async function makePlayerMove(toSquare) {
-    if (!moveFrom || !hub || !currentGameId) return;
+    console.log('=== MAKING MOVE ===');
+    console.log('From:', moveFrom, 'To:', toSquare);
+    
+    if (!moveFrom || !hub || !currentGameId) {
+        console.error('Missing required data:', { moveFrom, hub: !!hub, currentGameId });
+        return;
+    }
     
     try {
+        // If clicking same square, deselect
         if (moveFrom === toSquare) {
+            console.log('Deselecting piece');
             moveFrom = null;
-            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible');
+            });
             return;
         }
         
-        const move = gameEngine.move({ from: moveFrom, to: toSquare, promotion: 'q' });
+        // Try to make the move
+        console.log('Attempting chess.js move...');
+        const move = gameEngine.move({ 
+            from: moveFrom, 
+            to: toSquare, 
+            promotion: 'q' 
+        });
+        
         if (!move) {
-            showAlert('Invalid move!', 'error');
+            console.log('Invalid move - chess.js rejected');
+            showAlert('❌ Invalid move!', 'error');
             moveFrom = null;
-            document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible');
+            });
             return;
         }
+        
+        console.log('✅ Move accepted:', move.san);
         
         const moveStr = moveFrom + toSquare;
         const newFen = gameEngine.fen();
         
+        console.log('Move string:', moveStr);
+        console.log('New FEN:', newFen);
+        
+        // Update board visually BEFORE blockchain
         renderChessBoard();
-        showAlert('⏳ Submitting move...', 'info');
+        
+        showAlert('⏳ Submitting move to blockchain...', 'info');
+        
+        // ✅ Submit to blockchain (3 parameters only!)
+        console.log('Calling hub.makeMove with:', {
+            gameId: currentGameId,
+            move: moveStr,
+            newFen: newFen
+        });
         
         const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
+        
+        console.log('📤 Transaction sent:', tx.hash);
+        
         await tx.wait();
         
+        console.log('✅ Transaction confirmed!');
+        
+        // Clear selection
         moveFrom = null;
-        document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
+        document.querySelectorAll('.board-square').forEach(s => {
+            s.classList.remove('selected', 'possible');
+        });
         
         showAlert('✅ Move successful!', 'success');
         
+        // Wait a bit then reload game state
+        console.log('Waiting before reload...');
         await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        console.log('Reloading game...');
         await loadGame(currentGameId);
         
     } catch (e) {
-        console.error('Move error:', e);
+        console.error('=== MOVE ERROR ===');
+        console.error('Error:', e);
+        console.error('Message:', e.message);
+        console.error('Reason:', e.reason);
+        
+        // Revert the move
         gameEngine.undo();
         moveFrom = null;
-        document.querySelectorAll('.board-square').forEach(s => s.classList.remove('selected', 'possible'));
-        showAlert('❌ Move failed: ' + (e.reason || e.message), 'error');
+        
+        document.querySelectorAll('.board-square').forEach(s => {
+            s.classList.remove('selected', 'possible');
+        });
+        
         renderChessBoard();
+        
+        let errorMsg = 'Move failed';
+        if (e.message.includes('Waiting for player2')) {
+            errorMsg = '⏳ Waiting for opponent to join!';
+        } else if (e.reason) {
+            errorMsg = e.reason;
+        } else if (e.message) {
+            errorMsg = e.message;
+        }
+        
+        showAlert('❌ ' + errorMsg, 'error');
     }
 }
 
