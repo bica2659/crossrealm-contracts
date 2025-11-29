@@ -1706,7 +1706,6 @@ async function loadGame(id) {
         currentGame = g;
         isAIGame = g.isAI;
         
-        // ✅ FIX #1: Use g.fen instead of g.currentFen
         let fen = g.fen;
         
         console.log('Loading game:', {
@@ -1724,7 +1723,6 @@ async function loadGame(id) {
         }
         
         if (g.gameType === 'chess') {
-            // ✅ FIX #2: Load FEN into chess.js engine
             gameEngine = new Chess(fen);
             
             console.log('Chess.js loaded with FEN:', fen);
@@ -1735,10 +1733,8 @@ async function loadGame(id) {
             const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
             
             if (isAIGame) {
-                // AI game: white = your turn, black = AI turn
                 isMyTurn = turnColor === 'w';
             } else {
-                // PvP game: match turn color to your side
                 isMyTurn = (turnColor === 'w' && amICreator) || (turnColor === 'b' && !amICreator);
             }
             
@@ -1754,10 +1750,8 @@ async function loadGame(id) {
             document.getElementById('boardTitle').innerHTML = 
                 `<span>♟️ Chess Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
             
-            // ✅ FIX #3: Render board with current FEN
             renderChessBoard();
             
-            // ✅ FIX #4: Trigger AI move if it's AI's turn
             if (isAIGame && !isMyTurn && !gameEngine.game_over() && !aiMoveInProgress) {
                 console.log('AI turn detected, triggering AI move in 2s...');
                 setTimeout(() => makeAIMove(), 2000);
@@ -1770,7 +1764,6 @@ async function loadGame(id) {
             
             const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
             
-            // Simple turn: extract from FEN or count moves
             const fenTurn = fen.split(' ')[1];
             const isWhiteTurn = !fenTurn || fenTurn === 'b';
             
@@ -1779,12 +1772,6 @@ async function loadGame(id) {
             } else {
                 isMyTurn = (isWhiteTurn && amICreator) || (!isWhiteTurn && !amICreator);
             }
-
-            if (g.isAI && !isMyTurn && g.active && !aiMoveInProgress) {
-                console.log('AI turn detected, triggering AI move in 2s...');
-                setTimeout(() => makeCheckersAIMove(), 2000);
-            }
-        }
             
             const turnIndicator = isMyTurn ? 
                 '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
@@ -1794,6 +1781,12 @@ async function loadGame(id) {
                 `Game #${id} • CHECKERS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
             document.getElementById('boardTitle').innerHTML = 
                 `<span>🎯 Checkers Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
+            
+            // ✅ Trigger AI move if needed
+            if (g.isAI && !isMyTurn && g.active && !aiMoveInProgress) {
+                console.log('AI turn detected, triggering AI move in 2s...');
+                setTimeout(() => makeCheckersAIMove(), 2000);
+            }
         }
         
         // ✅ Enable buttons
@@ -1801,14 +1794,12 @@ async function loadGame(id) {
         document.getElementById('shareBtn').disabled = false;
         document.getElementById('sendChatBtn').disabled = false;
         
-        // ✅ FIX #5: Hide forfeit button for AI games
+        // ✅ Hide forfeit button logic
         if (g.isAI) {
             document.getElementById('forfeitBtn').style.display = 'none';
         } else if (!g.player2 || g.player2 === '0x0000000000000000000000000000000000000000') {
-            // PvP game with no opponent
             document.getElementById('forfeitBtn').style.display = 'none';
         } else {
-            // PvP game with opponent
             document.getElementById('forfeitBtn').style.display = 'inline-block';
         }
         
@@ -1822,7 +1813,7 @@ async function loadGame(id) {
         showAlert('❌ Load failed: ' + e.message, 'error');
     }
 }
-        
+
 // ==================== CHESS BOARD ====================
 function renderChessBoard() {
     if (!gameEngine) {
@@ -2694,10 +2685,6 @@ function debugCheckersSetup() {
     console.log('Pieces on wrong squares:', wrongSquareCount, '(should be 0)');
     console.log('Board state:', checkersBoard);
 }
-
-// Call after initializing
-initCheckersBoard();
-debugCheckersSetup();
 
 // ✅ ADD: Debug function to test board
 function debugCheckersBoard() {
