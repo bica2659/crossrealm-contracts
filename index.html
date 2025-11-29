@@ -1758,59 +1758,58 @@ async function loadGame(id) {
             }
             
         } else if (g.gameType === 'checkers') {
-            // ✅ Checkers logic
-            initCheckersBoard(fen);
-            renderCheckersBoard();
-            
-            const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
-            
-            const fenTurn = fen.split(' ')[1];
-            const isWhiteTurn = !fenTurn || fenTurn === 'b';
-            
-            if (g.isAI) {
-                isMyTurn = isWhiteTurn;
-            } else {
-                isMyTurn = (isWhiteTurn && amICreator) || (!isWhiteTurn && !amICreator);
-            }
-            
-            const turnIndicator = isMyTurn ? 
-                '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
-                '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
-            
-            document.getElementById('gameInfo').innerHTML = 
-                `Game #${id} • CHECKERS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
-            document.getElementById('boardTitle').innerHTML = 
-                `<span>🎯 Checkers Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
-            
-            // ✅ Trigger AI move if needed
-            if (g.isAI && !isMyTurn && g.active && !aiMoveInProgress) {
-                console.log('AI turn detected, triggering AI move in 2s...');
-                setTimeout(() => makeCheckersAIMove(), 2000);
-            }
-        }
+    initCheckersBoard(fen);
+    renderCheckersBoard();
+    
+    const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
+    
+    // ✅ CORRECT: Use contract turn directly (0 = creator/red, 1 = player2/black/AI)
+    const contractTurn = g.turn.toNumber();
+    
+    console.log('Checkers turn info:', {
+        contractTurn: contractTurn,
+        amICreator: amICreator,
+        isAI: g.isAI,
+        fen: fen
+    });
+    
+    if (g.isAI) {
+        // ✅ AI game: turn 0 = YOUR turn (red), turn 1 = AI turn (black)
+        isMyTurn = (contractTurn === 0);
+    } else {
+        // PvP game: match turn to your role
+        isMyTurn = (contractTurn === 0 && amICreator) || (contractTurn === 1 && !amICreator);
+    }
+    
+    console.log('✅ Is my turn:', isMyTurn, '(turn', contractTurn, ')');
+    
+    const turnIndicator = isMyTurn ? 
+        '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
+        '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
+    
+    document.getElementById('gameInfo').innerHTML = 
+        `Game #${id} • CHECKERS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
+    document.getElementById('boardTitle').innerHTML = 
+        `<span>🎯 Checkers Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
+    
+    // ✅ Trigger AI move
+    if (g.isAI && !isMyTurn && g.active) {
+        console.log('✅ AI TURN - Triggering AI move in 2 seconds...');
         
-        // ✅ Enable buttons
-        document.getElementById('forfeitBtn').disabled = false;
-        document.getElementById('shareBtn').disabled = false;
-        document.getElementById('sendChatBtn').disabled = false;
-        
-        // ✅ Hide forfeit button logic
-        if (g.isAI) {
-            document.getElementById('forfeitBtn').style.display = 'none';
-        } else if (!g.player2 || g.player2 === '0x0000000000000000000000000000000000000000') {
-            document.getElementById('forfeitBtn').style.display = 'none';
+        if (!aiMoveInProgress) {
+            setTimeout(() => {
+                console.log('🤖 Executing makeCheckersAIMove()...');
+                makeCheckersAIMove();
+            }, 2000);
         } else {
-            document.getElementById('forfeitBtn').style.display = 'inline-block';
+            console.log('⚠️ AI move already in progress');
         }
-        
-        loadChatMessages();
-        startChatPolling();
-        
-        showAlert('✅ Game loaded!', 'success');
-        
-    } catch (e) {
-        console.error('Load game error:', e);
-        showAlert('❌ Load failed: ' + e.message, 'error');
+    } else {
+        console.log('Not AI turn. Conditions:', {
+            isAI: g.isAI,
+            isMyTurn: isMyTurn,
+            active: g.active
+        });
     }
 }
 
