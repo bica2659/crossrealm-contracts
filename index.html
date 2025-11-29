@@ -318,7 +318,7 @@
         }
 
         /* ✅ Mobile board optimization */
-    @media (max-width: 768px) {
+        @media (max-width: 768px) {
         .board-container {
             display: none; /* ✅ Hidden by default */
             grid-template-columns: repeat(8, 1fr);
@@ -2173,21 +2173,59 @@ function getPieceValue(piece, x, y) {
 function initCheckersBoard(fen) {
     checkersBoard = [];
     for (let i = 0; i < 8; i++) {
-        checkersBoard[i] = [];
-        for (let j = 0; j < 8; j++) {
-            checkersBoard[i][j] = 0;
+        checkersBoard[i] = new Array(8).fill(0);
+    }
+    
+    // ✅ ALWAYS create standard position for new games, ignore corrupted FEN
+    // Only use FEN if it has 24 pieces and is valid
+    let useDefaultPosition = true;
+    
+    if (fen && fen !== '') {
+        // Try to parse and validate FEN
+        const fenParts = fen.split(' ')[0];
+        const rows = fenParts.split('/');
+        let pieceCount = 0;
+        
+        // Count pieces in FEN
+        for (let row of rows) {
+            for (let char of row) {
+                if (char === 'b' || char === 'w' || char === 'B' || char === 'W') {
+                    pieceCount++;
+                }
+            }
+        }
+        
+        // Only use FEN if it has reasonable number of pieces (20-24)
+        if (pieceCount >= 20 && pieceCount <= 24) {
+            useDefaultPosition = false;
+            
+            // Parse the FEN
+            for (let row = 0; row < 8 && row < rows.length; row++) {
+                let col = 0;
+                for (let char of rows[row]) {
+                    if (char >= '0' && char <= '9') {
+                        col += parseInt(char);
+                    } else if (col < 8) {
+                        if (char === 'b') checkersBoard[row][col] = 1;
+                        else if (char === 'w') checkersBoard[row][col] = 2;
+                        else if (char === 'B') checkersBoard[row][col] = 3;
+                        else if (char === 'W') checkersBoard[row][col] = 4;
+                        col++;
+                    }
+                }
+            }
+            console.log('✅ Loaded checkers from FEN with', pieceCount, 'pieces');
+        } else {
+            console.log('⚠️ FEN has wrong piece count:', pieceCount, '- using default position');
         }
     }
     
-    // ✅ CORRECT: Standard checkers starting position
-    // Pieces ONLY on dark squares (where row+col is odd)
-    if (!fen || fen === '') {
-        // Manually set up standard checkers position
+    if (useDefaultPosition) {
+        // ✅ Create standard checkers starting position
         // Black pieces (1) on rows 0, 1, 2 - dark squares only
         for (let row = 0; row < 3; row++) {
             for (let col = 0; col < 8; col++) {
-                // Only place on dark squares
-                if ((row + col) % 2 === 1) {
+                if ((row + col) % 2 === 1) { // Dark square
                     checkersBoard[row][col] = 1; // Black piece
                 }
             }
@@ -2196,37 +2234,24 @@ function initCheckersBoard(fen) {
         // Red pieces (2) on rows 5, 6, 7 - dark squares only
         for (let row = 5; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
-                // Only place on dark squares
-                if ((row + col) % 2 === 1) {
+                if ((row + col) % 2 === 1) { // Dark square
                     checkersBoard[row][col] = 2; // Red piece
                 }
             }
         }
-    } else {
-        // Parse FEN if provided
-        const fenParts = fen.split(' ')[0];
-        const rows = fenParts.split('/');
-        
-        for (let row = 0; row < 8 && row < rows.length; row++) {
-            let col = 0;
-            for (let char of rows[row]) {
-                if (char >= '0' && char <= '9') {
-                    col += parseInt(char);
-                } else {
-                    if (col < 8) {
-                        if (char === 'b') checkersBoard[row][col] = 1;      // Black piece
-                        else if (char === 'w') checkersBoard[row][col] = 2; // Red piece
-                        else if (char === 'B') checkersBoard[row][col] = 3; // Black king
-                        else if (char === 'W') checkersBoard[row][col] = 4; // Red king
-                        col++;
-                    }
-                }
-            }
+        console.log('✅ Created standard checkers position (24 pieces)');
+    }
+    
+    // Count pieces for verification
+    let blackCount = 0, redCount = 0;
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            if (checkersBoard[row][col] === 1 || checkersBoard[row][col] === 3) blackCount++;
+            if (checkersBoard[row][col] === 2 || checkersBoard[row][col] === 4) redCount++;
         }
     }
     
-    console.log('Checkers board initialized:', checkersBoard);
-    console.log('Expected: 12 black pieces (1) on rows 0-2, 12 red pieces (2) on rows 5-7, all on dark squares');
+    console.log('Checkers initialized: Black =', blackCount, 'Red =', redCount);
 }
 
 function renderCheckersBoard() {
