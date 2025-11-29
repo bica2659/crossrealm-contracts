@@ -320,10 +320,27 @@
         /* ✅ Mobile board optimization */
     @media (max-width: 768px) {
         .board-container {
-            width: min(400px, 90vw);
-            height: min(400px, 90vw);
-            margin: 10px auto;
-            border: 2px solid var(--bitcoin-orange);
+            display: none; /* ✅ Hidden by default */
+            grid-template-columns: repeat(8, 1fr);
+            gap: 0;
+            width: min(520px, 95vw);
+            height: min(520px, 95vw);
+            margin: 20px auto;
+            border: 4px solid var(--bitcoin-orange);
+            background: #000;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        #boardPlaceholder {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--dim);
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            margin: 20px auto;
+            max-width: 520px;
         }
     
         .chess-piece {
@@ -845,7 +862,7 @@
             <div class="logo">⚡ CROSSREALM</div>
             <div class="tagline">
                 Skill-Based On-Chain Gaming • Winner Takes All<br>
-                Built on Core Blockchain • 7% Cashback • 10% Lifetime Referrals
+                Built on Core Blockchain • 7% Fee Cashback • 10% Lifetime Referrals
             </div>
             <div class="wallet-bar">
                 <div class="wallet-info hidden" id="walletInfo">
@@ -1799,7 +1816,7 @@ async function loadGame(id) {
         showAlert('❌ Load failed: ' + e.message, 'error');
     }
 }
-// ==================== CHESS BOARD ====================
+        
 // ==================== CHESS BOARD ====================
 function renderChessBoard() {
     if (!gameEngine) {
@@ -1808,6 +1825,9 @@ function renderChessBoard() {
     }
     
     const container = document.getElementById('boardContainer');
+    container.style.display = 'grid';
+    const placeholder = document.getElementById('boardPlaceholder');
+    if (placeholder) placeholder.style.display = 'none';
     container.innerHTML = '';
     
     console.log('Rendering chess board. FEN:', gameEngine.fen());
@@ -2162,37 +2182,54 @@ function initCheckersBoard(fen) {
         }
     }
     
-    // ✅ FIXED: Better default FEN
+    // ✅ CORRECT: Standard checkers starting position
+    // Pieces ONLY on dark squares (where row+col is odd)
     if (!fen || fen === '') {
-        // Standard checkers starting position
-        // Rows 0-2: Black pieces (1)
-        // Rows 5-7: Red/White pieces (2)
-        fen = 'b1b1b1b1/1b1b1b1b/b1b1b1b1/8/8/w2w2w2w/2w2w2w2w/w2w2w2w b';
-    }
-    
-    console.log('Initializing checkers with FEN:', fen);
-    
-    const fenParts = fen.split(' ')[0];
-    const rows = fenParts.split('/');
-    
-    for (let row = 0; row < 8 && row < rows.length; row++) {
-        let col = 0;
-        for (let char of rows[row]) {
-            if (char >= '0' && char <= '9') {
-                col += parseInt(char);
-            } else {
-                if (col < 8) {
-                    if (char === 'b') checkersBoard[row][col] = 1;      // Black piece
-                    else if (char === 'w') checkersBoard[row][col] = 2; // White/Red piece
-                    else if (char === 'B') checkersBoard[row][col] = 3; // Black king
-                    else if (char === 'W') checkersBoard[row][col] = 4; // White/Red king
-                    col++;
+        // Manually set up standard checkers position
+        // Black pieces (1) on rows 0, 1, 2 - dark squares only
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 8; col++) {
+                // Only place on dark squares
+                if ((row + col) % 2 === 1) {
+                    checkersBoard[row][col] = 1; // Black piece
+                }
+            }
+        }
+        
+        // Red pieces (2) on rows 5, 6, 7 - dark squares only
+        for (let row = 5; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                // Only place on dark squares
+                if ((row + col) % 2 === 1) {
+                    checkersBoard[row][col] = 2; // Red piece
+                }
+            }
+        }
+    } else {
+        // Parse FEN if provided
+        const fenParts = fen.split(' ')[0];
+        const rows = fenParts.split('/');
+        
+        for (let row = 0; row < 8 && row < rows.length; row++) {
+            let col = 0;
+            for (let char of rows[row]) {
+                if (char >= '0' && char <= '9') {
+                    col += parseInt(char);
+                } else {
+                    if (col < 8) {
+                        if (char === 'b') checkersBoard[row][col] = 1;      // Black piece
+                        else if (char === 'w') checkersBoard[row][col] = 2; // Red piece
+                        else if (char === 'B') checkersBoard[row][col] = 3; // Black king
+                        else if (char === 'W') checkersBoard[row][col] = 4; // Red king
+                        col++;
+                    }
                 }
             }
         }
     }
     
     console.log('Checkers board initialized:', checkersBoard);
+    console.log('Expected: 12 black pieces (1) on rows 0-2, 12 red pieces (2) on rows 5-7, all on dark squares');
 }
 
 function renderCheckersBoard() {
@@ -2509,6 +2546,42 @@ function checkersToFen() {
     }
     return fen + ' b';
 }
+
+function debugCheckersSetup() {
+    console.log('=== CHECKERS DEBUG ===');
+    
+    let blackCount = 0;
+    let redCount = 0;
+    let wrongSquareCount = 0;
+    
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const piece = checkersBoard[row][col];
+            
+            if (piece > 0) {
+                // Count pieces
+                if (piece === 1 || piece === 3) blackCount++;
+                if (piece === 2 || piece === 4) redCount++;
+                
+                // Check if on dark square
+                const isDark = (row + col) % 2 === 1;
+                if (!isDark) {
+                    wrongSquareCount++;
+                    console.error('Piece on LIGHT square at', row, col);
+                }
+            }
+        }
+    }
+    
+    console.log('Black pieces:', blackCount, '(should be 12)');
+    console.log('Red pieces:', redCount, '(should be 12)');
+    console.log('Pieces on wrong squares:', wrongSquareCount, '(should be 0)');
+    console.log('Board state:', checkersBoard);
+}
+
+// Call after initializing
+initCheckersBoard();
+debugCheckersSetup();
 
 // ✅ ADD: Debug function to test board
 function debugCheckersBoard() {
