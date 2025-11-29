@@ -1028,7 +1028,7 @@
             <div class="grid mt-2">
                 <div class="card">
                     <h3>🌐 Available Games</h3>
-                    <button onclick="loadPendingGames()" style="width: 100%; margin-bottom: 15px;">🔄 Refresh</button>
+                    <button onclick="refreshGames()" style="width: 100%; margin-bottom: 15px;">🔄 Refresh</button>
                     <div class="game-list" id="gamesList">
                         <p class="text-center" style="color: var(--dim);">Connect wallet to see games</p>
                     </div>
@@ -1482,7 +1482,7 @@ function startAutoRefresh() {
                 loadChatMessages();
             }
         }
-    }, 15000);
+    }, 5000);
 }
 
 // ==================== STATISTICS ====================
@@ -1614,8 +1614,14 @@ async function createGame() {
         
         showAlert('✅ Game created!', 'success');
         
-        await loadPendingGames();
-        await loadMyGames();
+        await Promise.all([
+            loadPendingGames(),
+            loadMyGames()
+        ]);
+
+        // ✅ Clear form
+        document.getElementById('stakeAmount').value = '0.1';
+        document.getElementById('isPrivate').checked = false;
         
         const gameCount = await hub.gameCount();
         console.log('Game created with ID:', gameCount.toString());
@@ -1648,7 +1654,7 @@ async function createGame() {
 }
 
 async function loadPendingGames() {
-    if (!hub) return;
+    if (!hub || !userAddress) return;
     const list = document.getElementById('gamesList');
     try {
         const count = await hub.gameCount();
@@ -1657,8 +1663,13 @@ async function loadPendingGames() {
         for (let i = count.toNumber(); i >= Math.max(1, count.toNumber() - 20); i--) {
             try {
                 const g = await hub.games(i);
-                if (g.player2 === ethers.constants.AddressZero && g.active && !g.isPrivate && !g.isAI) {
+                const isMyGame = g.creator.toLowerCase() === userAddress.toLowerCase();
+                const needsPlayer = g.player2 === ethers.constants.AddressZero;
+                const isPublic = !g.isPrivate && !g.isAI;
+                
+                if (needsPlayer && isPublic && g.active && !isMyGame) {
                     const stake = ethers.utils.formatEther(g.stake);
+                    const creator = g.creator.slice(0, 6) + '...' + g.creator.slice(-4);
                     html += `<div class="game-item" onclick="joinGame(${i})">
                         <div class="game-id">🟢 Game #${i}</div>
                         <div class="game-info">${g.gameType.toUpperCase()} • ${stake} CORE • vs Player</div>
@@ -1703,6 +1714,19 @@ async function loadMyGames() {
     }
 }
 
+async function refreshGames() {
+    if (!hub) return showAlert('Connect wallet first', 'error');
+    
+    showAlert('🔄 Refreshing games...', 'info');
+    
+    await Promise.all([
+        loadPendingGames(),
+        loadMyGames()
+    ]);
+    
+    showAlert('✅ Games refreshed!', 'success');
+}
+
 async function joinGame(id) {
     if (!hub) return;
     try {
@@ -1721,7 +1745,6 @@ async function joinGame(id) {
         showAlert('❌ Join failed: ' + (e.reason || e.message), 'error');
     }
 }
-
 async function loadGame(id) {
     if (!hub) return;
     try {
@@ -2061,7 +2084,7 @@ async function makePlayerMove(toSquare) {
         
         // Wait a bit then reload game state
         console.log('Waiting before reload...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         console.log('Reloading game...');
         await loadGame(currentGameId);
@@ -2583,7 +2606,7 @@ async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
         console.log('Transaction confirmed!');
         
         showAlert('✅ Move successful!', 'success');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 500));
         await loadGame(currentGameId);
         
     } catch (e) {
