@@ -1779,6 +1779,12 @@ async function loadGame(id) {
             } else {
                 isMyTurn = (isWhiteTurn && amICreator) || (!isWhiteTurn && !amICreator);
             }
+
+            if (g.isAI && !isMyTurn && g.active && !aiMoveInProgress) {
+                console.log('AI turn detected, triggering AI move in 2s...');
+                setTimeout(() => makeCheckersAIMove(), 2000);
+            }
+        }
             
             const turnIndicator = isMyTurn ? 
                 '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
@@ -2238,9 +2244,9 @@ function renderCheckersBoard() {
         console.error('Board container not found!');
         return;
     }
-    
-    container.innerHTML = '';
+
     container.style.display = 'grid';
+    container.innerHTML = '';
     container.style.gridTemplateColumns = 'repeat(8, 1fr)';
     container.style.gridTemplateRows = 'repeat(8, 1fr)';
     container.style.width = '600px';
@@ -2519,6 +2525,116 @@ async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
         });
         showAlert('❌ Move failed: ' + (e.reason || e.message), 'error');
         setTimeout(() => loadGame(currentGameId), 1000);
+    }
+}
+
+async function makeCheckersAIMove() {
+    if (!currentGame || !currentGame.isAI) return;
+    if (isMyTurn) return; // Not AI's turn
+    if (aiMoveInProgress) return;
+    
+    aiMoveInProgress = true;
+    
+    try {
+        console.log('=== AI CHECKERS MOVE ===');
+        showAlert('🤖 AI is thinking...', 'info');
+        
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Get all possible AI moves (AI plays black - pieces 1 and 3)
+        const aiPieces = [1, 3]; // Black pieces
+        let possibleMoves = [];
+        
+        for (let fromRow = 0; fromRow < 8; fromRow++) {
+            for (let fromCol = 0; fromCol < 8; fromCol++) {
+                const piece = checkersBoard[fromRow][fromCol];
+                
+                if (!aiPieces.includes(piece)) continue;
+                
+                const isKing = piece === 3;
+                const directions = isKing ? 
+                    [[-1, -1], [-1, 1], [1, -1], [1, 1]] : 
+                    [[1, -1], [1, 1]]; // Black moves down
+                
+                directions.forEach(([dRow, dCol]) => {
+                    // Normal move
+                    const newRow = fromRow + dRow;
+                    const newCol = fromCol + dCol;
+                    if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+                        if (checkersBoard[newRow][newCol] === 0) {
+                            possibleMoves.push({ fromRow, fromCol, toRow: newRow, toCol: newCol, isJump: false });
+                        }
+                        
+                        // Jump move
+                        const jumpRow = fromRow + dRow * 2;
+                        const jumpCol = fromCol + dCol * 2;
+                        if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8) {
+                            const middlePiece = checkersBoard[newRow][newCol];
+                            if ([2, 4].includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
+                                possibleMoves.push({ fromRow, fromCol, toRow: jumpRow, toCol: jumpCol, isJump: true });
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        if (possibleMoves.length === 0) {
+            console.log('No moves available - game over');
+            showAlert('🏁 Game over!', 'info');
+            aiMoveInProgress = false;
+            return;
+        }
+        
+        // Prefer jumps
+        const jumps = possibleMoves.filter(m => m.isJump);
+        const move = jumps.length > 0 ? 
+            jumps[Math.floor(Math.random() * jumps.length)] :
+            possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+        
+        console.log('AI selected move:', move);
+        
+        // Make the move
+        const { fromRow, fromCol, toRow, toCol } = move;
+        
+        checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
+        checkersBoard[fromRow][fromCol] = 0;
+        
+        // Handle capture
+        if (move.isJump) {
+            const captureRow = Math.floor((fromRow + toRow) / 2);
+            const captureCol = Math.floor((fromCol + toCol) / 2);
+            checkersBoard[captureRow][captureCol] = 0;
+        }
+        
+        // Promote to king
+        if (toRow === 7 && checkersBoard[toRow][toCol] === 1) {
+            checkersBoard[toRow][toCol] = 3;
+        }
+        
+        const newFen = checkersToFen();
+        const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
+        
+        console.log('AI move string:', moveStr);
+        console.log('New FEN:', newFen);
+        
+        renderCheckersBoard();
+        
+        showAlert('🤖 AI is moving...', 'info');
+        
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
+        await tx.wait();
+        
+        showAlert('✅ AI moved!', 'success');
+        
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await loadGame(currentGameId);
+        
+    } catch (e) {
+        console.error('AI checkers move error:', e);
+        showAlert('❌ AI move failed: ' + (e.reason || e.message), 'error');
+    } finally {
+        aiMoveInProgress = false;
     }
 }
 
