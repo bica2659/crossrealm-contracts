@@ -1711,26 +1711,39 @@
                     
                 } else if (g.gameType === 'checkers') {
                     initCheckersBoard(fen);
-                    renderCheckersBoard();
-                    
+    
                     const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
-                    const contractTurn = g.turn.toNumber();
-                    
+                    const contractTurn = typeof g.turn === 'object' && g.turn.toNumber ? g.turn.toNumber() : Number(g.turn);
+    
+                    console.log('🎯 CHECKERS DEBUG:', {
+                        amICreator,
+                        contractTurn,
+                        isAI: g.isAI,
+                        player2: g.player2
+                    });
+    
+                    // ✅ FIXED: Proper turn calculation
                     if (g.isAI) {
+                        // AI game: Player is always turn 0 (red pieces, move down)
                         isMyTurn = (contractTurn === 0);
                     } else {
+                        // PvP game: Creator is turn 0, Joiner is turn 1
                         isMyTurn = (contractTurn === 0 && amICreator) || (contractTurn === 1 && !amICreator);
                     }
-                    
+    
+                    console.log('🎯 isMyTurn:', isMyTurn);
+    
+                    renderCheckersBoard();
+    
                     const turnIndicator = isMyTurn ? 
                         '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
                         '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
-                    
+    
                     document.getElementById('gameInfo').innerHTML = 
-                        `Game #${id} • CHECKERS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
+        `                Game #${id} • CHECKERS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
                     document.getElementById('boardTitle').innerHTML = 
-                        `<span>🎯 Checkers Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
-                    
+        `                <span>🎯 Checkers Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
+    
                     if (g.isAI && !isMyTurn && g.active && !aiMoveInProgress) {
                         setTimeout(() => makeCheckersAIMove(), 2000);
                     }
@@ -1857,7 +1870,7 @@
 
         async function makePlayerMove(toSquare) {
             if (!moveFrom || !hub || !currentGameId) return;
-            
+    
             try {
                 if (moveFrom === toSquare) {
                     moveFrom = null;
@@ -1866,10 +1879,11 @@
                     });
                     return;
                 }
-                
-                const move = gameEngine.move({ from: moveFrom, to: toSquare, promotion: 'q' });
-                
-                if (!move) {
+        
+                // ✅ CRITICAL FIX: Test move first without committing
+                const testMove = gameEngine.move({ from: moveFrom, to: toSquare, promotion: 'q' });
+        
+                if (!testMove) {
                     showAlert('❌ Invalid move!', 'error');
                     moveFrom = null;
                     document.querySelectorAll('.board-square').forEach(s => {
@@ -1877,44 +1891,57 @@
                     });
                     return;
                 }
-                
+        
                 const moveStr = moveFrom + toSquare;
                 let newFen = gameEngine.fen();
-                
-                // ✅ CRITICAL FIX: Append checkmate/stalemate/draw indicators
+        
+                // Append checkmate/stalemate/draw indicators
                 if (gameEngine.isCheckmate()) {
                     newFen += '#';
-                    showAlert('🎯 CHECKMATE!', 'success');
                 } else if (gameEngine.isStalemate()) {
                     newFen += ' STALEMATE';
                 } else if (gameEngine.isDraw()) {
                     newFen += ' DRAW';
                 }
-                
+        
+                // ✅ Show optimistic update
                 renderChessBoard();
-                showAlert('⏳ Submitting move...', 'info');
-                
+                showAlert('⏳ Submitting move on-chain...', 'info');
+        
                 const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
                 await tx.wait();
-                
+        
                 moveFrom = null;
                 document.querySelectorAll('.board-square').forEach(s => {
                     s.classList.remove('selected', 'possible');
                 });
-                
-                showAlert('✅ Move successful!', 'success');
-                await new Promise(resolve => setTimeout(resolve, 500));
+        
+                if (gameEngine.isCheckmate()) {
+                    showAlert('🎯 CHECKMATE! Game ending...', 'success');
+                } else {
+                    showAlert('✅ Move confirmed on-chain!', 'success');
+                }
+        
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 await loadGame(currentGameId);
-                
+        
             } catch (e) {
                 console.error('Move error:', e);
+        
+                // ✅ CRITICAL: Undo the move if blockchain fails
                 gameEngine.undo();
+        
                 moveFrom = null;
                 document.querySelectorAll('.board-square').forEach(s => {
                     s.classList.remove('selected', 'possible');
                 });
                 renderChessBoard();
-                showAlert('❌ ' + (e.reason || e.message || 'Move failed'), 'error');
+        
+                let errorMsg = 'Move failed';
+                if (e.reason) errorMsg = e.reason;
+                else if (e.message) errorMsg = e.message;
+        
+                showAlert('❌ ' + errorMsg, 'error');
             }
         }
 
@@ -2453,6 +2480,7 @@
             currentGameId = id;
             document.getElementById('boardTitle').textContent = "🎱 8-Ball Pool • Game #" + id;
             const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
+            const turn = typeof currentGame.turn === 'object' && currentGame.turn.toNumber ? currentGame.turn.toNumber() : currentGame.turn; // ✅ FIXED
             isMyTurn = currentGame.turn.toNumber() === (amICreator ? 0 : 1);
             document.getElementById('gameInfo').innerHTML = isMyTurn ? "🟢 Your turn" : "⏳ Opponent's turn";
             reset8BallTable();
