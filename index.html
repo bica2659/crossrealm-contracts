@@ -1966,7 +1966,7 @@
                     s.classList.remove('selected', 'possible');
                 });
 
-                if (gameEngine.isCheckmate()) {
+                if (gameEngine.in_checkmate()) {
                     showAlert('🎯 CHECKMATE! Game ending...', 'success');
                 } else {
                     showAlert('✅ Move confirmed on-chain!', 'success');
@@ -2030,7 +2030,7 @@
                 let newFen = gameEngine.fen();
         
                 // ✅ CRITICAL FIX: Append checkmate indicator for AI moves too
-                if (gameEngine.isCheckmate()) {
+                if (gameEngine.in_checkmate()) {
                     newFen += '#';
                 } else if (gameEngine.in_Stalemate()) {
                     newFen += ' STALEMATE';
