@@ -1945,7 +1945,7 @@
                 let newFen = gameEngine.fen();
 
                 // ✅ FIXED: Check for king capture first
-                if (!checkKingPresent()) {
+                if (!checkGameOver()) {
                     newFen += '#';
                     renderChessBoard();
                     showAlert('👑 KING CAPTURED! Ending game...', 'success');
@@ -1968,7 +1968,7 @@
                     s.classList.remove('selected', 'possible');
                 });
 
-                if (!checkKingPresent() || gameEngine.in_checkmate()) {
+                if (checkGameOver() || gameEngine.in_checkmate()) {
                     showAlert('🎯 GAME OVER!', 'success');
                 } else {
                     showAlert('✅ Move confirmed on-chain!', 'success');
@@ -1995,24 +1995,27 @@
                 showAlert('❌ ' + errorMsg, 'error');
             }
         }
-        function checkKingPresent() {
-            if (!gameEngine) return true;
+        
+        function checkGameOver() {
+            if (!gameEngine) return false;
     
-            const board = gameEngine.board();
-            let whiteKing = false;
-            let blackKing = false;
+            const fen = gameEngine.fen();
     
-            for (let row = 0; row < 8; row++) {
-                for (let col = 0; col < 8; col++) {
-                    const piece = board[row][col];
-                    if (piece && piece.type === 'k') {
-                       if (piece.color === 'w') whiteKing = true;
-                       if (piece.color === 'b') blackKing = true;
-                    }
-                }
-            }
+            // Check if both kings are present in FEN
+            const hasWhiteKing = fen.includes('K');
+            const hasBlackKing = fen.includes('k');
     
-            return whiteKing && blackKing;
+           // If either king is missing, game is over
+           if (!hasWhiteKing || !hasBlackKing) {
+               return true;
+           }
+    
+           // Check for checkmate
+           if (gameEngine.in_checkmate()) {
+               return true;
+           }
+    
+           return false;
         }
 
         async function makeAIMove() {
@@ -2050,7 +2053,7 @@
                 let newFen = gameEngine.fen();
         
                 // ✅ CRITICAL FIX: Append checkmate indicator for AI moves too
-                if (gameEngine.in_checkmate()) {
+                if (checkGameOver()) {
                     newFen += '#';
                 } else if (gameEngine.in_stalemate()) {
                     newFen += ' STALEMATE';
