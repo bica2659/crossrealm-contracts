@@ -1930,7 +1930,6 @@
                     return;
                 }
 
-                // ✅ CRITICAL FIX: Test move first without committing
                 const testMove = gameEngine.move({ from: moveFrom, to: toSquare, promotion: 'q' });
 
                 if (!testMove) {
@@ -1945,8 +1944,12 @@
                 const moveStr = moveFrom + toSquare;
                 let newFen = gameEngine.fen();
 
-                // Append checkmate/stalemate/draw indicators
-                if (gameEngine.in_checkmate()) {
+                // ✅ FIXED: Check for king capture first
+                if (!checkKingPresent()) {
+                    newFen += '#';
+                    renderChessBoard();
+                    showAlert('👑 KING CAPTURED! Ending game...', 'success');
+                } else if (gameEngine.in_checkmate()) {
                     newFen += '#';
                 } else if (gameEngine.in_stalemate()) {
                     newFen += ' STALEMATE';
@@ -1954,7 +1957,6 @@
                     newFen += ' DRAW';
                 }
 
-                // ✅ Show optimistic update
                 renderChessBoard();
                 showAlert('⏳ Submitting move on-chain...', 'info');
 
@@ -1966,8 +1968,8 @@
                     s.classList.remove('selected', 'possible');
                 });
 
-                if (gameEngine.in_checkmate()) {
-                    showAlert('🎯 CHECKMATE! Game ending...', 'success');
+                if (!checkKingPresent() || gameEngine.in_checkmate()) {
+                    showAlert('🎯 GAME OVER!', 'success');
                 } else {
                     showAlert('✅ Move confirmed on-chain!', 'success');
                 }
@@ -1978,7 +1980,6 @@
             } catch (e) {
                 console.error('Move error:', e);
 
-                // ✅ CRITICAL: Undo the move if blockchain fails
                 gameEngine.undo();
 
                 moveFrom = null;
@@ -1993,6 +1994,25 @@
 
                 showAlert('❌ ' + errorMsg, 'error');
             }
+        }
+        function checkKingPresent() {
+            if (!gameEngine) return true;
+    
+            const board = gameEngine.board();
+            let whiteKing = false;
+            let blackKing = false;
+    
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const piece = board[row][col];
+                    if (piece && piece.type === 'k') {
+                       if (piece.color === 'w') whiteKing = true;
+                       if (piece.color === 'b') blackKing = true;
+                    }
+                }
+            }
+    
+            return whiteKing && blackKing;
         }
 
         async function makeAIMove() {
