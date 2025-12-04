@@ -1946,11 +1946,11 @@
                 let newFen = gameEngine.fen();
 
                 // Append checkmate/stalemate/draw indicators
-                if (gameEngine.in_Checkmate()) {
+                if (gameEngine.in_checkmate()) {
                     newFen += '#';
-                } else if (gameEngine.in_Stalemate()) {
+                } else if (gameEngine.in_stalemate()) {
                     newFen += ' STALEMATE';
-                } else if (gameEngine.in_Draw()) {
+                } else if (gameEngine.in_draw()) {
                     newFen += ' DRAW';
                 }
 
@@ -2032,9 +2032,9 @@
                 // ✅ CRITICAL FIX: Append checkmate indicator for AI moves too
                 if (gameEngine.in_checkmate()) {
                     newFen += '#';
-                } else if (gameEngine.in_Stalemate()) {
+                } else if (gameEngine.in_stalemate()) {
                     newFen += ' STALEMATE';
-                } else if (gameEngine.in_Draw()) {
+                } else if (gameEngine.in_draw()) {
                     newFen += ' DRAW';
                 }
         
@@ -2139,6 +2139,7 @@
     
             return isWhite ? value : -value;
         }
+        
         // ==================== CHECKERS FUNCTIONS ====================
         function initCheckersBoard(fen) {
             checkersBoard = [];
