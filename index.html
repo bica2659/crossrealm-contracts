@@ -3302,20 +3302,54 @@
         }
 
         // ==================== GAME ACTIONS ====================
-        async function forfeitGame() {
-            if (!hub || !currentGameId) return;
+        async function forfeitGame(gameId) {
+            if (!hub || !userAddress) {
+                showAlert('❌ Please connect wallet first', 'error');
+                return;
+            }
+    
             try {
-                const tx = await hub.forfeitGame(currentGameId, { gasLimit: 300000 });
                 showAlert('⏳ Forfeiting game...', 'info');
+        
+                // ✅ Check if game exists and you're a participant
+                const game = await hub.games(gameId);
+        
+                if (!game.active) {
+                    showAlert('❌ Game is already ended', 'error');
+                    return;
+                }
+        
+                const isCreator = game.creator.toLowerCase() === userAddress.toLowerCase();
+                const isPlayer2 = game.player2.toLowerCase() === userAddress.toLowerCase();
+        
+                if (!isCreator && !isPlayer2) {
+                    showAlert('❌ Not your game!', 'error');
+                    return;
+                }
+        
+                if (game.player2 === ethers.constants.AddressZero) {
+                    showAlert('❌ Cannot forfeit - game hasn\'t started yet. Please cancel instead.', 'error');
+                    return;
+                }
+        
+                const tx = await hub.forfeitGame(gameId, { gasLimit: 500000 });
                 await tx.wait();
-                showAlert('Game forfeited', 'info');
+        
+                showAlert('✅ Game forfeited!', 'success');
                 currentGameId = null;
-                loadMyGames();
+        
+                await loadAvailableGames();
+                await loadMyGames();
+        
             } catch (e) {
-                showAlert('❌ Forfeit failed: ' + (e.reason || e.message), 'error');
+                console.error('Forfeit error:', e);
+                let errorMsg = 'Forfeit failed';
+                if (e.reason) errorMsg = e.reason;
+                else if (e.message) errorMsg = e.message;
+                showAlert('❌ ' + errorMsg, 'error');
             }
         }
-
+        
         function shareGame() {
             if (!currentGameId) return;
             const url = window.location.origin + window.location.pathname + '?game=' + currentGameId;
