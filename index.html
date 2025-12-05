@@ -1762,17 +1762,17 @@
                     
                 } else if (g.gameType === 'checkers') {
                     initCheckersBoard(fen);
-    
+
                     const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
                     const contractTurn = typeof g.turn === 'object' && g.turn.toNumber ? g.turn.toNumber() : Number(g.turn);
-    
+
                     console.log('🎯 CHECKERS DEBUG:', {
                         amICreator,
                         contractTurn,
                         isAI: g.isAI,
                         player2: g.player2
                     });
-    
+
                     // ✅ FIXED: Proper turn calculation
                     if (g.isAI) {
                         // AI game: Player is always turn 0 (red pieces, move down)
@@ -1781,21 +1781,21 @@
                         // PvP game: Creator is turn 0, Joiner is turn 1
                         isMyTurn = (contractTurn === 0 && amICreator) || (contractTurn === 1 && !amICreator);
                     }
-    
+
                     console.log('🎯 isMyTurn:', isMyTurn);
-    
+
                     renderCheckersBoard();
-    
+
                     const turnIndicator = isMyTurn ? 
                         '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
                         '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
-    
+
                     document.getElementById('gameInfo').innerHTML = 
-        `                Game #${id} • CHECKERS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
+                        `Game #${id} • CHECKERS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
                     document.getElementById('boardTitle').innerHTML = 
-        `                <span>🎯 Checkers Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
-    
-                    if (g.isAI && !isMyTurn && g.active && !aiMoveInProgress) {
+                        `<span>🎯 Checkers Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
+
+                    if (g.isAI && !isMyTurn && g.active && !aiMoveInProgress && g.player2 !== ethers.constants.AddressZero) {
                         setTimeout(() => makeCheckersAIMove(), 2000);
                     }
                     
