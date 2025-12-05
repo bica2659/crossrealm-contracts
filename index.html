@@ -1715,6 +1715,7 @@
         }
 
         async function loadGame(id) {
+            console.trace('🔍 loadGame called with id:', id);  // ✅ This will show WHO called it
             if (!hub) return;
             try {
                 currentGameId = id;
