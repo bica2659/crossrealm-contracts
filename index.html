@@ -1944,13 +1944,20 @@
                 const moveStr = moveFrom + toSquare;
                 let newFen = gameEngine.fen();
 
-                // ✅ FIXED: Check for king capture first
-                if (!checkGameOver()) {
+                // ✅ Check if game is over (king captured OR checkmate)
+                if (checkGameOver()) {
                     newFen += '#';
-                    renderChessBoard();
-                    showAlert('👑 KING CAPTURED! Ending game...', 'success');
-                } else if (gameEngine.in_checkmate()) {
-                    newFen += '#';
+    
+                    const hasWhiteKing = newFen.includes('K');
+                    const hasBlackKing = newFen.includes('k');
+    
+                    if (!hasBlackKing) {
+                        showAlert('👑 BLACK KING CAPTURED! White wins!', 'success');
+                    } else if (!hasWhiteKing) {
+                        showAlert('👑 WHITE KING CAPTURED! Black wins!', 'success');
+                    } else {
+                        showAlert('🎯 CHECKMATE!', 'success');
+                    }
                 } else if (gameEngine.in_stalemate()) {
                     newFen += ' STALEMATE';
                 } else if (gameEngine.in_draw()) {
