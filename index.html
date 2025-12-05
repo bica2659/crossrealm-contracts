@@ -1808,24 +1808,19 @@
                 document.getElementById('forfeitBtn').disabled = false;
                 document.getElementById('shareBtn').disabled = false;
                 document.getElementById('sendChatBtn').disabled = false;
-                
+
                 const forfeitBtn = document.getElementById('forfeitBtn');
-                if (g.isAI) {
-                    forfeitBtn.textContent = '❌ Close Game';
-                    forfeitBtn.onclick = () => {
-                        currentGameId = null;
-                        showAlert('Game closed', 'info');
-                        document.getElementById('boardContainer').innerHTML = '';
-                        document.getElementById('gameCanvas').style.display = 'none';
-                        document.getElementById('gameInfo').innerHTML = 'No game loaded';
-                    };
-                } else if (!g.player2 || g.player2 === ethers.constants.AddressZero) {
-                    forfeitBtn.style.display = 'none';
+                if (!g.player2 || g.player2 === ethers.constants.AddressZero) {
+                    // Game hasn't started yet - show cancel button
+                    forfeitBtn.textContent = '❌ Cancel Game';
+                    forfeitBtn.style.display = 'inline-block';
+                    forfeitBtn.onclick = () => forfeitGame(id);
                 } else {
+                    // Game has started - show forfeit button
                     forfeitBtn.textContent = '🏳️ Forfeit Game';
                     forfeitBtn.style.display = 'inline-block';
-                    forfeitBtn.onclick = () => forfeitGame(id);  // ✅ Pass the game ID!
-                }
+                    forfeitBtn.onclick = () => forfeitGame(id);
+}
                 
                 startChatPolling();
                 loadChatMessages();
