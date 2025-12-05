@@ -1824,7 +1824,7 @@
                 } else {
                     forfeitBtn.textContent = '🏳️ Forfeit Game';
                     forfeitBtn.style.display = 'inline-block';
-                    forfeitBtn.onclick = forfeitGame;
+                    forfeitBtn.onclick = () => forfeitGame(id);  // ✅ Pass the game ID!
                 }
                 
                 startChatPolling();
