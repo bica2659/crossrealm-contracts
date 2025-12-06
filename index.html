@@ -764,22 +764,23 @@
         }
         
         /* ==================================================================
-        FINAL MOBILE OPTIMIZATION + UNIFIED GAME DISPLAY (2025)
-        ================================================================== */
+           MOBILE PERFECTION + PORTRAIT-FIRST 8-BALL (Dec 2025)
+           ================================================================== */
 
-        /* Main game wrapper */
+        /* Game wrapper — flexible for portrait/landscape */
         #gameArea {
             margin: 20px auto;
-            padding: 12px;
+            padding: 8px;
             background: #000;
             border: 4px solid var(--bitcoin-orange);
             border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.8);
             max-width: 96vw;
             overflow: hidden;
+            position: relative;
         }
 
-        /* Chess & Checkers — Square board */
+        /* Chess & Checkers — Always square */
         #boardContainer {
             display: none;
             width: min(520px, 88vw);
@@ -796,11 +797,11 @@
             background: #000;
         }
 
-        /* 8-Ball & Penalties — Wide rectangle canvas */
+        /* 8-Ball & Penalties — Portrait-first (tall/narrow), landscape-wide */
         #gameCanvas {
             display: none;
-            width: min(960px, 94vw);
-            height: min(540px, 53vw);
+            width: min(960px, 94vw);          /* Wide on desktop/landscape */
+            height: min(540px, 53vw);         /* 16:9 ratio */
             max-width: 960px;
             border: 8px ridge #8b4513;
             border-radius: 8px;
@@ -808,116 +809,122 @@
             box-shadow: inset 0 0 50px rgba(0,0,0,0.7);
         }
 
-        /* Power bar (8-ball only) */
+        /* Power bar — 8-ball only, scales with screen */
         #powerBarContainer {
             display: none;
             justify-content: center;
-            margin: 20px auto;
-            width: min(500px, 90vw);
+            margin: 15px auto;
+            width: min(500px, 85vw);
         }
 
         /* ==================================================================
-           RESPONSIVE BREAKPOINTS — CLEAN & NO CONFLICTS
+           PORTRAIT MOBILE — Tall/Narrow Table First (Your Sketch)
            ================================================================== */
-        @media (max-width: 968px) {
-            #boardContainer {
-                width: min(460px, 92vw);
-                height: min(460px, 92vw);
-            }
-            #gameCanvas {
-                width: 94vw;
-                height: 53vw;
-                max-height: 500px;
-            }
-        }
-
-        @media (max-width: 768px) {
-            /* General mobile improvements (you already loved these) */
-            button {
-                padding: 14px 20px;
-                font-size: 14px;
-                min-height: 44px;
-            }
+        @media (max-width: 768px) and (orientation: portrait) {
+            /* Keep your existing mobile UX (buttons, inputs, etc.) */
+            button { padding: 14px 20px; font-size: 14px; min-height: 44px; }
             .header { padding: 15px; }
             .logo { font-size: 24px; }
             .tagline { font-size: 11px; line-height: 1.6; }
             .tab-btn { padding: 10px 16px; font-size: 13px; }
             .card { padding: 15px; }
             .card h3 { font-size: 16px; }
-            input, select, textarea {
-                padding: 14px;
-                font-size: 16px;
-                min-height: 44px;
-            }
+            input, select, textarea { padding: 14px; font-size: 16px; min-height: 44px; }
             .info-badge { font-size: 12px; padding: 10px; }
             .wallet-bar { flex-direction: column; gap: 10px; }
 
-            /* Chess/Checkers board */
+            /* Board games — Square, fits portrait height */
             #boardContainer {
-                width: min(420px, 94vw);
-                height: min(420px, 94vw);
+                width: min(360px, 92vw);
+                height: min(360px, 92vw);
+                max-height: 70vh;  /* Fits vertically without scroll */
             }
-            .chess-piece { font-size: 40px !important; }
+            .chess-piece { font-size: 36px !important; }
             .checker-piece { width: 65%; height: 65%; }
+            .board-square { font-size: 36px; }
 
-            /* 8-Ball canvas */
+            /* 8-Ball — TALL/NARROW (portrait-first, like your sketch) */
             #gameCanvas {
-                width: 96vw;
-                height: 54vw;
-                max-height: 420px;
+                width: 82vw;                        /* Narrow width for portrait */
+                height: calc(82vw * 2);             /* Tall (2:1 ratio) — fits full height */
+                max-height: 85vh;                   /* Caps at screen height */
+                min-height: 400px;                  /* Minimum playable size */
             }
-        }
 
-        @media (max-width: 768px) and (orientation: landscape) {
-            #gameArea { padding: 8px; }
-            #boardContainer {
-                width: min(480px, 84vh);
-                height: min(480px, 84vh);
-            }
-            #gameCanvas {
-                width: 92vw;
-                height: calc(92vw * 0.5625); /* perfect 16:9 */
-            }
-        }
-
-        @media (max-width: 480px) {
-            #boardContainer {
-                width: min(360px, 94vw);
-                height: min(360px, 94vw);
-            }
-            #gameCanvas {
-                width: 96vw;
-                height: 54vw;
-            }
-            .chess-piece, .board-square { font-size: 34px !important; }
-            .checker-piece { width: 62%; height: 62%; }
-            .logo { font-size: 20px; letter-spacing: 2px; }
-            .tagline { font-size: 10px; }
-            button { padding: 12px 16px; font-size: 13px; }
+            /* Power bar scales small for portrait */
+            #powerBarContainer { width: 85vw; }
         }
 
         /* ==================================================================
-            TOUCH & UX PERFECTION
+           LANDSCAPE MOBILE — Wide Table (Rotate for 2-Handed Play)
+           ================================================================== */
+        @media (max-width: 768px) and (orientation: landscape) {
+            #gameArea { padding: 6px; }
+    
+            /* Boards — Square, uses landscape height */
+            #boardContainer {
+                width: min(480px, 80vh);
+                height: min(480px, 80vh);
+            }
+    
+            /* 8-Ball — WIDE/FLAT (full 16:9, room for cue) */
+            #gameCanvas {
+                width: 92vw;
+                height: calc(92vw * 0.5625);        /* 16:9 — perfect wide table */
+                max-height: 80vh;
+            }
+    
+            /* Power bar uses full landscape width */
+            #powerBarContainer { width: 90vw; }
+        }
+
+        /* ==================================================================
+           SMALL SCREENS (480px down) — Extra Polish
+           ================================================================== */
+        @media (max-width: 480px) {
+            /* Keep your small-screen tweaks */
+            .logo { font-size: 20px; letter-spacing: 2px; }
+            .tagline { font-size: 10px; }
+            button { padding: 12px 16px; font-size: 13px; }
+    
+            /* Boards — Even smaller square */
+            #boardContainer {
+                width: min(320px, 90vw);
+                height: min(320px, 90vw);
+            }
+            .chess-piece, .board-square { font-size: 32px !important; }
+            .checker-piece { width: 60%; height: 60%; }
+    
+            /* 8-Ball — Portrait tall, landscape wide */
+            #gameCanvas {
+                width: 84vw;                        /* Portrait: Narrower */
+                height: calc(84vw * 2);             /* Portrait: Taller */
+                max-height: 80vh;
+            }
+        }
+
+        /* ==================================================================
+           DESKTOP — No Changes (Stays Wide)
+           ================================================================== */
+        @media (min-width: 769px) {
+            #gameCanvas { width: min(960px, 94vw); height: min(540px, 53vw); }
+        }
+
+        /* ==================================================================
+           TOUCH & SCROLL PERFECTION (Keep These)
            ================================================================== */
         * { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-        button, .board-square, #gameCanvas {
-            touch-action: manipulation;
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            user-select: none;
-        }
+        button, .board-square, #gameCanvas { touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 
         /* Utilities */
         .hidden { display: none !important; }
         .text-center { text-align: center; }
-        .mt-2 { margin-top: 20px 0; }
+        .mt-2 { margin-top: 20px; }
 
-        /* Custom scrollbar */
+        /* Scrollbar */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: var(--dark-bg); }
-        ::-webkit-scrollbar-thumb {
-            background: var(--bitcoin-orange);
-            border-radius: 4px;
+        ::-webkit-scrollbar-thumb { background: var(--bitcoin-orange); border-radius: 4px; }
         }
     </style>
 </head>
@@ -2983,6 +2990,10 @@
         function draw8Ball(ball) {
             poolCtx.save();
             poolCtx.translate(ball.x, ball.y);
+
+            // === CALCULATE SCALE FIRST (before any drawing) ===
+            const scaleFactor = Math.min(poolCanvas.width / 960, poolCanvas.height / 540, 1);
+            const ballRadius = (ball.radius || 12) * scaleFactor;
     
             // Ball shadow
             poolCtx.fillStyle = "rgba(0,0,0,0.3)";
