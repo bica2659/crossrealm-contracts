@@ -410,24 +410,27 @@
         #gameCanvas {
             display: none;
             margin: 0 auto;
-            width: min(900px, 94vw);
-            height: min(506px, 53vw);   /* ~16:9 ratio */
-            border: 8px solid #8b4513;
+            border: 8px ridge #8b4513;
             border-radius: 8px;
-            box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.7);
+            image-rendering: crisp-edges; /* sharp pixels */
         }
 
         /* Mobile Landscape Optimization */
-        @media (orientation: landscape) and (max-height: 600px) {
-            #gameArea { padding: 10px; }
-            #boardContainer {
-                width: min(480px, 85vh);
-                height: min(480px, 85vh);
+        @media (orientation: portrait) {
+            #gameCanvas {
+                width: 78vw;
+                height: 156vw;
+                max-height: 92vh
+                max-width: 48vh
             }
+        }
+        
+        @media (orientation: portrait) {
             #gameCanvas {
                 width: 92vw;
-                height: 52vw;
-                max-height: 85vh;
+                height: 46vw;
+                max-height: 90vh;
             }
         }
         
@@ -2597,52 +2600,49 @@
         }
 
         // ==================== 8-BALL POOL (ENHANCED WITH POWER BAR) ====================
+        let poolInitialized = false;
+        let poolState = null; // Will hold balls, cueBall, etc.
+
         function init8BallPool(id) {
-            poolCanvas = document.getElementById('gameCanvas');
-            poolCtx = poolCanvas.getContext('2d');
-    
-            poolCanvas.style.display = 'block';
-            poolCanvas.width = 800;
-            poolCanvas.height = 450;
-    
-            currentGameId = id;
-            document.getElementById('boardTitle').innerHTML = 
-        `        <span>🎱 8-Ball Pool • Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
-    
-            const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
-            const turn = typeof currentGame.turn === 'object' && currentGame.turn.toNumber ? currentGame.turn.toNumber() : Number(currentGame.turn);
-            isMyTurn = turn === (amICreator ? 0 : 1);
-    
-            const turnIndicator = isMyTurn ? 
-                '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN - Drag to aim & set power</span>' : 
-                '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
-    
-            document.getElementById('gameInfo').innerHTML = 
-        `        Game #${id} • 8-BALL POOL • ${ethers.utils.formatEther(currentGame.stake)} CORE<br>${turnIndicator}`;
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
 
-            // Reset game state
-            cueStick = { 
-                angle: 0, 
-                power: 0,        // ✅ Start at 0, increases as user drags
-                maxPower: 100,   // ✅ Maximum power
-                visible: false,
-                dragStartX: 0,
-                dragStartY: 0
-            };
-            isAiming = false;
-            isShooting = false;
+            // Only set up canvas size once
+            if (!poolInitialized) {
+                canvas.style.display = 'block';
+                poolInitialized = true;
 
-            reset8BallTable();
-            draw8BallTable();
+                // Set actual pixel size based on current CSS size
+                function resizeCanvas() {
+                    canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+                    canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+                    ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+                }
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+                window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 300));
+            }
 
-            // ✅ NEW: Touch/mouse handlers with drag-to-power
-            poolCanvas.addEventListener('mousedown', handle8BallStart);
-            poolCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); handle8BallStart(e.touches[0]); });
-            poolCanvas.addEventListener('mousemove', handle8BallMove);
-            poolCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); handle8BallMove(e.touches[0]); });
-            poolCanvas.addEventListener('mouseup', handle8BallShoot);
-            poolCanvas.addEventListener('touchend', handle8BallShoot);
-    
+            // === RESTORE STATE IF EXISTS (this fixes the reset bug) ===
+            if (poolState && poolState.gameId === id) {
+                // Restore from saved state
+                ({ cueBall, balls, balls } = poolState);
+            } else {
+                 // Fresh game — reset everything
+                 reset8BallTable();
+                 poolState = { gameId: id, cueBall, balls: [...balls] };
+            }
+
+            draw8BallTable(); // draw current state
+
+            // Re-attach controls
+            canvas.addEventListener('mousedown', handle8BallStart);
+            canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handle8BallStart(e.touches[0]); });
+            canvas.addEventListener('mousemove', handle8BallMove);
+            canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handle8BallMove(e.touches[0]); });
+            canvas.addEventListener('mouseup', handle8BallShoot);
+            canvas.addEventListener('touchend', handle8BallShoot);
+
             if (currentGame.isAI && !isMyTurn) {
                 setTimeout(make8BallAIMove, 2000);
             }
@@ -2710,6 +2710,8 @@
 
         function shoot8BallCue() {
             isShooting = true;
+            // After successful shot → save current state
+            poolState = { gameId: currentGameId, cueBall: { ...cueBall }, balls: balls.map(b => ({ ...b })) };
     
             // ✅ Power now ranges from 0-100 based on user drag
             const power = cueStick.power / 100;
