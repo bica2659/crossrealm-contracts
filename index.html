@@ -2284,51 +2284,51 @@
                 showAlert('⏸️ Not your turn!', 'error');
                 return;
             }
-
+    
             const piece = checkersBoard[row][col];
             const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
             const myPieceTypes = amICreator ? [2, 4] : [1, 3];
-    
+
             if (!checkersSelectedSquare) {
                 if (myPieceTypes.includes(piece)) {
                     checkersSelectedSquare = { row, col };
                     document.querySelectorAll('.board-square').forEach(s => {
                         s.classList.remove('selected', 'possible');
                     });
-                    const selectedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                    const selectedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);  // ✅ Fixed!
                     if (selectedSquare) {
                         selectedSquare.classList.add('selected');
                         selectedSquare.style.boxShadow = 'inset 0 0 0 4px #FFD700';
                     }
                     showCheckersPossibleMoves(row, col, piece);
-            } else if (piece > 0) {
-                showAlert('❌ Not your piece!', 'error');
-            }
-        } else {
-            if (row === checkersSelectedSquare.row && col === checkersSelectedSquare.col) {
-                checkersSelectedSquare = null;
-                document.querySelectorAll('.board-square').forEach(s => {
-                    s.classList.remove('selected', 'possible');
-                    s.style.boxShadow = '';
-                });
-            } else if (piece === 0) {
-                makeCheckersMove(checkersSelectedSquare.row, checkersSelectedSquare.col, row, col);
-            } else if (myPieceTypes.includes(piece)) {
-                checkersSelectedSquare = { row, col };
-                document.querySelectorAll('.board-square').forEach(s => {
-                    s.classList.remove('selected', 'possible');
-                    s.style.boxShadow = '';
-                });
-                const selectedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-                if (selectedSquare) {
-                    selectedSquare.classList.add('selected');
-                    selectedSquare.style.boxShadow = 'inset 0 0 0 4px #FFD700';
+                } else if (piece > 0) {
+                    showAlert('❌ Not your piece!', 'error');
                 }
-                showCheckersPossibleMoves(row, col, piece);
+            } else {
+                if (row === checkersSelectedSquare.row && col === checkersSelectedSquare.col) {
+                    checkersSelectedSquare = null;
+                    document.querySelectorAll('.board-square').forEach(s => {
+                        s.classList.remove('selected', 'possible');
+                        s.style.boxShadow = '';
+                    });
+                } else if (piece === 0) {
+                    makeCheckersMove(checkersSelectedSquare.row, checkersSelectedSquare.col, row, col);
+                } else if (myPieceTypes.includes(piece)) {
+                    checkersSelectedSquare = { row, col };
+                    document.querySelectorAll('.board-square').forEach(s => {
+                        s.classList.remove('selected', 'possible');
+                        s.style.boxShadow = '';
+                    });
+                    const selectedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);  // ✅ Fixed!
+                    if (selectedSquare) {
+                        selectedSquare.classList.add('selected');
+                        selectedSquare.style.boxShadow = 'inset 0 0 0 4px #FFD700';
+                    }
+                    showCheckersPossibleMoves(row, col, piece);
+                }
             }
         }
-    }
-
+        
     function showCheckersPossibleMoves(row, col, piece) {
         document.querySelectorAll('.board-square').forEach(s => {
             s.classList.remove('possible');
