@@ -2263,7 +2263,7 @@
                     square.className = `board-square ${isLight ? 'light' : 'dark'}`;
                     square.dataset.row = row;
                     square.dataset.col = col;
-            
+
                     square.style.width = '100%';
                     square.style.height = '100%';
                     square.style.display = 'flex';
@@ -2285,29 +2285,31 @@
                         const pieceEl = document.createElement('div');
                         const isRed = piece === 2 || piece === 4;
                         const isKing = piece >= 3;
-                
+
                         pieceEl.className = `checker-piece ${isRed ? 'red' : 'black'} ${isKing ? 'king' : ''}`;
-                
+
                         if (isKing) {
                             pieceEl.innerHTML = '♔';
                             pieceEl.style.fontSize = '30px';
                             pieceEl.style.color = '#FFD700';
                         }
-                
+
                         square.appendChild(pieceEl);
                     }
 
                     container.appendChild(square);
-                    
-                    console.log('🔍 Render complete. Piece count check:');
-                    let count = 0;
-                    for (let row of checkersBoard) {
-                        for (let piece of row) {
-                            if (piece > 0) count++;
-                        }
-                    }
-                    console.log('🔍 Total pieces after render:', count);
+                }  // ✅ End of col loop
+            }  // ✅ End of row loop
+
+            // ✅ MOVED OUTSIDE THE LOOPS - Only runs ONCE!
+            console.log('🔍 Render complete. Piece count check:');
+            let count = 0;
+            for (let row of checkersBoard) {
+                for (let piece of row) {
+                    if (piece > 0) count++;
                 }
+            }
+            console.log('🔍 Total pieces after render:', count);
             }
         }
 
