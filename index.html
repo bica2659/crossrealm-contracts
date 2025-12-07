@@ -2243,9 +2243,15 @@
         }
 
         function renderCheckersBoard() {
+            console.log('🔍 renderCheckersBoard called');
+            console.log('🔍 Board before render:', checkersBoard);
+            
             const container = document.getElementById('boardContainer');
-            if (!container) return;
-
+            if (!container) {
+                console.log('❌ boardContainer not found!');
+                return;
+            }
+                
             container.style.display = 'grid';
             container.innerHTML = '';
 
@@ -2291,6 +2297,15 @@
                     }
 
                     container.appendChild(square);
+                    
+                    console.log('🔍 Render complete. Piece count check:');
+                    let count = 0;
+                    for (let row of checkersBoard) {
+                        for (let piece of row) {
+                            if (piece > 0) count++;
+                        }
+                    }
+                    console.log('🔍 Total pieces after render:', count);
                 }
             }
         }
