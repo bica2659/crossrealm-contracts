@@ -2167,18 +2167,23 @@
         
         // ==================== CHECKERS FUNCTIONS ====================
         function initCheckersBoard(fen) {
+            console.log('🔍 initCheckersBoard called with FEN:', fen);
+    
             checkersBoard = [];
             for (let i = 0; i < 8; i++) {
                 checkersBoard[i] = new Array(8).fill(0);
             }
-    
+
             let useDefaultPosition = true;
-    
+
             if (fen && fen !== '') {
+                console.log('🔍 FEN exists, parsing...');
                 const fenParts = fen.split(' ')[0];
                 const rows = fenParts.split('/');
-                let pieceCount = 0;
+                console.log('🔍 FEN rows:', rows);
         
+                let pieceCount = 0;
+
                 for (let row of rows) {
                     for (let char of row) {
                         if (char === 'b' || char === 'w' || char === 'B' || char === 'W') {
@@ -2187,7 +2192,10 @@
                     }
                 }
         
+                console.log('🔍 Piece count:', pieceCount);
+
                 if (pieceCount >= 20 && pieceCount <= 24) {
+                    console.log('🔍 Using FEN position');
                     useDefaultPosition = false;
             
                     for (let row = 0; row < 8 && row < rows.length; row++) {
@@ -2204,10 +2212,15 @@
                              }
                         }
                     }
+                } else {
+                    console.log('🔍 Piece count invalid, using default');
                 }
+            } else {
+                console.log('🔍 No FEN, using default');
             }
-    
+
             if (useDefaultPosition) {
+                console.log('🔍 Setting up default position');
                 for (let row = 0; row < 3; row++) {
                     for (let col = 0; col < 8; col++) {
                         if ((row + col) % 2 === 1) {
@@ -2215,7 +2228,7 @@
                         }
                     }
                 }
-        
+
                 for (let row = 5; row < 8; row++) {
                     for (let col = 0; col < 8; col++) {
                         if ((row + col) % 2 === 1) {
@@ -2224,6 +2237,9 @@
                     }
                 }
             }
+    
+            console.log('🔍 Board after init:');
+            console.table(checkersBoard);
         }
 
         function renderCheckersBoard() {
