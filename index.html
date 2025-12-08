@@ -2168,6 +2168,22 @@
         // ==================== CHECKERS FUNCTIONS ====================
         function initCheckersBoard(fen) {
             console.log('🔍 initCheckersBoard called with FEN:', fen);
+
+            // ✅ GUARD: Don't reinitialize if board already has pieces
+            if (checkersBoard && checkersBoard.length === 8) {
+                let pieceCount = 0;
+                for (let row of checkersBoard) {
+                    for (let piece of row) {
+                        if (piece > 0) pieceCount++;
+                    }
+                }
+        
+                // If board already has 20+ pieces, don't reset it
+                if (pieceCount >= 20) {
+                    console.log('✅ Board already initialized with', pieceCount, 'pieces - skipping');
+                    return;
+                }
+            }
     
             checkersBoard = [];
             for (let i = 0; i < 8; i++) {
