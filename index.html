@@ -2329,6 +2329,22 @@
         
         }
 
+        // ✅ Add this AFTER renderCheckersBoard() closes
+        let boardWatcher = setInterval(() => {
+            if (checkersBoard) {
+                let count = 0;
+                for (let row of checkersBoard) {
+                    for (let piece of row) {
+                        if (piece > 0) count++;
+                    }
+                }
+                if (count === 0) {
+                    console.trace('🚨 BOARD WAS CLEARED! Who did it?');
+                    clearInterval(boardWatcher);
+                }
+            }
+        }, 100);
+
         function selectCheckersSquare(row, col) {
             if (!isMyTurn) {
                 showAlert('⏸️ Not your turn!', 'error');
