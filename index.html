@@ -1430,86 +1430,86 @@
             }
         }
 
-// ==================== GAME MANAGEMENT ====================
-async function createGame() {
-    if (!hub || !signer) return showAlert('Connect wallet first', 'error');
+        // ==================== GAME MANAGEMENT ====================
+        async function createGame() {
+            if (!hub || !signer) return showAlert('Connect wallet first', 'error');
     
-    try {
-        const gameType = document.getElementById('gameType').value;
-        const stakeAmount = document.getElementById('stakeAmount').value || '0.1';
+            try {
+                const gameType = document.getElementById('gameType').value;
+                const stakeAmount = document.getElementById('stakeAmount').value || '0.1';
         
-        const stakeFloat = parseFloat(stakeAmount);
-        if (stakeFloat < 0.01) {
-            return showAlert('Minimum stake is 0.01 CORE', 'error');
-        }
+                const stakeFloat = parseFloat(stakeAmount);
+                if (stakeFloat < 0.01) {
+                    return showAlert('Minimum stake is 0.01 CORE', 'error');
+                }
         
-        const stake = ethers.utils.parseEther(stakeAmount);
-        const isPrivate = document.getElementById('isPrivate').checked;
-        const isAI = document.getElementById('isAI').checked;
+                const stake = ethers.utils.parseEther(stakeAmount);
+                const isPrivate = document.getElementById('isPrivate').checked;
+                const isAI = document.getElementById('isAI').checked;
 
-        const fee = stake.mul(250).div(10000);
-        const totalPayment = stake.add(fee);
+                const fee = stake.mul(250).div(10000);
+                const totalPayment = stake.add(fee);
 
-        let verifierAddress;
-        if (gameType === 'chess') verifierAddress = CONTRACTS.CHESS_VERIFIER;
-        else if (gameType === 'checkers') verifierAddress = CONTRACTS.CHECKERS_VERIFIER;
-        else if (gameType === '8ball') verifierAddress = CONTRACTS.EIGHTBALL_VERIFIER;
-        else if (gameType === 'penalties') verifierAddress = CONTRACTS.PENALTY_VERIFIER;
+                let verifierAddress;
+                if (gameType === 'chess') verifierAddress = CONTRACTS.CHESS_VERIFIER;
+                else if (gameType === 'checkers') verifierAddress = CONTRACTS.CHECKERS_VERIFIER;
+                else if (gameType === '8ball') verifierAddress = CONTRACTS.EIGHTBALL_VERIFIER;
+                else if (gameType === 'penalties') verifierAddress = CONTRACTS.PENALTY_VERIFIER;
 
-        if (verifierAddress === '0x0000000000000000000000000000000000000000') {
-            return showAlert('❌ This game type is not yet deployed. Coming soon!', 'error');
-        }
+                if (verifierAddress === '0x0000000000000000000000000000000000000000') {
+                    return showAlert('❌ This game type is not yet deployed. Coming soon!', 'error');
+                }
 
-        showAlert('⏳ Creating game...', 'info');
+                showAlert('⏳ Creating game...', 'info');
         
-        const tx = await hub.createGame(
-            gameType,
-            stake,
-            isPrivate,
-            isAI,
-            verifierAddress,
-            { 
-                value: totalPayment,
-                gasLimit: 800000
+                const tx = await hub.createGame(
+                    gameType,
+                    stake,
+                    isPrivate,
+                    isAI,
+                    verifierAddress,
+                    { 
+                        value: totalPayment,
+                        gasLimit: 800000
+                    }
+                );
+        
+                showAlert('⏳ Waiting for confirmation...', 'info');
+                await tx.wait();
+                showAlert('✅ Game created!', 'success');
+        
+                await Promise.all([
+                    loadPendingGames(),
+                    loadMyGames()
+                ]);
+
+                document.getElementById('stakeAmount').value = '0.1';
+                document.getElementById('isPrivate').checked = false;
+        
+                const gameCount = await hub.gameCount();
+        
+                if (isAI) {
+                    setTimeout(() => loadGame(gameCount.toNumber()), 1500);
+                }
+        
+            } catch (e) {
+                console.error('Create game error:', e);
+        
+                let errorMsg = 'Transaction failed';
+        
+                if (e.code === 4001) {
+                    errorMsg = 'You rejected the transaction';
+                } else if (e.message.includes('insufficient funds')) {
+                    errorMsg = 'Insufficient CORE balance';
+                } else if (e.message) {
+                    errorMsg = e.message;
+                }
+        
+                if (e.reason) errorMsg = e.reason;
+        
+                showAlert('❌ ' + errorMsg, 'error');
             }
-        );
-        
-        showAlert('⏳ Waiting for confirmation...', 'info');
-        await tx.wait();
-        showAlert('✅ Game created!', 'success');
-        
-        await Promise.all([
-            loadPendingGames(),
-            loadMyGames()
-        ]);
-
-        document.getElementById('stakeAmount').value = '0.1';
-        document.getElementById('isPrivate').checked = false;
-        
-        const gameCount = await hub.gameCount();
-        
-        if (isAI) {
-            setTimeout(() => loadGame(gameCount.toNumber()), 1500);
         }
-        
-    } catch (e) {
-        console.error('Create game error:', e);
-        
-        let errorMsg = 'Transaction failed';
-        
-        if (e.code === 4001) {
-            errorMsg = 'You rejected the transaction';
-        } else if (e.message.includes('insufficient funds')) {
-            errorMsg = 'Insufficient CORE balance';
-        } else if (e.message) {
-            errorMsg = e.message;
-        }
-        
-        if (e.reason) errorMsg = e.reason;
-        
-        showAlert('❌ ' + errorMsg, 'error');
-    }
-}
 
 async function loadPendingGames() {
     if (!hub || !userAddress) return;
@@ -3428,6 +3428,7 @@ console.log(`
 ╚═══════════════════════════════════════════╝
 `);
 
-// ==================== END OF JAVASCRIPT ====================   
+// ==================== END OF JAVASCRIPT ====================
+    </script>
 </body>
 </html>
