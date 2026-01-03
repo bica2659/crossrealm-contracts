@@ -374,16 +374,16 @@
             overflow: hidden;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             /* VERTICAL orientation for mobile-first pool */
-            width: min(400px, 90vw);
-            height: min(700px, 175vw);
+            width: min(300px, 90vw);
+            height: min(500px, 144vw);
             max-width: 100%;
         }
 
         /* Mobile landscape optimization */
         @media (max-width: 968px) and (orientation: landscape) {
             #gameCanvas {
-                width: min(35vh, 90vw);
-                height: min(61vh, 175vw);
+                width: min(25vh, 70vw);
+                height: min(42vh, 128vw);
             }
     
             .board-container {
@@ -395,8 +395,8 @@
         /* Portrait optimization */
         @media (max-width: 768px) and (orientation: portrait) {
             #gameCanvas {
-                width: min(90vw, 400px);
-                height: min(157vw, 700px);
+                width: min(75vw, 300px);
+                height: min(135vw, 500px);
             }
         }
 
@@ -2818,8 +2818,8 @@ function init8BallPool(id) {
     poolCanvas.style.display = 'block';
     
     // ✅ FIXED: Scaled down to fit screens (was 450x900)
-    poolCanvas.width = 400;
-    poolCanvas.height = 700;
+    poolCanvas.width = 350;
+    poolCanvas.height = 600;
 
     currentGameId = id;
     document.getElementById('boardTitle').innerHTML = 
@@ -2869,9 +2869,9 @@ function reset8BallTable() {
     // ✅ FIXED: Cue ball at BOTTOM (player shoots UP toward rack at top)
     cueBall = { 
         x: poolCanvas.width / 2, 
-        y: poolCanvas.height - 120,  // Near bottom
+        y: poolCanvas.height - 100,  // Near bottom
         vx: 0, vy: 0, 
-        radius: 18, 
+        radius: 16, 
         color: "#fff", 
         potted: false,
         spinX: 0,
@@ -2889,8 +2889,8 @@ function reset8BallTable() {
 
     // ✅ FIXED: Rack at TOP (opponent's side) - pointing DOWN toward player
     const rackX = poolCanvas.width / 2;
-    const rackY = 120;  // Near top
-    const spacing = 38;
+    const rackY = 100;  // Near top
+    const spacing = 34;
 
     const ballOrder = [0, 9, 2, 10, 7, 3, 11, 4, 12, 13, 5, 14, 6, 1, 8];
     let ballNum = 0;
@@ -2913,7 +2913,7 @@ function reset8BallTable() {
                 color: colors[colorIndex],
                 stripe: number > 8 && number !== 8,
                 potted: false,
-                radius: 18
+                radius: 16
             });
             ballNum++;
         }
