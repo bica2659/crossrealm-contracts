@@ -2138,8 +2138,10 @@ function getPieceValue(piece, x, y) {
     return isWhite ? value : -value;
 }
 
-// ==================== CHECKERS FUNCTIONS ====================
+// ==================== CHECKERS INITIALIZATION ====================
 function initCheckersBoard(fen) {
+    console.log('🎲 initCheckersBoard() called with FEN:', fen);
+    
     // Guard: Don't reinitialize if board already has pieces
     if (checkersBoard && checkersBoard.length === 8) {
         let pieceCount = 0;
@@ -2155,6 +2157,7 @@ function initCheckersBoard(fen) {
         }
     }
 
+    // Initialize empty board
     checkersBoard = [];
     for (let i = 0; i < 8; i++) {
         checkersBoard[i] = new Array(8).fill(0);
@@ -2162,12 +2165,12 @@ function initCheckersBoard(fen) {
 
     let useDefaultPosition = true;
 
+    // Try to parse FEN if provided
     if (fen && fen !== '') {
         const fenParts = fen.split(' ')[0];
         const rows = fenParts.split('/');
 
         let pieceCount = 0;
-
         for (let row of rows) {
             for (let char of row) {
                 if (char === 'b' || char === 'w' || char === 'B' || char === 'W') {
@@ -2177,47 +2180,61 @@ function initCheckersBoard(fen) {
         }
 
         if (pieceCount >= 20 && pieceCount <= 24) {
+            console.log('✅ Using FEN position with', pieceCount, 'pieces');
             useDefaultPosition = false;
 
             for (let row = 0; row < 8 && row < rows.length; row++) {
                 let col = 0;
                 for (let char of rows[row]) {
-                     if (char >= '0' && char <= '9') {
-                         col += parseInt(char);
-                     } else if (col < 8) {
-                         if (char === 'b') checkersBoard[row][col] = 1;
-                         else if (char === 'w') checkersBoard[row][col] = 2;
-                         else if (char === 'B') checkersBoard[row][col] = 3;
-                         else if (char === 'W') checkersBoard[row][col] = 4;
-                         col++;
-                     }
+                    if (char >= '0' && char <= '9') {
+                        col += parseInt(char);
+                    } else if (col < 8) {
+                        if (char === 'b') checkersBoard[row][col] = 1;
+                        else if (char === 'w') checkersBoard[row][col] = 2;
+                        else if (char === 'B') checkersBoard[row][col] = 3;
+                        else if (char === 'W') checkersBoard[row][col] = 4;
+                        col++;
+                    }
                 }
             }
         }
     }
 
+    // Use default starting position
     if (useDefaultPosition) {
+        console.log('✅ Using default starting position');
+        
+        // Black pieces (top 3 rows)
         for (let row = 0; row < 3; row++) {
             for (let col = 0; col < 8; col++) {
                 if ((row + col) % 2 === 1) {
-                    checkersBoard[row][col] = 1;
+                    checkersBoard[row][col] = 1; // Black piece
                 }
             }
         }
 
+        // Red pieces (bottom 3 rows)
         for (let row = 5; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
                 if ((row + col) % 2 === 1) {
-                    checkersBoard[row][col] = 2;
+                    checkersBoard[row][col] = 2; // Red piece
                 }
             }
         }
     }
+    
+    console.log('✅ Board initialized:', checkersBoard);
 }
 
+// ==================== CHECKERS RENDERING ====================
 function renderCheckersBoard() {
+    console.log('🎨 renderCheckersBoard() called');
+    
     const container = document.getElementById('boardContainer');
-    if (!container) return;
+    if (!container) {
+        console.error('❌ Container not found!');
+        return;
+    }
 
     container.style.display = 'grid';
     container.innerHTML = '';
@@ -2230,16 +2247,21 @@ function renderCheckersBoard() {
             square.dataset.row = row;
             square.dataset.col = col;
 
-            if (!isLight) {
-                square.style.cursor = isMyTurn ? 'pointer' : 'default';
-                square.onclick = () => selectCheckersSquare(row, col);
-                square.ontouchend = (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    selectCheckersSquare(row, col);
-                };
-            }
+            // ✅ CRITICAL FIX: Add click handler to ALL squares, not just dark ones
+            square.style.cursor = isMyTurn ? 'pointer' : 'default';
+            square.onclick = () => {
+                console.log('🖱️ SQUARE CLICKED:', { row, col, isLight });
+                selectCheckersSquare(row, col);
+            };
+            
+            square.ontouchend = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('👆 TOUCH:', { row, col });
+                selectCheckersSquare(row, col);
+            };
 
+            // Draw piece if present
             const piece = checkersBoard[row][col];
             if (piece > 0) {
                 const pieceEl = document.createElement('div');
@@ -2260,67 +2282,78 @@ function renderCheckersBoard() {
             container.appendChild(square);
         }
     }
+    
+    console.log('✅ Board rendered');
 }
 
-/* Part 7: Checkers Logic & Staking Functions */
-
-// ==================== CHECKERS FUNCTIONS (FIXED) ====================
+// ==================== CHECKERS SELECTION ====================
 function selectCheckersSquare(row, col) {
-    console.log('🎯 Clicked:', { row, col, isMyTurn, piece: checkersBoard[row][col] });
+    console.log('═══════════════════════════════════════');
+    console.log('🎯 selectCheckersSquare()');
+    console.log('   Position:', { row, col });
+    console.log('   isMyTurn:', isMyTurn);
+    console.log('   Piece:', checkersBoard[row][col]);
     
     if (!isMyTurn) {
+        console.log('   ❌ Not my turn');
         showAlert('⏸️ Not your turn!', 'error');
         return;
     }
 
     const piece = checkersBoard[row][col];
     const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
-    
-    // ✅ FIXED: Correct piece ownership
-    const myPieceTypes = amICreator ? [2, 4] : [1, 3]; // Creator=red(2,4), Joiner=black(1,3)
+    const myPieceTypes = amICreator ? [2, 4] : [1, 3];
 
-    console.log('🎯 Piece check:', { piece, myPieceTypes, amICreator });
+    console.log('   amICreator:', amICreator);
+    console.log('   myPieceTypes:', myPieceTypes);
 
     if (!checkersSelectedSquare) {
-        // First click - selecting piece
+        // FIRST CLICK - Selecting piece
+        console.log('🔹 FIRST CLICK');
+        
         if (piece === 0) {
-            console.log('❌ Empty square');
+            console.log('   ❌ Empty square');
             return;
         }
         
         if (!myPieceTypes.includes(piece)) {
-            console.log('❌ Not my piece');
+            console.log('   ❌ Not my piece');
             showAlert('❌ Not your piece!', 'error');
             return;
         }
         
-        console.log('✅ Piece selected');
+        console.log('   ✅ Valid piece selected');
         checkersSelectedSquare = { row, col };
         
-        // Highlight selected square
+        // Clear highlights
         document.querySelectorAll('.board-square').forEach(s => {
             s.classList.remove('selected', 'possible');
             s.style.boxShadow = '';
         });
         
+        // Highlight selected square
         const selectedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
         if (selectedSquare) {
             selectedSquare.classList.add('selected');
             selectedSquare.style.boxShadow = 'inset 0 0 0 4px #FFD700';
+            console.log('   ✅ Highlighted');
         }
         
         showCheckersPossibleMoves(row, col, piece);
         
     } else {
-        // Second click - trying to move
+        // SECOND CLICK - Moving or reselecting
+        console.log('🔹 SECOND CLICK');
+        
         const fromRow = checkersSelectedSquare.row;
         const fromCol = checkersSelectedSquare.col;
         
-        console.log('🎯 Second click:', { from: { fromRow, fromCol }, to: { row, col } });
+        console.log('   From:', { fromRow, fromCol });
+        console.log('   To:', { row, col });
         
+        // Deselect if clicking same square
         if (row === fromRow && col === fromCol) {
-            // Deselect
-            console.log('🔄 Deselecting');
+            console.log('   🔄 Deselecting');
             checkersSelectedSquare = null;
             document.querySelectorAll('.board-square').forEach(s => {
                 s.classList.remove('selected', 'possible');
@@ -2329,9 +2362,9 @@ function selectCheckersSquare(row, col) {
             return;
         }
         
-        // Check if clicking another own piece (reselect)
+        // Reselect if clicking another own piece
         if (myPieceTypes.includes(piece)) {
-            console.log('🔄 Reselecting different piece');
+            console.log('   🔄 Reselecting');
             checkersSelectedSquare = { row, col };
             document.querySelectorAll('.board-square').forEach(s => {
                 s.classList.remove('selected', 'possible');
@@ -2346,16 +2379,19 @@ function selectCheckersSquare(row, col) {
             return;
         }
         
-        // Trying to move to empty square
+        // Try to move to empty square
         if (piece === 0) {
-            console.log('✅ Attempting move');
+            console.log('   ✅ Attempting move');
             makeCheckersMove(fromRow, fromCol, row, col);
+        } else {
+            console.log('   ❌ Square occupied');
         }
     }
 }
 
+// ==================== SHOW POSSIBLE MOVES ====================
 function showCheckersPossibleMoves(row, col, piece) {
-    console.log('🎯 Showing possible moves for piece:', piece, 'at', { row, col });
+    console.log('🎯 showCheckersPossibleMoves()');
     
     document.querySelectorAll('.board-square').forEach(s => {
         s.classList.remove('possible');
@@ -2365,32 +2401,29 @@ function showCheckersPossibleMoves(row, col, piece) {
     });
 
     const isKing = piece >= 3;
-    const isRed = piece === 2 || piece === 4;
     const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
 
     let directions = [];
-
-    // ✅ FIXED: Proper direction logic
     if (isKing) {
-        directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]]; // Kings move all 4 diagonals
+        directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+        console.log('   👑 King - all directions');
     } else {
         if (amICreator) {
-            // Creator (red pieces) move UP (negative row)
-            directions = [[-1, -1], [-1, 1]];
+            directions = [[-1, -1], [-1, 1]]; // Red moves UP
+            console.log('   🔴 Red - moving UP');
         } else {
-            // Joiner (black pieces) move DOWN (positive row)
-            directions = [[1, -1], [1, 1]];
+            directions = [[1, -1], [1, 1]]; // Black moves DOWN
+            console.log('   ⚫ Black - moving DOWN');
         }
     }
 
-    console.log('🎯 Checking directions:', directions);
-
     let movesFound = 0;
+    const opponentPieces = amICreator ? [1, 3] : [2, 4];
 
     directions.forEach(([dRow, dCol]) => {
         const newRow = row + dRow;
         const newCol = col + dCol;
-    
+        
         // Simple move
         if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
             if (checkersBoard[newRow][newCol] === 0) {
@@ -2399,16 +2432,15 @@ function showCheckersPossibleMoves(row, col, piece) {
                     square.classList.add('possible');
                     square.style.boxShadow = 'inset 0 0 0 3px #00FF00';
                     movesFound++;
-                    console.log('✅ Simple move:', { newRow, newCol });
+                    console.log('   ✅ Simple:', { newRow, newCol });
                 }
             }
-        
+            
             // Jump move
             const jumpRow = row + dRow * 2;
             const jumpCol = col + dCol * 2;
             if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8) {
                 const middlePiece = checkersBoard[newRow][newCol];
-                const opponentPieces = amICreator ? [1, 3] : [2, 4];
                 
                 if (opponentPieces.includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
                     const square = document.querySelector(`[data-row="${jumpRow}"][data-col="${jumpCol}"]`);
@@ -2416,26 +2448,26 @@ function showCheckersPossibleMoves(row, col, piece) {
                         square.classList.add('possible');
                         square.style.boxShadow = 'inset 0 0 0 3px #FF0000';
                         movesFound++;
-                        console.log('✅ Jump move:', { jumpRow, jumpCol, captures: { newRow, newCol } });
+                        console.log('   ✅ Jump:', { jumpRow, jumpCol });
                     }
                 }
             }
         }
     });
     
-    console.log('🎯 Total moves found:', movesFound);
+    console.log('   📊 Moves found:', movesFound);
 }
 
+// ==================== MAKE MOVE ====================
 async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
-    console.log('🎯 Making move:', { from: { fromRow, fromCol }, to: { toRow, toCol } });
+    console.log('🚀 makeCheckersMove()');
     
     try {
         const rowDiff = Math.abs(toRow - fromRow);
         const colDiff = Math.abs(toCol - fromCol);
     
-        // Validate diagonal move
         if (rowDiff !== colDiff || (rowDiff !== 1 && rowDiff !== 2)) {
-            console.log('❌ Invalid move - not diagonal or wrong distance');
+            console.log('   ❌ Invalid move');
             showAlert('❌ Invalid move!', 'error');
             checkersSelectedSquare = null;
             document.querySelectorAll('.board-square').forEach(s => {
@@ -2446,34 +2478,29 @@ async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
         }
     
         const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
-        console.log('🎯 Move string:', moveStr);
+        console.log('   📝 Move:', moveStr);
     
-        // Move piece
         checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
         checkersBoard[fromRow][fromCol] = 0;
     
-        // Handle jump (capture)
         if (rowDiff === 2) {
             const captureRow = Math.floor((fromRow + toRow) / 2);
             const captureCol = Math.floor((fromCol + toCol) / 2);
-            console.log('🎯 Capturing piece at:', { captureRow, captureCol });
+            console.log('   🎯 Capture:', { captureRow, captureCol });
             checkersBoard[captureRow][captureCol] = 0;
         }
     
-        // Handle king promotion
         const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
         if (amICreator && toRow === 0 && checkersBoard[toRow][toCol] === 2) {
-            console.log('👑 Promoting to Red King');
+            console.log('   👑 Red King');
             checkersBoard[toRow][toCol] = 4;
         } else if (!amICreator && toRow === 7 && checkersBoard[toRow][toCol] === 1) {
-            console.log('👑 Promoting to Black King');
+            console.log('   👑 Black King');
             checkersBoard[toRow][toCol] = 3;
         }
     
         const newFen = checkersToFen();
-        console.log('🎯 New FEN:', newFen);
     
-        // Update UI immediately
         renderCheckersBoard();
         checkersSelectedSquare = null;
         document.querySelectorAll('.board-square').forEach(s => {
@@ -2481,24 +2508,23 @@ async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
             s.style.boxShadow = '';
         });
     
-        showAlert('⏳ Submitting move...', 'info');
+        showAlert('⏳ Submitting...', 'info');
     
         const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
         await tx.wait();
     
-        showAlert('✅ Move successful!', 'success');
-        console.log('✅ Move submitted successfully');
-        
+        showAlert('✅ Move confirmed!', 'success');
         await new Promise(resolve => setTimeout(resolve, 500));
         await loadGame(currentGameId);
     
     } catch (e) {
-        console.error('❌ Checkers move error:', e);
-        showAlert('❌ Move failed: ' + (e.reason || e.message), 'error');
+        console.error('❌ Error:', e);
+        showAlert('❌ Failed: ' + (e.reason || e.message), 'error');
         setTimeout(() => loadGame(currentGameId), 1000);
     }
 }
 
+// ==================== AI MOVE ====================
 async function makeCheckersAIMove() {
     if (!currentGame || !currentGame.isAI || isMyTurn || aiMoveInProgress) return;
     if (!currentGame.active) return;
@@ -2506,90 +2532,89 @@ async function makeCheckersAIMove() {
     aiMoveInProgress = true;
 
     try {
-        showAlert('🤖 AI is thinking...', 'info');
+        showAlert('🤖 AI thinking...', 'info');
         await new Promise(resolve => setTimeout(resolve, 1500));
     
-        const aiPieces = [1, 3]; // AI plays black pieces
+        const aiPieces = [1, 3];
         let possibleMoves = [];
     
         for (let fromRow = 0; fromRow < 8; fromRow++) {
-             for (let fromCol = 0; fromCol < 8; fromCol++) {
-                  const piece = checkersBoard[fromRow][fromCol];
-                  if (!aiPieces.includes(piece)) continue;
-            
-                  const isKing = piece === 3;
-                  const directions = isKing ? 
-                      [[-1, -1], [-1, 1], [1, -1], [1, 1]] : 
-                      [[1, -1], [1, 1]]; // Black moves down
-            
-                  directions.forEach(([dRow, dCol]) => {
-                      const newRow = fromRow + dRow;
-                      const newCol = fromCol + dCol;
-                      
-                      if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-                          if (checkersBoard[newRow][newCol] === 0) {
-                              possibleMoves.push({ fromRow, fromCol, toRow: newRow, toCol: newCol, isJump: false });
-                          }
+            for (let fromCol = 0; fromCol < 8; fromCol++) {
+                const piece = checkersBoard[fromRow][fromCol];
+                if (!aiPieces.includes(piece)) continue;
+        
+                const isKing = piece === 3;
+                const directions = isKing ? 
+                    [[-1, -1], [-1, 1], [1, -1], [1, 1]] : 
+                    [[1, -1], [1, 1]];
+        
+                directions.forEach(([dRow, dCol]) => {
+                    const newRow = fromRow + dRow;
+                    const newCol = fromCol + dCol;
                     
-                          const jumpRow = fromRow + dRow * 2;
-                          const jumpCol = fromCol + dCol * 2;
-                          if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8) {
-                              const middlePiece = checkersBoard[newRow][newCol];
-                              if ([2, 4].includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
-                                  possibleMoves.push({ fromRow, fromCol, toRow: jumpRow, toCol: jumpCol, isJump: true });
-                              }
-                          }
-                      }
-                  });
-              }
-          }
+                    if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+                        if (checkersBoard[newRow][newCol] === 0) {
+                            possibleMoves.push({ fromRow, fromCol, toRow: newRow, toCol: newCol, isJump: false });
+                        }
+                
+                        const jumpRow = fromRow + dRow * 2;
+                        const jumpCol = fromCol + dCol * 2;
+                        if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8) {
+                            const middlePiece = checkersBoard[newRow][newCol];
+                            if ([2, 4].includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
+                                possibleMoves.push({ fromRow, fromCol, toRow: jumpRow, toCol: jumpCol, isJump: true });
+                            }
+                        }
+                    }
+                });
+            }
+        }
     
-          if (possibleMoves.length === 0) {
-              aiMoveInProgress = false;
-              return;
-          }
+        if (possibleMoves.length === 0) {
+            aiMoveInProgress = false;
+            return;
+        }
     
-          // Prefer jumps
-          const jumps = possibleMoves.filter(m => m.isJump);
-          const move = jumps.length > 0 ? 
-              jumps[Math.floor(Math.random() * jumps.length)] :
-              possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+        const jumps = possibleMoves.filter(m => m.isJump);
+        const move = jumps.length > 0 ? 
+            jumps[Math.floor(Math.random() * jumps.length)] :
+            possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
     
-          const { fromRow, fromCol, toRow, toCol } = move;
+        const { fromRow, fromCol, toRow, toCol } = move;
     
-          checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
-          checkersBoard[fromRow][fromCol] = 0;
+        checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
+        checkersBoard[fromRow][fromCol] = 0;
     
-          if (move.isJump) {
-              const captureRow = Math.floor((fromRow + toRow) / 2);
-              const captureCol = Math.floor((fromCol + toCol) / 2);
-              checkersBoard[captureRow][captureCol] = 0;
-          }
+        if (move.isJump) {
+            const captureRow = Math.floor((fromRow + toRow) / 2);
+            const captureCol = Math.floor((fromCol + toCol) / 2);
+            checkersBoard[captureRow][captureCol] = 0;
+        }
     
-          // King promotion
-          if (toRow === 7 && checkersBoard[toRow][toCol] === 1) {
-              checkersBoard[toRow][toCol] = 3;
-          }
+        if (toRow === 7 && checkersBoard[toRow][toCol] === 1) {
+            checkersBoard[toRow][toCol] = 3;
+        }
     
-          const newFen = checkersToFen();
-          const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
+        const newFen = checkersToFen();
+        const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
     
-          renderCheckersBoard();
+        renderCheckersBoard();
     
-          const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
-          await tx.wait();
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
+        await tx.wait();
     
-          showAlert('✅ AI moved!', 'success');
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          await loadGame(currentGameId);
+        showAlert('✅ AI moved!', 'success');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        await loadGame(currentGameId);
     
-      } catch (e) {
-          console.error('AI checkers move error:', e);
-      } finally {
-          aiMoveInProgress = false;
-      }
+    } catch (e) {
+        console.error('AI error:', e);
+    } finally {
+        aiMoveInProgress = false;
+    }
 }
 
+// ==================== FEN CONVERSION ====================
 function checkersToFen() {
     let fen = '';
     for (let row = 0; row < 8; row++) {
@@ -2614,7 +2639,7 @@ function checkersToFen() {
     }
     return fen + ' b';
 }
-
+        
 // ==================== STAKING ====================
 async function stakeTokens() {
     if (!staking) return showAlert('Connect wallet first', 'error');
