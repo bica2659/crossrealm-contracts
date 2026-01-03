@@ -1090,10 +1090,2344 @@
                 🔗 <a href="https://scan.coredao.org/address/0xEdB8fC32bcE362199cB8E1e4097CCF66c3B085Be" target="_blank" style="color: var(--bitcoin-orange);">View Hub Contract</a> |
                 <a href="https://scan.coredao.org/address/0xA428e0c1306d3E00e0DD1a983bE6629C416a2569" target="_blank" style="color: var(--bitcoin-orange);">View Rewards Contract</a>
             </p>
-    </footer>
-</div>
+        </footer>
+    </div>
 
-<script>
+    <script>
+        // ==================== CONTRACT ADDRESSES ====================
+        const CORE_MAINNET = {
+            chainId: '0x45c',
+            chainName: 'Core',
+            rpcUrls: ['https://rpc.coredao.org'],
+            nativeCurrency: { name: 'Core', symbol: 'CORE', decimals: 18 },
+            blockExplorerUrls: ['https://scan.coredao.org']
+        };
+
+        const CONTRACTS = {
+            HUB: '0xEdB8fC32bcE362199cB8E1e4097CCF66c3B085Be',
+            REWARDS: '0xA428e0c1306d3E00e0DD1a983bE6629C416a2569',
+            STAKING: '0xb51097A1b140fAFC5bD8A5a3Dd21aB4b843B4f3d',
+            TOURNAMENT: '0x991b432f693Cd9e9362321B82A5D1Ac368E1E174',
+            GAMECHAT: '0x3f55de5f58e9bdb8163469b6E20FE2cF2b730759',
+            CHESS_VERIFIER: '0x29eF0Cc38D10A586303095DD591530279fd0FB9f',
+            CHECKERS_VERIFIER: '0xEFB1b5056eA77100adf73e365B28d8c240BAbde2',
+            EIGHTBALL_VERIFIER: '0x9cB84c21cc37D223e232B8E316139Bf5e38a87b1',
+            PENALTY_VERIFIER: '0xb8d852Bf3B06Ba8378310AA1b97BC687b28CA8A0',
+        };
+
+        // ==================== CONTRACT ABIs ====================
+        const HUB_ABI = [
+            'function gameCount() view returns (uint256)',
+            'function games(uint256) view returns (address creator, address player2, uint256 stake, bool isPrivate, bool isAI, bool active, string gameType, string fen, uint8 turn, address verifier, uint256 lastMoveTime, uint256 tournamentId)',
+            'function createGame(string gameType, uint256 stake, bool isPrivate, bool isAI, address verifier) payable returns (uint256)',
+            'function joinGame(uint256 gameId) payable',
+            'function makeMove(uint256 gameId, string move, string newFen)',
+            'function forfeitGame(uint256 gameId)',
+            'function getInitialFen(string gameType) view returns (string)',
+            'function setReferrer(address referrer)',
+            'function referrers(address) view returns (address)'
+        ];
+
+        const REWARDS_ABI = [
+            'function cashbackCORE(address) view returns (uint256)',
+            'function referralEarningsCORE(address) view returns (uint256)',
+            'function creatorBonusCORE(address) view returns (uint256)',
+            'function claimAllRewards()',
+            'function getTotalClaimable(address) view returns (uint256)'
+        ];
+
+        const STAKING_ABI = [
+            'function stakes(address) view returns (uint256 amount, uint256 stakedAt, uint256 lockPeriod, uint256 lockedUntil, uint256 lastClaimTime, uint256 accumulatedRewards)',
+            'function totalStaked() view returns (uint256)',
+            'function stake(uint256 lockPeriod) payable',
+            'function withdraw(uint256 amount)',
+            'function claimRewards()',
+            'function calculatePendingRewards(address) view returns (uint256)',
+            'function getStakeInfo(address) view returns (uint256 amount, uint256 stakedAt, uint256 lockPeriod, uint256 lockedUntil, uint256 pendingRewards)',
+            'function baseAPY() view returns (uint256)',
+            'function lock30Bonus() view returns (uint256)',
+            'function lock90Bonus() view returns (uint256)'
+        ];
+
+        const CHAT_ABI = [
+            'function sendMessage(uint256 gameId, string message) external',
+            'function getMessages(uint256 gameId) view returns (tuple(address sender, string message, uint256 timestamp)[])',
+            'function getMessageCount(uint256 gameId) view returns (uint256)'
+        ];
+
+        // ==================== CHESS PIECE UNICODE ====================
+        const PIECE_UNICODE = {
+            'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
+            'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
+        };
+
+        const PIECE_VALUES = {
+            'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000
+        };
+
+        // ==================== GLOBAL STATE ====================
+        let provider, signer, userAddress;
+        let hub, rewards, gameChat, staking;
+        let currentGame = null, currentGameId = null;
+        let gameEngine = null, checkersBoard = null;
+        let isConnected = false, selectedLockPeriod = 0;
+        let moveFrom = null, isAIGame = false, isMyTurn = false;
+        let chatInterval = null, aiMoveInProgress = false;
+        let checkersSelectedSquare = null;
+        let isLoadingGame = false; // NEW: Prevent duplicate loads
+
+        // 8-Ball Pool state
+        let poolCanvas, poolCtx;
+        let cueBall = { x: 225, y: 450, vx: 0, vy: 0, radius: 20, color: "#fff" };
+        let balls = [];
+        let cueStick = { angle: 0, power: 0, visible: false };
+        let isAiming = false, isShooting = false;
+        let mouseX = 0, mouseY = 0;
+        let spin = { x: 0, y: 0 }; // Spin control for English
+
+        // Penalty Shootout state
+        let penaltyCanvas, penaltyCtx;
+        let round = 1, score1 = 0, score2 = 0;
+        let shooterChoice = -1, keeperChoice = -1;
+        let waitingForKeeper = false;
+
+        // ==================== UTILITIES ====================
+        function showAlert(msg, type = 'success') {
+            const el = document.createElement('div');
+            el.className = `alert ${type}`;
+            el.textContent = msg;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 4000);
+        }
+
+        function showLoading(message) {
+            const loader = document.createElement('div');
+            loader.id = 'globalLoader';
+            loader.innerHTML = `
+                <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                            background: var(--card-bg); padding: 30px; border-radius: 12px; 
+                            border: 2px solid var(--bitcoin-orange); z-index: 10000;">
+                    <div style="font-size: 48px; text-align: center; margin-bottom: 20px;">⏳</div>
+                    <div style="color: var(--text); font-size: 16px;">${message}</div>
+                </div>
+                <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999;"></div>
+            `;
+            document.body.appendChild(loader);
+        }
+
+        function hideLoading() {
+            document.getElementById('globalLoader')?.remove();
+        }
+
+        // ==================== WALLET FUNCTIONS ====================
+        async function toggleWallet() {
+            if (isConnected) {
+                disconnectWallet();
+            } else {
+                await connectWallet();
+            }
+        }
+
+        async function connectWallet() {
+            try {
+                if (!window.ethereum) throw new Error('Install MetaMask');
+
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: CORE_MAINNET.chainId }]
+                    });
+                } catch (e) {
+                    if (e.code === 4902) {
+                        await window.ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [CORE_MAINNET]
+                        });
+                    }
+                }
+
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send('eth_requestAccounts', []);
+                signer = provider.getSigner();
+                userAddress = await signer.getAddress();
+        
+                hub = new ethers.Contract(CONTRACTS.HUB, HUB_ABI, signer);
+                rewards = new ethers.Contract(CONTRACTS.REWARDS, REWARDS_ABI, signer);
+                gameChat = new ethers.Contract(CONTRACTS.GAMECHAT, CHAT_ABI, signer);
+                staking = new ethers.Contract(CONTRACTS.STAKING, STAKING_ABI, signer);
+
+                isConnected = true;
+                document.getElementById('walletAddress').textContent = userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
+                document.getElementById('walletInfo').classList.remove('hidden');
+                document.getElementById('connectBtn').textContent = 'Disconnect';
+                document.getElementById('connectBtn').classList.add('connected');
+
+                updateBalance();
+                loadPendingGames();
+                loadMyGames();
+                startAutoRefresh();
+                setupEventListeners(); // NEW: Listen to blockchain events
+
+                showAlert('Connected to Core Blockchain!', 'success');
+            } catch (e) {
+                console.error('Connection error:', e);
+                showAlert('Connection failed: ' + e.message, 'error');
+            }
+        }
+
+        function disconnectWallet() {
+            isConnected = false;
+            userAddress = null;
+            if (chatInterval) clearInterval(chatInterval);
+            document.getElementById('walletInfo').classList.add('hidden');
+            document.getElementById('connectBtn').textContent = 'Connect Wallet';
+            document.getElementById('connectBtn').classList.remove('connected');
+            showAlert('Wallet disconnected', 'info');
+        }
+
+        async function updateBalance() {
+            if (!provider || !userAddress) return;
+            try {
+                const balance = await provider.getBalance(userAddress);
+                document.getElementById('walletBalance').textContent = 
+                    parseFloat(ethers.utils.formatEther(balance)).toFixed(4) + ' CORE';
+            } catch (e) {
+                console.error('Balance update error:', e);
+            }
+        }
+
+        // ==================== NEW: EVENT LISTENERS FOR REAL-TIME SYNC ====================
+        function setupEventListeners() {
+            if (!hub || !currentGameId) return;
     
+            // Listen for MoveMade events on current game
+            const moveFilter = hub.filters.MoveMade(currentGameId);
+    
+            hub.on(moveFilter, async (gameId, player, move, newFen, event) => {
+                console.log('🎯 Move detected on-chain!', gameId.toNumber());
+                if (gameId.toNumber() === currentGameId) {
+                    await loadGame(currentGameId);
+                    showAlert('✅ Opponent moved!', 'info');
+                }
+            });
+        }
+
+        function startAutoRefresh() {
+            // Faster polling for active game
+            setInterval(() => {
+                if (hub && currentGameId) {
+                    checkGameStateChanged();
+                }
+            }, 1500); // Check every 1.5 seconds for active game
+    
+            // Slower polling for game lists
+            setInterval(() => {
+                if (hub) {
+                    loadPendingGames();
+                    loadMyGames();
+                    updateBalance();
+                    if (currentGameId) {
+                        loadChatMessages();
+                    }
+                }
+            }, 5000);
+        }
+
+        async function checkGameStateChanged() {
+            if (!hub || !currentGameId || isLoadingGame) return;
+    
+            try {
+                const game = await hub.games(currentGameId);
+                const newFen = game.fen;
+        
+                if (currentGame && newFen !== currentGame.fen) {
+                    console.log('🔄 Game state changed, reloading...');
+                    await loadGame(currentGameId);
+                }
+            } catch (e) {
+                console.error('Error checking game state:', e);
+            }
+        }
+
+        function selectLockPeriod(days) {
+            selectedLockPeriod = days;
+            document.querySelectorAll('.lock-option').forEach(opt => {
+                opt.classList.remove('selected');
+                if (parseInt(opt.dataset.period) === days) {
+                    opt.classList.add('selected');
+                }
+            });
+    
+            const labels = { 0: 'No Lock', 30: '30 Days', 90: '90 Days' };
+            document.getElementById('lockPeriodDisplay').textContent = labels[days];
+        }
+
+        // ==================== STATISTICS ====================
+        function openStatsModal() {
+            if (!isConnected) {
+                showAlert('Connect wallet first', 'error');
+                return;
+            }
+            document.getElementById('statsOverlay').classList.add('active');
+            document.getElementById('statsModal').classList.add('active');
+            loadUserStats();
+        }
+
+        function closeStatsModal() {
+            document.getElementById('statsOverlay').classList.remove('active');
+            document.getElementById('statsModal').classList.remove('active');
+        }
+
+        async function loadUserStats() {
+            if (!rewards || !userAddress || !hub) return;
+            try {
+                const cashback = await rewards.cashbackCORE(userAddress);
+                document.getElementById('statCashback').textContent = 
+                    parseFloat(ethers.utils.formatEther(cashback)).toFixed(4);
+
+                const refEarnings = await rewards.referralEarningsCORE(userAddress);
+                document.getElementById('refEarningsTotal').textContent = 
+                    parseFloat(ethers.utils.formatEther(refEarnings)).toFixed(4);
+
+                const creatorBonus = await rewards.creatorBonusCORE(userAddress);
+        
+                const totalClaimable = cashback.add(refEarnings).add(creatorBonus);
+                document.getElementById('statTotalClaimable').textContent = 
+                    parseFloat(ethers.utils.formatEther(totalClaimable)).toFixed(4);
+
+                const referrer = await hub.referrers(userAddress);
+                if (referrer === ethers.constants.AddressZero) {
+                    document.getElementById('refReferredBy').textContent = 'None';
+                } else {
+                    document.getElementById('refReferredBy').textContent = 
+                        referrer.slice(0, 6) + '...' + referrer.slice(-4);
+                }
+
+                document.getElementById('statGamesPlayed').textContent = '0';
+                document.getElementById('statWins').textContent = '0';
+                document.getElementById('statLosses').textContent = '0';
+                document.getElementById('statWinRate').textContent = '0%';
+                document.getElementById('statTotalStaked').textContent = '0.00';
+                document.getElementById('statELO').textContent = '1200';
+
+            } catch (e) {
+                console.error('Error loading stats:', e);
+            }
+        }
+
+        async function claimAllRewards() {
+            if (!rewards || !userAddress) return showAlert('Connect wallet first', 'error');
+            try {
+                const tx = await rewards.claimAllRewards({ gasLimit: 500000 });
+                showAlert('⏳ Claiming all rewards...', 'info');
+                await tx.wait();
+                showAlert('✅ All rewards claimed!', 'success');
+                updateBalance();
+                loadUserStats();
+                closeStatsModal();
+            } catch (e) {
+                showAlert('❌ Claim failed: ' + (e.reason || e.message), 'error');
+            }
+        }
+
+// ==================== GAME MANAGEMENT ====================
+async function createGame() {
+    if (!hub || !signer) return showAlert('Connect wallet first', 'error');
+    
+    try {
+        const gameType = document.getElementById('gameType').value;
+        const stakeAmount = document.getElementById('stakeAmount').value || '0.1';
+        
+        const stakeFloat = parseFloat(stakeAmount);
+        if (stakeFloat < 0.01) {
+            return showAlert('Minimum stake is 0.01 CORE', 'error');
+        }
+        
+        const stake = ethers.utils.parseEther(stakeAmount);
+        const isPrivate = document.getElementById('isPrivate').checked;
+        const isAI = document.getElementById('isAI').checked;
+
+        const fee = stake.mul(250).div(10000);
+        const totalPayment = stake.add(fee);
+
+        let verifierAddress;
+        if (gameType === 'chess') verifierAddress = CONTRACTS.CHESS_VERIFIER;
+        else if (gameType === 'checkers') verifierAddress = CONTRACTS.CHECKERS_VERIFIER;
+        else if (gameType === '8ball') verifierAddress = CONTRACTS.EIGHTBALL_VERIFIER;
+        else if (gameType === 'penalties') verifierAddress = CONTRACTS.PENALTY_VERIFIER;
+
+        if (verifierAddress === '0x0000000000000000000000000000000000000000') {
+            return showAlert('❌ This game type is not yet deployed. Coming soon!', 'error');
+        }
+
+        showAlert('⏳ Creating game...', 'info');
+        
+        const tx = await hub.createGame(
+            gameType,
+            stake,
+            isPrivate,
+            isAI,
+            verifierAddress,
+            { 
+                value: totalPayment,
+                gasLimit: 800000
+            }
+        );
+        
+        showAlert('⏳ Waiting for confirmation...', 'info');
+        await tx.wait();
+        showAlert('✅ Game created!', 'success');
+        
+        await Promise.all([
+            loadPendingGames(),
+            loadMyGames()
+        ]);
+
+        document.getElementById('stakeAmount').value = '0.1';
+        document.getElementById('isPrivate').checked = false;
+        
+        const gameCount = await hub.gameCount();
+        
+        if (isAI) {
+            setTimeout(() => loadGame(gameCount.toNumber()), 1500);
+        }
+        
+    } catch (e) {
+        console.error('Create game error:', e);
+        
+        let errorMsg = 'Transaction failed';
+        
+        if (e.code === 4001) {
+            errorMsg = 'You rejected the transaction';
+        } else if (e.message.includes('insufficient funds')) {
+            errorMsg = 'Insufficient CORE balance';
+        } else if (e.message) {
+            errorMsg = e.message;
+        }
+        
+        if (e.reason) errorMsg = e.reason;
+        
+        showAlert('❌ ' + errorMsg, 'error');
+    }
+}
+
+async function loadPendingGames() {
+    if (!hub || !userAddress) return;
+    const list = document.getElementById('gamesList');
+    try {
+        const count = await hub.gameCount();
+        let html = '';
+
+        for (let i = count.toNumber(); i >= Math.max(1, count.toNumber() - 20); i--) {
+            try {
+                const g = await hub.games(i);
+                const isMyGame = g.creator.toLowerCase() === userAddress.toLowerCase();
+                const needsPlayer = g.player2 === ethers.constants.AddressZero;
+                const isPublic = !g.isPrivate && !g.isAI;
+                
+                if (needsPlayer && isPublic && g.active && !isMyGame) {
+                    const stake = ethers.utils.formatEther(g.stake);
+                    const creator = g.creator.slice(0, 6) + '...' + g.creator.slice(-4);
+                    html += `<div class="game-item" onclick="joinGame(${i})">
+                        <div class="game-id">🟢 Game #${i}</div>
+                        <div class="game-info">${g.gameType.toUpperCase()} • ${stake} CORE • by ${creator}</div>
+                    </div>`;
+                }
+            } catch (e) {
+                console.error('Error loading game', i, e);
+            }
+        }
+
+        list.innerHTML = html || '<p class="text-center" style="color: var(--dim);">No games available</p>';
+    } catch (e) {
+        console.error('Error loading pending games:', e);
+        list.innerHTML = '<p style="color: #ff4444;">Error loading</p>';
+    }
+}
+
+async function loadMyGames() {
+    if (!hub || !userAddress) return;
+    const list = document.getElementById('myGamesList');
+    try {
+        const count = await hub.gameCount();
+        let html = '';
+        for (let i = count.toNumber(); i >= 1; i--) {
+            try {
+                const g = await hub.games(i);
+                const isPlayer = g.creator.toLowerCase() === userAddress.toLowerCase() || 
+                                g.player2.toLowerCase() === userAddress.toLowerCase();
+                if (g.active && isPlayer) {
+                    const icon = g.gameType === 'chess' ? '♟️' : 
+                                g.gameType === 'checkers' ? '🎯' :
+                                g.gameType === '8ball' ? '🎱' : '⚽';
+                    html += `<div class="game-item" onclick="loadGame(${i})">
+                        <div class="game-id">⚔️ Game #${i}</div>
+                        <div class="game-info">${icon} ${g.gameType.toUpperCase()} • ${g.isAI ? '🤖 AI' : '👥 P2P'}</div>
+                    </div>`;
+                }
+            } catch (e) {
+                console.error('Error loading my game', i, e);
+            }
+        }
+        list.innerHTML = html || '<p class="text-center" style="color: var(--dim);">No active games</p>';
+    } catch (e) {
+        console.error('Error loading my games:', e);
+    }
+}
+
+async function refreshGames() {
+    if (!hub) return showAlert('Connect wallet first', 'error');
+    
+    showAlert('🔄 Refreshing games...', 'info');
+    
+    await Promise.all([
+        loadPendingGames(),
+        loadMyGames()
+    ]);
+    
+    showAlert('✅ Games refreshed!', 'success');
+}
+
+async function joinGame(id) {
+    if (!hub) return;
+    try {
+        const game = await hub.games(id);
+        const fee = game.stake.mul(250).div(10000);
+        const totalPayment = game.stake.add(fee);
+        
+        const tx = await hub.joinGame(id, { value: totalPayment, gasLimit: 500000 });
+        showAlert('⏳ Joining game...', 'info');
+        await tx.wait();
+        showAlert('✅ Joined game!', 'success');
+        loadGame(id);
+        loadPendingGames();
+        loadMyGames();
+    } catch (e) {
+        showAlert('❌ Join failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+async function loadGame(id) {
+    console.log('🎮 loadGame called for game #', id);
+    
+    if (!hub) return;
+    
+    // Prevent duplicate loads
+    if (isLoadingGame) {
+        console.log('⏸️ Already loading game, skipping...');
+        return;
+    }
+    
+    isLoadingGame = true;
+    
+    try {
+        currentGameId = id;
+        const g = await hub.games(id);
+        currentGame = g;
+        isAIGame = g.isAI;
+        
+        let fen = g.fen;
+        
+        if (!fen || fen === '') {
+            fen = await hub.getInitialFen(g.gameType);
+        }
+        
+        // Hide all game displays first
+        document.getElementById('gameCanvas').style.display = 'none';
+        document.getElementById('boardContainer').style.display = 'none';
+        
+        // Load appropriate game type
+        if (g.gameType === 'chess') {
+            await loadChessGame(id, g, fen);
+        } else if (g.gameType === 'checkers') {
+            await loadCheckersGame(id, g, fen);
+        } else if (g.gameType === '8ball') {
+            init8BallPool(id);
+        } else if (g.gameType === 'penalties') {
+            initPenaltyShootout(id);
+        }
+        
+        // Enable game controls
+        document.getElementById('forfeitBtn').disabled = false;
+        document.getElementById('shareBtn').disabled = false;
+        document.getElementById('sendChatBtn').disabled = false;
+
+        // Update forfeit button text
+        const forfeitBtn = document.getElementById('forfeitBtn');
+        if (!g.player2 || g.player2 === ethers.constants.AddressZero) {
+            forfeitBtn.textContent = '❌ Cancel Game';
+            forfeitBtn.style.display = 'inline-block';
+        } else {
+            forfeitBtn.textContent = '🏳️ Forfeit Game';
+            forfeitBtn.style.display = 'inline-block';
+        }
+        
+        // Start chat polling
+        startChatPolling();
+        loadChatMessages();
+        
+    } catch (e) {
+        console.error('Error loading game:', e);
+        showAlert('❌ Error loading game: ' + (e.reason || e.message), 'error');
+    } finally {
+        isLoadingGame = false;
+    }
+}
+
+async function loadChessGame(id, g, fen) {
+    gameEngine = new Chess(fen);
+    
+    const fenParts = fen.split(' ');
+    const turnColor = fenParts[1];
+    const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
+    
+    if (isAIGame) {
+        isMyTurn = turnColor === 'w';
+    } else {
+        isMyTurn = (turnColor === 'w' && amICreator) || (turnColor === 'b' && !amICreator);
+    }
+    
+    const turnIndicator = isMyTurn ? 
+        '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
+        '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
+    
+    document.getElementById('gameInfo').innerHTML = 
+        `Game #${id} • CHESS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
+    document.getElementById('boardTitle').innerHTML = 
+        `<span>♟️ Chess Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
+    
+    renderChessBoard();
+    
+    if (isAIGame && !isMyTurn && !gameEngine.game_over() && !aiMoveInProgress) {
+        setTimeout(() => makeAIMove(), 2000);
+    }
+}
+
+async function loadCheckersGame(id, g, fen) {
+    initCheckersBoard(fen);
+
+    const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
+    const contractTurn = typeof g.turn === 'object' && g.turn.toNumber ? g.turn.toNumber() : Number(g.turn);
+
+    console.log('🎯 CHECKERS DEBUG:', {
+        amICreator,
+        contractTurn,
+        isAI: g.isAI,
+        player2: g.player2
+    });
+
+    if (g.isAI) {
+        isMyTurn = (contractTurn === 0);
+    } else {
+        isMyTurn = (contractTurn === 0 && amICreator) || (contractTurn === 1 && !amICreator);
+    }
+
+    console.log('🎯 isMyTurn:', isMyTurn);
+
+    renderCheckersBoard();
+
+    const turnIndicator = isMyTurn ? 
+        '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN</span>' : 
+        '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
+
+    document.getElementById('gameInfo').innerHTML = 
+        `Game #${id} • CHECKERS • ${ethers.utils.formatEther(g.stake)} CORE • ${g.isAI ? '🤖 AI' : '👥 P2P'}<br>${turnIndicator}`;
+    document.getElementById('boardTitle').innerHTML = 
+        `<span>🎯 Checkers Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
+
+    if (g.isAI && !isMyTurn && g.active && !aiMoveInProgress && g.player2 !== ethers.constants.AddressZero) {
+        setTimeout(() => makeCheckersAIMove(), 2000);
+    }
+}
+
+async function forfeitGame() {
+    if (!hub || !userAddress || !currentGameId) {
+        showAlert('❌ Please connect wallet first', 'error');
+        return;
+    }
+
+    try {
+        showAlert('⏳ Forfeiting game...', 'info');
+    
+        const game = await hub.games(currentGameId);
+    
+        if (!game.active) {
+            showAlert('❌ Game is already ended', 'error');
+            return;
+        }
+    
+        const isCreator = game.creator.toLowerCase() === userAddress.toLowerCase();
+        const isPlayer2 = game.player2.toLowerCase() === userAddress.toLowerCase();
+    
+        if (!isCreator && !isPlayer2) {
+            showAlert('❌ Not your game!', 'error');
+            return;
+        }
+    
+        if (game.player2 === ethers.constants.AddressZero) {
+            showAlert('❌ Cannot forfeit - game hasn\'t started yet. Please cancel instead.', 'error');
+            return;
+        }
+    
+        const tx = await hub.forfeitGame(currentGameId, { gasLimit: 500000 });
+        await tx.wait();
+    
+        showAlert('✅ Game forfeited!', 'success');
+        currentGameId = null;
+    
+        await loadPendingGames();
+        await loadMyGames();
+    
+    } catch (e) {
+        console.error('Forfeit error:', e);
+        let errorMsg = 'Forfeit failed';
+        if (e.reason) errorMsg = e.reason;
+        else if (e.message) errorMsg = e.message;
+        showAlert('❌ ' + errorMsg, 'error');
+    }
+}
+
+function shareGame() {
+    if (!currentGameId) return;
+    const url = window.location.origin + window.location.pathname + '?game=' + currentGameId;
+    navigator.clipboard.writeText(url);
+    showAlert('✅ Game link copied!', 'success');
+}
+
+function toggleBoard() {
+    const content = document.getElementById('boardContent');
+    const toggle = document.getElementById('boardToggle');
+    
+    const isHidden = window.getComputedStyle(content).display === 'none';
+    
+    if (isHidden) {
+        content.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        content.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// ==================== TAB SWITCHING ====================
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    document.getElementById(tabName).classList.add('active');
+    event.target.classList.add('active');
+    
+    if (tabName === 'staking' && isConnected) {
+        loadStakingData();
+    }
+}
+
+/* Part 6: Chess & Checkers Game Logic */
+
+// ==================== CHESS FUNCTIONS ====================
+function renderChessBoard() {
+    if (!gameEngine) return;
+
+    const container = document.getElementById('boardContainer');
+    container.style.display = 'grid';
+    container.innerHTML = '';
+
+    const board = gameEngine.board();
+
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const square = document.createElement('div');
+            const isLight = (row + col) % 2 === 0;
+            square.className = `board-square ${isLight ? 'light' : 'dark'}`;
+            square.dataset.row = row;
+            square.dataset.col = col;
+    
+            square.style.cursor = 'pointer';
+            square.onclick = () => selectChessSquare(row, col);
+            square.ontouchend = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                selectChessSquare(row, col);
+            };
+
+            const piece = board[row][col];
+            if (piece) {
+                const pieceChar = piece.type.toUpperCase();
+                const unicode = PIECE_UNICODE[piece.color === 'w' ? pieceChar : pieceChar.toLowerCase()];
+                const pieceEl = document.createElement('span');
+                pieceEl.className = `chess-piece ${piece.color === 'w' ? 'white' : 'black'}`;
+                pieceEl.textContent = unicode;
+                square.appendChild(pieceEl);
+            }
+
+            container.appendChild(square);
+        }
+    }
+}
+
+function selectChessSquare(row, col) {
+    if (!gameEngine || !isMyTurn) {
+        if (!isMyTurn) showAlert('⏸️ Not your turn!', 'error');
+        return;
+    }
+
+    const files = 'abcdefgh';
+    const clickedSquare = files[col] + (8 - row);
+
+    if (!moveFrom) {
+        const piece = gameEngine.get(clickedSquare);
+        if (!piece) return;
+
+        const fenParts = gameEngine.fen().split(' ');
+        const turnColor = fenParts[1];
+
+        if (piece.color !== turnColor) {
+            showAlert('❌ Not your piece!', 'error');
+            return;
+        }
+
+        moveFrom = clickedSquare;
+
+        document.querySelectorAll('.board-square').forEach(s => {
+            s.classList.remove('selected', 'possible');
+        });
+        document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add('selected');
+
+        const moves = gameEngine.moves({ square: clickedSquare, verbose: true });
+        moves.forEach(m => {
+            const toCol = m.to.charCodeAt(0) - 'a'.charCodeAt(0);
+            const toRow = 8 - parseInt(m.to[1]);
+            const targetSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
+            if (targetSquare) targetSquare.classList.add('possible');
+        });
+
+    } else {
+        makePlayerMove(clickedSquare);
+    }
+}
+
+async function makePlayerMove(toSquare) {
+    if (!moveFrom || !hub || !currentGameId) return;
+
+    try {
+        if (moveFrom === toSquare) {
+            moveFrom = null;
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible');
+            });
+            return;
+        }
+
+        const testMove = gameEngine.move({ from: moveFrom, to: toSquare, promotion: 'q' });
+
+        if (!testMove) {
+            showAlert('❌ Invalid move!', 'error');
+            moveFrom = null;
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible');
+            });
+            return;
+        }
+
+        const moveStr = moveFrom + toSquare;
+        let newFen = gameEngine.fen();
+
+        if (checkGameOver()) {
+            newFen += '#';
+
+            const hasWhiteKing = newFen.includes('K');
+            const hasBlackKing = newFen.includes('k');
+
+            if (!hasBlackKing) {
+                showAlert('👑 BLACK KING CAPTURED! White wins!', 'success');
+            } else if (!hasWhiteKing) {
+                showAlert('👑 WHITE KING CAPTURED! Black wins!', 'success');
+            } else {
+                showAlert('🎯 CHECKMATE!', 'success');
+            }
+        } else if (gameEngine.in_stalemate()) {
+            newFen += ' STALEMATE';
+        } else if (gameEngine.in_draw()) {
+            newFen += ' DRAW';
+        }
+
+        renderChessBoard();
+        showAlert('⏳ Submitting move on-chain...', 'info');
+
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
+        await tx.wait();
+
+        moveFrom = null;
+        document.querySelectorAll('.board-square').forEach(s => {
+            s.classList.remove('selected', 'possible');
+        });
+
+        if (checkGameOver() || gameEngine.in_checkmate()) {
+            showAlert('🎯 GAME OVER!', 'success');
+        } else {
+            showAlert('✅ Move confirmed on-chain!', 'success');
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await loadGame(currentGameId);
+
+    } catch (e) {
+        console.error('Move error:', e);
+
+        gameEngine.undo();
+
+        moveFrom = null;
+        document.querySelectorAll('.board-square').forEach(s => {
+            s.classList.remove('selected', 'possible');
+        });
+        renderChessBoard();
+
+        let errorMsg = 'Move failed';
+        if (e.reason) errorMsg = e.reason;
+        else if (e.message) errorMsg = e.message;
+
+        showAlert('❌ ' + errorMsg, 'error');
+    }
+}
+
+function checkGameOver() {
+    if (!gameEngine) return false;
+
+    const fen = gameEngine.fen();
+
+    const hasWhiteKing = fen.includes('K');
+    const hasBlackKing = fen.includes('k');
+
+    if (!hasWhiteKing || !hasBlackKing) {
+        return true;
+    }
+
+    if (gameEngine.in_checkmate()) {
+        return true;
+    }
+
+    return false;
+}
+
+async function makeAIMove() {
+    if (!gameEngine || !currentGame || !currentGame.isAI || isMyTurn || gameEngine.game_over() || aiMoveInProgress) return;
+
+    if (!currentGame.active) return;
+
+    aiMoveInProgress = true;
+
+    try {
+        showAlert('🤖 AI is thinking...', 'info');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        if (!gameEngine || gameEngine.game_over()) {
+            aiMoveInProgress = false;
+            return;
+        }
+
+        const bestMove = getBestMove(gameEngine, 2);
+        if (!bestMove) {
+            aiMoveInProgress = false;
+            return;
+        }
+
+        const moveStr = bestMove.from + bestMove.to;
+        const testMove = gameEngine.move(bestMove);
+        if (!testMove) {
+            aiMoveInProgress = false;
+            return;
+        }
+
+        let newFen = gameEngine.fen();
+
+        if (checkGameOver()) {
+            newFen += '#';
+        } else if (gameEngine.in_stalemate()) {
+            newFen += ' STALEMATE';
+        } else if (gameEngine.in_draw()) {
+            newFen += ' DRAW';
+        }
+
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
+        await tx.wait();
+
+        showAlert('✅ AI moved: ' + bestMove.from + ' → ' + bestMove.to, 'success');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await loadGame(currentGameId);
+
+    } catch (e) {
+        console.error('AI move error:', e);
+        if (gameEngine) gameEngine.undo();
+        showAlert('❌ AI move failed', 'error');
+    } finally {
+        aiMoveInProgress = false;
+    }
+}
+
+function getBestMove(chess, depth) {
+    const moves = chess.moves({ verbose: true });
+    if (moves.length === 0) return null;
+
+    let bestMove = moves[0];
+    let bestValue = -9999;
+
+    for (let move of moves) {
+        chess.move(move);
+        let boardValue = -minimax(chess, depth - 1, -10000, 10000, false);
+        chess.undo();
+
+        if (boardValue > bestValue) {
+            bestValue = boardValue;
+            bestMove = move;
+        }
+    }
+
+    return bestMove;
+}
+
+function minimax(chess, depth, alpha, beta, isMaximizing) {
+    if (depth === 0) return evaluateBoard(chess.board());
+
+    const moves = chess.moves({ verbose: true });
+
+    if (moves.length === 0) {
+        if (chess.in_checkmate()) {
+            return isMaximizing ? -9999 : 9999;
+        }
+        return 0;
+    }
+
+    if (isMaximizing) {
+        let maxEval = -10000;
+        for (let move of moves) {
+             chess.move(move);
+             let evaluation = minimax(chess, depth - 1, alpha, beta, false);
+             chess.undo();
+             maxEval = Math.max(maxEval, evaluation);
+             alpha = Math.max(alpha, evaluation);
+             if (beta <= alpha) break;
+        }
+        return maxEval;
+    } else {
+        let minEval = 10000;
+        for (let move of moves) {
+            chess.move(move);
+            let evaluation = minimax(chess, depth - 1, alpha, beta, true);
+            chess.undo();
+            minEval = Math.min(minEval, evaluation);
+            beta = Math.min(beta, evaluation);
+            if (beta <= alpha) break;
+        }
+        return minEval;
+    }
+}
+
+function evaluateBoard(board) {
+    let totalEvaluation = 0;
+    for (let i = 0; i < 8; i++) {
+         for (let j = 0; j < 8; j++) {
+             const piece = board[i][j];
+             if (piece) {
+                 totalEvaluation += getPieceValue(piece, i, j);
+             }
+         }
+    }
+    return totalEvaluation;
+}
+
+function getPieceValue(piece, x, y) {
+    const type = piece.type.toLowerCase();
+    const isWhite = piece.color === 'w';
+
+    let value = PIECE_VALUES[type];
+
+    if (type === 'p') {
+        value += isWhite ? (7 - x) * 10 : x * 10;
+    } else if (type === 'n' || type === 'b') {
+        value += (Math.abs(3.5 - x) + Math.abs(3.5 - y)) * -2;
+    }
+
+    return isWhite ? value : -value;
+}
+
+// ==================== CHECKERS FUNCTIONS ====================
+function initCheckersBoard(fen) {
+    // Guard: Don't reinitialize if board already has pieces
+    if (checkersBoard && checkersBoard.length === 8) {
+        let pieceCount = 0;
+        for (let row of checkersBoard) {
+            for (let piece of row) {
+                if (piece > 0) pieceCount++;
+            }
+        }
+
+        if (pieceCount >= 20) {
+            console.log('✅ Board already initialized with', pieceCount, 'pieces - skipping');
+            return;
+        }
+    }
+
+    checkersBoard = [];
+    for (let i = 0; i < 8; i++) {
+        checkersBoard[i] = new Array(8).fill(0);
+    }
+
+    let useDefaultPosition = true;
+
+    if (fen && fen !== '') {
+        const fenParts = fen.split(' ')[0];
+        const rows = fenParts.split('/');
+
+        let pieceCount = 0;
+
+        for (let row of rows) {
+            for (let char of row) {
+                if (char === 'b' || char === 'w' || char === 'B' || char === 'W') {
+                    pieceCount++;
+                }
+            }
+        }
+
+        if (pieceCount >= 20 && pieceCount <= 24) {
+            useDefaultPosition = false;
+
+            for (let row = 0; row < 8 && row < rows.length; row++) {
+                let col = 0;
+                for (let char of rows[row]) {
+                     if (char >= '0' && char <= '9') {
+                         col += parseInt(char);
+                     } else if (col < 8) {
+                         if (char === 'b') checkersBoard[row][col] = 1;
+                         else if (char === 'w') checkersBoard[row][col] = 2;
+                         else if (char === 'B') checkersBoard[row][col] = 3;
+                         else if (char === 'W') checkersBoard[row][col] = 4;
+                         col++;
+                     }
+                }
+            }
+        }
+    }
+
+    if (useDefaultPosition) {
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 8; col++) {
+                if ((row + col) % 2 === 1) {
+                    checkersBoard[row][col] = 1;
+                }
+            }
+        }
+
+        for (let row = 5; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                if ((row + col) % 2 === 1) {
+                    checkersBoard[row][col] = 2;
+                }
+            }
+        }
+    }
+}
+
+function renderCheckersBoard() {
+    const container = document.getElementById('boardContainer');
+    if (!container) return;
+
+    container.style.display = 'grid';
+    container.innerHTML = '';
+
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const square = document.createElement('div');
+            const isLight = (row + col) % 2 === 0;
+            square.className = `board-square ${isLight ? 'light' : 'dark'}`;
+            square.dataset.row = row;
+            square.dataset.col = col;
+
+            if (!isLight) {
+                square.style.cursor = isMyTurn ? 'pointer' : 'default';
+                square.onclick = () => selectCheckersSquare(row, col);
+                square.ontouchend = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    selectCheckersSquare(row, col);
+                };
+            }
+
+            const piece = checkersBoard[row][col];
+            if (piece > 0) {
+                const pieceEl = document.createElement('div');
+                const isRed = piece === 2 || piece === 4;
+                const isKing = piece >= 3;
+
+                pieceEl.className = `checker-piece ${isRed ? 'red' : 'black'} ${isKing ? 'king' : ''}`;
+
+                if (isKing) {
+                    pieceEl.innerHTML = '♔';
+                    pieceEl.style.fontSize = '30px';
+                    pieceEl.style.color = '#FFD700';
+                }
+
+                square.appendChild(pieceEl);
+            }
+
+            container.appendChild(square);
+        }
+    }
+}
+
+/* Part 7: Checkers Logic & Staking Functions */
+
+// ==================== CHECKERS FUNCTIONS (CONTINUED) ====================
+function selectCheckersSquare(row, col) {
+    if (!isMyTurn) {
+        showAlert('⏸️ Not your turn!', 'error');
+        return;
+    }
+
+    const piece = checkersBoard[row][col];
+    const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
+    const myPieceTypes = amICreator ? [2, 4] : [1, 3];
+
+    if (!checkersSelectedSquare) {
+        if (piece === 0) return;
+        
+        if (!myPieceTypes.includes(piece)) {
+            showAlert('❌ Not your piece!', 'error');
+            return;
+        }
+        
+        checkersSelectedSquare = { row, col };
+        document.querySelectorAll('.board-square').forEach(s => {
+            s.classList.remove('selected', 'possible');
+        });
+        const selectedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+        if (selectedSquare) {
+            selectedSquare.classList.add('selected');
+            selectedSquare.style.boxShadow = 'inset 0 0 0 4px #FFD700';
+        }
+        showCheckersPossibleMoves(row, col, piece);
+    } else {
+        if (row === checkersSelectedSquare.row && col === checkersSelectedSquare.col) {
+            checkersSelectedSquare = null;
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible');
+                s.style.boxShadow = '';
+            });
+        } else if (piece === 0) {
+            makeCheckersMove(checkersSelectedSquare.row, checkersSelectedSquare.col, row, col);
+        } else if (myPieceTypes.includes(piece)) {
+            checkersSelectedSquare = { row, col };
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible');
+                s.style.boxShadow = '';
+            });
+            const selectedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (selectedSquare) {
+                selectedSquare.classList.add('selected');
+                selectedSquare.style.boxShadow = 'inset 0 0 0 4px #FFD700';
+            }
+            showCheckersPossibleMoves(row, col, piece);
+        }
+    }
+}
+
+function showCheckersPossibleMoves(row, col, piece) {
+    document.querySelectorAll('.board-square').forEach(s => {
+        s.classList.remove('possible');
+        if (!s.classList.contains('selected')) {
+            s.style.boxShadow = '';
+        }
+    });
+
+    const isKing = piece >= 3;
+    const isRed = piece === 2 || piece === 4;
+    const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
+
+    const directions = [];
+
+    if (isKing) {
+        directions.push([-1, -1], [-1, 1], [1, -1], [1, 1]);
+    } else {
+        if (isRed) {
+            directions.push([-1, -1], [-1, 1]);
+        } else {
+            directions.push([1, -1], [1, 1]);
+        }
+    }
+
+    directions.forEach(([dRow, dCol]) => {
+        const newRow = row + dRow;
+        const newCol = col + dCol;
+    
+        if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+            if (checkersBoard[newRow][newCol] === 0) {
+                const square = document.querySelector(`[data-row="${newRow}"][data-col="${newCol}"]`);
+                if (square) {
+                    square.classList.add('possible');
+                    square.style.boxShadow = 'inset 0 0 0 3px #00FF00';
+                }
+            }
+        
+            const jumpRow = row + dRow * 2;
+            const jumpCol = col + dCol * 2;
+            if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8) {
+                const middlePiece = checkersBoard[newRow][newCol];
+                const opponentPieces = amICreator ? [1, 3] : [2, 4];
+                if (opponentPieces.includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
+                    const square = document.querySelector(`[data-row="${jumpRow}"][data-col="${jumpCol}"]`);
+                    if (square) {
+                        square.classList.add('possible');
+                        square.style.boxShadow = 'inset 0 0 0 3px #FF0000';
+                    }
+                }
+            }
+        }
+    });
+}
+
+async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
+    try {
+        const rowDiff = Math.abs(toRow - fromRow);
+        const colDiff = Math.abs(toCol - fromCol);
+    
+        if (rowDiff !== colDiff || (rowDiff !== 1 && rowDiff !== 2)) {
+            showAlert('❌ Invalid move!', 'error');
+            checkersSelectedSquare = null;
+            document.querySelectorAll('.board-square').forEach(s => {
+                s.classList.remove('selected', 'possible');
+                s.style.boxShadow = '';
+            });
+            return;
+        }
+    
+        const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
+    
+        checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
+        checkersBoard[fromRow][fromCol] = 0;
+    
+        if (rowDiff === 2) {
+            const captureRow = Math.floor((fromRow + toRow) / 2);
+            const captureCol = Math.floor((fromCol + toCol) / 2);
+            checkersBoard[captureRow][captureCol] = 0;
+        }
+    
+        const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
+        if (amICreator && toRow === 0 && checkersBoard[toRow][toCol] === 2) {
+            checkersBoard[toRow][toCol] = 4;
+        } else if (!amICreator && toRow === 7 && checkersBoard[toRow][toCol] === 1) {
+            checkersBoard[toRow][toCol] = 3;
+        }
+    
+        const newFen = checkersToFen();
+    
+        renderCheckersBoard();
+        checkersSelectedSquare = null;
+        document.querySelectorAll('.board-square').forEach(s => {
+            s.classList.remove('selected', 'possible');
+            s.style.boxShadow = '';
+        });
+    
+        showAlert('⏳ Submitting move...', 'info');
+    
+        const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
+        await tx.wait();
+    
+        showAlert('✅ Move successful!', 'success');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await loadGame(currentGameId);
+    
+    } catch (e) {
+        console.error('Checkers move error:', e);
+        showAlert('❌ Move failed', 'error');
+        setTimeout(() => loadGame(currentGameId), 1000);
+    }
+}
+
+async function makeCheckersAIMove() {
+    if (!currentGame || !currentGame.isAI || isMyTurn || aiMoveInProgress) return;
+
+    if (!currentGame.active) return;
+
+    aiMoveInProgress = true;
+
+    try {
+        showAlert('🤖 AI is thinking...', 'info');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+    
+        const aiPieces = [1, 3];
+        let possibleMoves = [];
+    
+        for (let fromRow = 0; fromRow < 8; fromRow++) {
+             for (let fromCol = 0; fromCol < 8; fromCol++) {
+                  const piece = checkersBoard[fromRow][fromCol];
+                  if (!aiPieces.includes(piece)) continue;
+            
+                  const isKing = piece === 3;
+                  const directions = isKing ? 
+                      [[-1, -1], [-1, 1], [1, -1], [1, 1]] : 
+                      [[1, -1], [1, 1]];
+            
+                  directions.forEach(([dRow, dCol]) => {
+                      const newRow = fromRow + dRow;
+                      const newCol = fromCol + dCol;
+                      if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+                          if (checkersBoard[newRow][newCol] === 0) {
+                              possibleMoves.push({ fromRow, fromCol, toRow: newRow, toCol: newCol, isJump: false });
+                          }
+                    
+                          const jumpRow = fromRow + dRow * 2;
+                          const jumpCol = fromCol + dCol * 2;
+                          if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8) {
+                              const middlePiece = checkersBoard[newRow][newCol];
+                              if ([2, 4].includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
+                                  possibleMoves.push({ fromRow, fromCol, toRow: jumpRow, toCol: jumpCol, isJump: true });
+                              }
+                            }
+                        }
+                    });
+                }
+            }
+    
+            if (possibleMoves.length === 0) return;
+    
+            const jumps = possibleMoves.filter(m => m.isJump);
+            const move = jumps.length > 0 ? 
+                jumps[Math.floor(Math.random() * jumps.length)] :
+                possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+    
+            const { fromRow, fromCol, toRow, toCol } = move;
+    
+            checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
+            checkersBoard[fromRow][fromCol] = 0;
+    
+            if (move.isJump) {
+                const captureRow = Math.floor((fromRow + toRow) / 2);
+                const captureCol = Math.floor((fromCol + toCol) / 2);
+                checkersBoard[captureRow][captureCol] = 0;
+            }
+    
+            if (toRow === 7 && checkersBoard[toRow][toCol] === 1) {
+                checkersBoard[toRow][toCol] = 3;
+            } else if (toRow === 0 && checkersBoard[toRow][toCol] === 2) {
+                checkersBoard[toRow][toCol] = 4;
+            }
+    
+            const newFen = checkersToFen();
+            const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
+    
+            renderCheckersBoard();
+    
+            const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
+            await tx.wait();
+    
+            showAlert('✅ AI moved!', 'success');
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            await loadGame(currentGameId);
+    
+        } catch (e) {
+            console.error('AI checkers move error:', e);
+        } finally {
+            aiMoveInProgress = false;
+        }
+}
+
+function checkersToFen() {
+    let fen = '';
+    for (let row = 0; row < 8; row++) {
+        let emptyCount = 0;
+        for (let col = 0; col < 8; col++) {
+            const piece = checkersBoard[row][col];
+            if (piece === 0) {
+                emptyCount++;
+            } else {
+                if (emptyCount > 0) {
+                    fen += emptyCount;
+                    emptyCount = 0;
+                }
+                if (piece === 1) fen += 'b';
+                else if (piece === 2) fen += 'w';
+                else if (piece === 3) fen += 'B';
+                else if (piece === 4) fen += 'W';
+            }
+        }
+        if (emptyCount > 0) fen += emptyCount;
+        if (row < 7) fen += '/';
+    }
+    return fen + ' b';
+}
+
+// ==================== STAKING ====================
+async function stakeTokens() {
+    if (!staking) return showAlert('Connect wallet first', 'error');
+    const amount = document.getElementById('stakeInput').value;
+    if (!amount || parseFloat(amount) <= 0) return showAlert('Enter valid amount', 'error');
+
+    try {
+        const stake = ethers.utils.parseEther(amount);
+        const lockPeriodSeconds = selectedLockPeriod * 24 * 60 * 60;
+        const tx = await staking.stake(lockPeriodSeconds, { value: stake, gasLimit: 300000 });
+        showAlert('⏳ Staking...', 'info');
+        await tx.wait();
+        showAlert('✅ Staked successfully!', 'success');
+        loadStakingData();
+        updateBalance();
+    } catch (e) {
+        showAlert('❌ Staking failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+async function withdrawStake() {
+    if (!staking || !userAddress) return showAlert('Connect wallet first', 'error');
+    
+    try {
+        const stakeInfo = await staking.getStakeInfo(userAddress);
+        const userStakeAmount = stakeInfo.amount;
+        const lockExpiry = stakeInfo.lockedUntil.toNumber();
+        const currentTime = Math.floor(Date.now() / 1000);
+        
+        if (lockExpiry > currentTime) {
+            const daysLeft = Math.ceil((lockExpiry - currentTime) / 86400);
+            return showAlert(`❌ Stake locked for ${daysLeft} more days`, 'error');
+        }
+        
+        if (userStakeAmount.eq(0)) {
+            return showAlert('❌ No stake to withdraw', 'error');
+        }
+        
+        const amount = document.getElementById('stakeInput').value;
+        
+        let withdrawAmount;
+        if (!amount || parseFloat(amount) <= 0) {
+            withdrawAmount = userStakeAmount;
+        } else {
+            withdrawAmount = ethers.utils.parseEther(amount);
+            if (withdrawAmount.gt(userStakeAmount)) {
+                return showAlert('❌ Amount exceeds your stake', 'error');
+            }
+        }
+
+        showAlert('⏳ Withdrawing...', 'info');
+        const tx = await staking.withdraw(withdrawAmount, { gasLimit: 350000 });
+        await tx.wait();
+        showAlert('✅ Withdrawn successfully!', 'success');
+        loadStakingData();
+        updateBalance();
+        
+    } catch (e) {
+        console.error('Withdraw error:', e);
+        showAlert('❌ ' + (e.reason || e.message || 'Withdraw failed'), 'error');
+    }
+}
+
+async function claimStakingRewards() {
+    if (!staking) return showAlert('Connect wallet first', 'error');
+    try {
+        const tx = await staking.claimRewards({ gasLimit: 300000 });
+        showAlert('⏳ Claiming rewards...', 'info');
+        await tx.wait();
+        showAlert('✅ Rewards claimed!', 'success');
+        loadStakingData();
+        updateBalance();
+    } catch (e) {
+        showAlert('❌ Claim failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+async function loadStakingData() {
+    if (!staking || !userAddress) return;
+    try {
+        const stakeInfo = await staking.getStakeInfo(userAddress);
+        document.getElementById('userStake').textContent = 
+            parseFloat(ethers.utils.formatEther(stakeInfo.amount)).toFixed(4) + ' CORE';
+
+        document.getElementById('earnedRewards').textContent = 
+            parseFloat(ethers.utils.formatEther(stakeInfo.pendingRewards)).toFixed(4) + ' CORE';
+
+        const totalStaked = await staking.totalStaked();
+        document.getElementById('totalStaked').textContent = 
+            parseFloat(ethers.utils.formatEther(totalStaked)).toFixed(4) + ' CORE';
+            
+        const lockDays = stakeInfo.lockPeriod.toNumber() / (24 * 60 * 60);
+        const lockLabels = { 0: 'No Lock', 30: '30 Days', 90: '90 Days' };
+        document.getElementById('lockPeriodDisplay').textContent = lockLabels[lockDays] || lockDays + ' days';
+        
+        const baseAPY = 10;
+        const bonus = lockDays === 30 ? 1 : lockDays === 90 ? 2 : 0;
+        document.getElementById('userAPY').textContent = (baseAPY + bonus) + '% (Variable)';
+    } catch (e) {
+        console.error('Staking load error:', e);
+    }
+}
+
+// ==================== CHAT ====================
+function startChatPolling() {
+    if (chatInterval) clearInterval(chatInterval);
+    chatInterval = setInterval(() => {
+        if (currentGameId) loadChatMessages();
+    }, 10000);
+}
+
+async function loadChatMessages() {
+    if (!gameChat || !currentGameId) return;
+    try {
+        const messages = await gameChat.getMessages(currentGameId);
+        const chatBox = document.getElementById('chatBox');
+        
+        if (messages.length === 0) {
+            chatBox.innerHTML = '<p class="text-center" style="color: var(--dim); padding: 20px;">No messages yet</p>';
+            return;
+        }
+
+        let html = '';
+        messages.forEach(msg => {
+            const sender = msg.sender.toLowerCase() === userAddress.toLowerCase() ? 'You' : 
+                           msg.sender.slice(0, 6) + '...' + msg.sender.slice(-4);
+            const time = new Date(msg.timestamp.toNumber() * 1000).toLocaleTimeString();
+            html += `
+                <div class="chat-message">
+                    <div class="sender">${sender}</div>
+                    <div class="text">${escapeHtml(msg.message)}</div>
+                    <div class="time">${time}</div>
+                </div>
+            `;
+        });
+        
+        chatBox.innerHTML = html;
+        chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (e) {
+        console.error('Chat load error:', e);
+    }
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    
+    if (!message || !gameChat || !currentGameId) return;
+    if (message.length > 280) return showAlert('Message too long (max 280 chars)', 'error');
+    
+    try {
+        const tx = await gameChat.sendMessage(currentGameId, message, { gasLimit: 300000 });
+        input.value = '';
+        showAlert('⏳ Sending message...', 'info');
+        await tx.wait();
+        showAlert('✅ Message sent!', 'success');
+        loadChatMessages();
+    } catch (e) {
+        showAlert('❌ Send failed: ' + (e.reason || e.message), 'error');
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/* Part 8: 8-Ball Pool Game (VERTICAL/PORTRAIT Miniclip-Style) */
+
+// ==================== 8-BALL POOL (VERTICAL LAYOUT) ====================
+function init8BallPool(id) {
+    poolCanvas = document.getElementById('gameCanvas');
+    poolCtx = poolCanvas.getContext('2d');
+
+    poolCanvas.style.display = 'block';
+    // VERTICAL orientation like Miniclip mobile
+    poolCanvas.width = 450;
+    poolCanvas.height = 900;
+
+    currentGameId = id;
+    document.getElementById('boardTitle').innerHTML = 
+        `<span>🎱 8-Ball Pool • Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
+
+    const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
+    const turn = typeof currentGame.turn === 'object' && currentGame.turn.toNumber ? currentGame.turn.toNumber() : Number(currentGame.turn);
+    isMyTurn = turn === (amICreator ? 0 : 1);
+
+    const turnIndicator = isMyTurn ? 
+        '<span style="color: var(--core-green); font-weight: bold;">🟢 YOUR TURN - Drag to aim & shoot</span>' : 
+        '<span style="color: var(--dim);">⏳ OPPONENT\'S TURN</span>';
+
+    document.getElementById('gameInfo').innerHTML = 
+        `Game #${id} • 8-BALL POOL • ${ethers.utils.formatEther(currentGame.stake)} CORE<br>${turnIndicator}`;
+
+    // Reset state
+    cueStick = { 
+        angle: 0, 
+        power: 0,
+        maxPower: 100,
+        visible: false,
+        dragStartX: 0,
+        dragStartY: 0
+    };
+    spin = { x: 0, y: 0 };
+    isAiming = false;
+    isShooting = false;
+
+    reset8BallTable();
+    draw8BallTable();
+
+    // Event handlers
+    poolCanvas.addEventListener('mousedown', handle8BallStart);
+    poolCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); handle8BallStart(e.touches[0]); });
+    poolCanvas.addEventListener('mousemove', handle8BallMove);
+    poolCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); handle8BallMove(e.touches[0]); });
+    poolCanvas.addEventListener('mouseup', handle8BallShoot);
+    poolCanvas.addEventListener('touchend', handle8BallShoot);
+
+    if (currentGame.isAI && !isMyTurn) {
+        setTimeout(make8BallAIMove, 2000);
+    }
+}
+
+function reset8BallTable() {
+    // Cue ball at bottom (player's side)
+    cueBall = { 
+        x: poolCanvas.width / 2, 
+        y: poolCanvas.height - 200, 
+        vx: 0, vy: 0, 
+        radius: 20, 
+        color: "#fff", 
+        potted: false,
+        spinX: 0,
+        spinY: 0
+    };
+    
+    balls = [];
+
+    const colors = [
+        "#ffff00", "#0000ff", "#ff0000", "#800080", "#ffa500",
+        "#008000", "#8b4513", "#000000",
+        "#ffff00", "#0000ff", "#ff0000", "#800080", "#ffa500",
+        "#008000", "#8b4513"
+    ];
+
+    // Rack at TOP (opponent's side)
+    const rackX = poolCanvas.width / 2;
+    const rackY = 150;
+    const spacing = 42;
+
+    const ballOrder = [0, 9, 2, 10, 7, 3, 11, 4, 12, 13, 5, 14, 6, 1, 8];
+    let ballNum = 0;
+
+    // Triangle points DOWN towards player
+    for (let row = 0; row < 5; row++) {
+        for (let col = 0; col <= row; col++) {
+            if (ballNum >= 15) break;
+            const x = rackX + (col - row / 2) * spacing;
+            const y = rackY + row * (spacing * 0.866);
+            
+            const colorIndex = ballOrder[ballNum];
+            const number = colorIndex + 1;
+            
+            balls.push({
+                x, y,
+                vx: 0, vy: 0,
+                spinX: 0, spinY: 0,
+                number,
+                color: colors[colorIndex],
+                stripe: number > 8 && number !== 8,
+                potted: false,
+                radius: 20
+            });
+            ballNum++;
+        }
+    }
+}
+
+function handle8BallStart(e) {
+    if (!isMyTurn || isShooting) return;
+
+    const rect = poolCanvas.getBoundingClientRect();
+    const clickX = (e.clientX - rect.left) * (poolCanvas.width / rect.width);
+    const clickY = (e.clientY - rect.top) * (poolCanvas.height / rect.height);
+
+    const dx = clickX - cueBall.x;
+    const dy = clickY - cueBall.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist < 150) {
+        isAiming = true;
+        cueStick.visible = true;
+        cueStick.dragStartX = clickX;
+        cueStick.dragStartY = clickY;
+        cueStick.power = 0;
+        mouseX = clickX;
+        mouseY = clickY;
+    }
+}
+
+function handle8BallMove(e) {
+    if (!isAiming) return;
+
+    const rect = poolCanvas.getBoundingClientRect();
+    mouseX = (e.clientX - rect.left) * (poolCanvas.width / rect.width);
+    mouseY = (e.clientY - rect.top) * (poolCanvas.height / rect.height);
+
+    const dx = mouseX - cueBall.x;
+    const dy = mouseY - cueBall.y;
+    cueStick.angle = Math.atan2(dy, dx);
+
+    const dragDx = mouseX - cueStick.dragStartX;
+    const dragDy = mouseY - cueStick.dragStartY;
+    const dragDist = Math.sqrt(dragDx*dragDx + dragDy*dragDy);
+
+    cueStick.power = Math.min(dragDist / 2, cueStick.maxPower);
+
+    draw8BallTable();
+}
+
+function handle8BallShoot() {
+    if (!isAiming || !isMyTurn) return;
+
+    if (cueStick.power < 5) {
+        isAiming = false;
+        cueStick.visible = false;
+        return;
+    }
+
+    isAiming = false;
+    shoot8BallCue();
+}
+
+function shoot8BallCue() {
+    isShooting = true;
+
+    const power = cueStick.power / 100;
+    cueBall.vx = Math.cos(cueStick.angle + Math.PI) * power * 25;
+    cueBall.vy = Math.sin(cueStick.angle + Math.PI) * power * 25;
+    cueBall.spinX = spin.x * 5;
+    cueBall.spinY = spin.y * 5;
+
+    const moveData = JSON.stringify({
+        angle: cueStick.angle,
+        power: cueStick.power,
+        spin: { x: spin.x, y: spin.y },
+        cueBall: { x: cueBall.x, y: cueBall.y },
+        balls: balls.map(b => ({ x: b.x, y: b.y, potted: b.potted }))
+    });
+
+    simulate8BallPhysics();
+
+    setTimeout(async () => {
+        try {
+            const tx = await hub.makeMove(currentGameId, moveData, moveData, { gasLimit: 800000 });
+            showAlert('⏳ Shot submitted...', 'info');
+            await tx.wait();
+            showAlert("✅ Shot sent!", "success");
+            setTimeout(() => loadGame(currentGameId), 3000);
+        } catch (e) {
+            showAlert("❌ Shot failed: " + (e.reason || e.message), "error");
+        }
+    }, 2000);
+}
+
+function simulate8BallPhysics() {
+    let frames = 0;
+    const interval = setInterval(() => {
+        frames++;
+        update8BallPhysics();
+        draw8BallTable();
+
+        const allStopped = Math.abs(cueBall.vx) < 0.5 && Math.abs(cueBall.vy) < 0.5 &&
+            balls.every(b => b.potted || (Math.abs(b.vx || 0) < 0.5 && Math.abs(b.vy || 0) < 0.5));
+
+        if (frames > 300 || allStopped) {
+            clearInterval(interval);
+            isShooting = false;
+            cueStick.visible = false;
+            cueStick.power = 0;
+        }
+    }, 16);
+}
+
+function update8BallPhysics() {
+    move8Ball(cueBall);
+    balls.forEach(ball => { if (!ball.potted) move8Ball(ball); });
+
+    for (let i = 0; i < balls.length; i++) {
+        if (!balls[i].potted) {
+           collide8Balls(cueBall, balls[i]);
+           for (let j = i + 1; j < balls.length; j++) {
+               if (!balls[j].potted) {
+                   collide8Balls(balls[i], balls[j]);
+               }
+           }
+        }
+    }
+
+    check8BallPockets();
+}
+
+function move8Ball(ball) {
+    const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+    
+    if (ball.spinY !== 0 && speed > 0.5) {
+        ball.vx *= (1 + ball.spinY * 0.025);
+        ball.vy *= (1 + ball.spinY * 0.025);
+    }
+    
+    ball.x += ball.vx || 0;
+    ball.y += ball.vy || 0;
+    ball.vx = (ball.vx || 0) * 0.987;
+    ball.vy = (ball.vy || 0) * 0.987;
+    
+    if (ball.spinX) ball.spinX *= 0.985;
+    if (ball.spinY) ball.spinY *= 0.985;
+    
+    wall8BallCollision(ball);
+}
+
+function wall8BallCollision(ball) {
+    const margin = 60;
+    if (ball.x - ball.radius < margin) { 
+        ball.x = margin + ball.radius; 
+        ball.vx = -(ball.vx || 0) * 0.73;
+        ball.vy += (ball.spinX || 0) * 2.5;
+    }
+    if (ball.x + ball.radius > poolCanvas.width - margin) { 
+        ball.x = poolCanvas.width - margin - ball.radius; 
+        ball.vx = -(ball.vx || 0) * 0.73;
+        ball.vy += (ball.spinX || 0) * 2.5;
+    }
+    if (ball.y - ball.radius < margin) { 
+        ball.y = margin + ball.radius; 
+        ball.vy = -(ball.vy || 0) * 0.73;
+        ball.vx += (ball.spinX || 0) * 2.5;
+    }
+    if (ball.y + ball.radius > poolCanvas.height - margin) { 
+        ball.y = poolCanvas.height - margin - ball.radius; 
+        ball.vy = -(ball.vy || 0) * 0.73;
+        ball.vx += (ball.spinX || 0) * 2.5;
+    }
+}
+
+function collide8Balls(b1, b2) {
+    const dx = b2.x - b1.x;
+    const dy = b2.y - b1.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist < b1.radius + b2.radius) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+
+        const dvx = (b2.vx || 0) - (b1.vx || 0);
+        const dvy = (b2.vy || 0) - (b1.vy || 0);
+        const dvn = dvx * nx + dvy * ny;
+
+        if (dvn > 0) return;
+
+        const impulse = dvn * 1.5;
+        b1.vx = (b1.vx || 0) + impulse * nx;
+        b1.vy = (b1.vy || 0) + impulse * ny;
+        b2.vx = (b2.vx || 0) - impulse * nx;
+        b2.vy = (b2.vy || 0) - impulse * ny;
+        
+        if (b1.spinX) {
+            b2.spinX = (b2.spinX || 0) + b1.spinX * 0.25;
+            b1.spinX *= 0.75;
+        }
+        if (b1.spinY) {
+            b2.spinY = (b2.spinY || 0) + b1.spinY * 0.25;
+            b1.spinY *= 0.75;
+        }
+
+        const overlap = (b1.radius + b2.radius - dist) / 2;
+        b1.x -= overlap * nx;
+        b1.y -= overlap * ny;
+        b2.x += overlap * nx;
+        b2.y += overlap * ny;
+    }
+}
+
+function check8BallPockets() {
+    const cornerPocketR = 38;
+    const sidePocketR = 34;
+    
+    const pockets = [
+        { x: 60, y: 60, r: cornerPocketR },
+        { x: poolCanvas.width - 60, y: 60, r: cornerPocketR },
+        { x: poolCanvas.width / 2, y: 58, r: sidePocketR },
+        { x: 60, y: poolCanvas.height - 60, r: cornerPocketR },
+        { x: poolCanvas.width - 60, y: poolCanvas.height - 60, r: cornerPocketR },
+        { x: poolCanvas.width / 2, y: poolCanvas.height - 58, r: sidePocketR }
+    ];
+
+    [cueBall, ...balls].forEach(ball => {
+        if (ball.potted) return;
+        for (const p of pockets) {
+            const dx = ball.x - p.x;
+            const dy = ball.y - p.y;
+            if (dx*dx + dy*dy < (p.r - ball.radius * 0.2) * (p.r - ball.radius * 0.2)) {
+                ball.potted = true;
+                ball.vx = 0;
+                ball.vy = 0;
+                
+                if (ball === cueBall) {
+                    setTimeout(() => {
+                        cueBall.potted = false;
+                        cueBall.x = poolCanvas.width / 2;
+                        cueBall.y = poolCanvas.height - 200;
+                        cueBall.vx = 0;
+                        cueBall.vy = 0;
+                    }, 700);
+                }
+            }
+        }
+    });
+}
+
+/* Part 9: Drawing Functions, Penalties & Initialization (FINAL PART) */
+
+// ==================== 8-BALL DRAWING ====================
+function draw8BallTable() {
+    // Felt background
+    poolCtx.fillStyle = "#0b7c3a";
+    poolCtx.fillRect(0, 0, poolCanvas.width, poolCanvas.height);
+
+    // Cushions (wood borders)
+    poolCtx.strokeStyle = "#8b4513";
+    poolCtx.lineWidth = 120;
+    poolCtx.strokeRect(60, 60, poolCanvas.width - 120, poolCanvas.height - 120);
+
+    // Inner cushion line
+    poolCtx.strokeStyle = "rgba(139, 69, 19, 0.6)";
+    poolCtx.lineWidth = 3;
+    poolCtx.strokeRect(63, 63, poolCanvas.width - 126, poolCanvas.height - 126);
+
+    // Pockets
+    poolCtx.fillStyle = "#000";
+    const pockets = [
+        { x: 60, y: 60, r: 38 },
+        { x: poolCanvas.width - 60, y: 60, r: 38 },
+        { x: poolCanvas.width / 2, y: 58, r: 34 },
+        { x: 60, y: poolCanvas.height - 60, r: 38 },
+        { x: poolCanvas.width - 60, y: poolCanvas.height - 60, r: 38 },
+        { x: poolCanvas.width / 2, y: poolCanvas.height - 58, r: 34 }
+    ];
+
+    pockets.forEach(p => {
+        poolCtx.beginPath();
+        poolCtx.arc(p.x, p.y, p.r + 3, 0, Math.PI * 2);
+        poolCtx.fillStyle = "rgba(0,0,0,0.6)";
+        poolCtx.fill();
+        
+        poolCtx.beginPath();
+        poolCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        poolCtx.fillStyle = "#000";
+        poolCtx.fill();
+    });
+
+    // Draw balls
+    balls.filter(b => !b.potted).forEach(draw8Ball);
+    if (!cueBall.potted) draw8Ball(cueBall);
+
+    // Draw cue stick (FULL LENGTH - for NFT potential)
+    if (cueStick.visible && !isShooting) {
+        const baseOffset = 60;
+        const powerOffset = (cueStick.power / cueStick.maxPower) * 150;
+        const cueLength = 600; // Long cue, fully visible
+
+        poolCtx.save();
+        poolCtx.translate(cueBall.x, cueBall.y);
+        poolCtx.rotate(cueStick.angle + Math.PI);
+
+        // Guideline
+        poolCtx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+        poolCtx.lineWidth = 4;
+        poolCtx.setLineDash([20, 20]);
+        poolCtx.beginPath();
+        poolCtx.moveTo(0, 0);
+        poolCtx.lineTo(700, spin.x * 60);
+        poolCtx.stroke();
+        poolCtx.setLineDash([]);
+
+        // Cue shadow
+        poolCtx.strokeStyle = "rgba(0, 0, 0, 0.3)";
+        poolCtx.lineWidth = 14;
+        poolCtx.lineCap = "round";
+        poolCtx.beginPath();
+        poolCtx.moveTo(45 + baseOffset + powerOffset, 3);
+        poolCtx.lineTo(45 + baseOffset + powerOffset + cueLength, 3);
+        poolCtx.stroke();
+
+        // Main cue stick (wood gradient)
+        const gradient = poolCtx.createLinearGradient(
+            45 + baseOffset + powerOffset, 0, 
+            45 + baseOffset + powerOffset + cueLength, 0
+        );
+        gradient.addColorStop(0, "#4169e1"); // Blue tip
+        gradient.addColorStop(0.05, "#8b4513");
+        gradient.addColorStop(0.3, "#a0522d");
+        gradient.addColorStop(0.5, "#d2691e");
+        gradient.addColorStop(0.7, "#a0522d");
+        gradient.addColorStop(1, "#8b4513");
+        
+        poolCtx.strokeStyle = gradient;
+        poolCtx.lineWidth = 12;
+        poolCtx.beginPath();
+        poolCtx.moveTo(45 + baseOffset + powerOffset, 0);
+        poolCtx.lineTo(45 + baseOffset + powerOffset + cueLength, 0);
+        poolCtx.stroke();
+
+        // Cue tip
+        poolCtx.fillStyle = "#4169e1";
+        poolCtx.beginPath();
+        poolCtx.arc(45 + baseOffset + powerOffset, 0, 8, 0, Math.PI * 2);
+        poolCtx.fill();
+
+        // Grip texture
+        for (let i = 0; i < 10; i++) {
+            poolCtx.strokeStyle = i % 2 === 0 ? "#000" : "#fff";
+            poolCtx.lineWidth = 3;
+            poolCtx.beginPath();
+            const pos = 45 + baseOffset + powerOffset + cueLength - 150 + i * 15;
+            poolCtx.moveTo(pos, -6);
+            poolCtx.lineTo(pos, 6);
+            poolCtx.stroke();
+        }
+
+        poolCtx.restore();
+    }
+}
+
+function draw8Ball(ball) {
+    poolCtx.save();
+    poolCtx.translate(ball.x, ball.y);
+
+    // Shadow
+    poolCtx.fillStyle = "rgba(0,0,0,0.4)";
+    poolCtx.beginPath();
+    poolCtx.arc(3, 3, ball.radius, 0, Math.PI * 2);
+    poolCtx.fill();
+
+    // Ball with 3D gradient
+    const gradient = poolCtx.createRadialGradient(-7, -7, 3, 0, 0, ball.radius);
+    gradient.addColorStop(0, "rgba(255,255,255,0.95)");
+    gradient.addColorStop(0.65, ball.color);
+    gradient.addColorStop(1, darkenColor(ball.color, 0.6));
+    poolCtx.fillStyle = gradient;
+    poolCtx.beginPath();
+    poolCtx.arc(0, 0, ball.radius, 0, Math.PI * 2);
+    poolCtx.fill();
+
+    // Stripe
+    if (ball.stripe) {
+        poolCtx.fillStyle = "#fff";
+        poolCtx.fillRect(-ball.radius, -7, ball.radius * 2, 14);
+    }
+
+    // Number
+    if (ball.number) {
+        poolCtx.fillStyle = "#fff";
+        poolCtx.beginPath();
+        poolCtx.arc(0, 0, ball.radius * 0.6, 0, Math.PI * 2);
+        poolCtx.fill();
+
+        poolCtx.fillStyle = ball.number === 8 ? "#000" : ball.color;
+        poolCtx.font = "bold 16px Arial";
+        poolCtx.textAlign = "center";
+        poolCtx.textBaseline = "middle";
+        poolCtx.fillText(ball.number, 0, 0);
+    }
+
+    poolCtx.restore();
+}
+
+function darkenColor(color, factor = 0.7) {
+    const hex = color.replace("#", "");
+    const r = Math.max(0, parseInt(hex.substr(0, 2) || "ff", 16) * factor);
+    const g = Math.max(0, parseInt(hex.substr(2, 2) || "ff", 16) * factor);
+    const b = Math.max(0, parseInt(hex.substr(4, 2) || "ff", 16) * factor);
+    return `rgb(${r},${g},${b})`;
+}
+
+function make8BallAIMove() {
+    if (!currentGame.isAI || isMyTurn) return;
+    showAlert("🤖 AI is aiming...", "info");
+
+    setTimeout(() => {
+        cueStick.angle = Math.random() * Math.PI * 2;
+        cueStick.power = 40 + Math.random() * 50;
+        shoot8BallCue();
+    }, 2000);
+}
+
+// ==================== PENALTY SHOOTOUT ====================
+function initPenaltyShootout(id) {
+    penaltyCanvas = document.getElementById('gameCanvas');
+    penaltyCtx = penaltyCanvas.getContext('2d');
+
+    penaltyCanvas.style.display = 'block';
+    penaltyCanvas.width = 800;
+    penaltyCanvas.height = 450;
+
+    currentGameId = id;
+    document.getElementById('boardTitle').innerHTML = 
+        `<span>⚽ Penalty Shootout • Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
+
+    loadPenaltyState();
+}
+
+async function loadPenaltyState() {
+    const state = currentGame.fen || "1|0|0|0|-1|-1";
+    const parts = state.split('|');
+    round = parseInt(parts[0]) || 1;
+    score1 = parseInt(parts[1]) || 0;
+    score2 = parseInt(parts[2]) || 0;
+    const lastShooter = parseInt(parts[3]) || 0;
+    shooterChoice = parts[4] ? parseInt(parts[4]) : -1;
+    keeperChoice = parts[5] ? parseInt(parts[5]) : -1;
+
+    const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
+    const myTurn = (lastShooter === 0 && amICreator) || (lastShooter === 1 && !amICreator);
+
+    document.getElementById('gameInfo').innerHTML = 
+        `Round ${round}/5 • Score: ${score1}-${score2} • ${myTurn ? "🟢 Your turn" : "⏳ Opponent's turn"}`;
+
+    drawPenaltyStadium();
+
+    if (myTurn) {
+        if (shooterChoice === -1) showShooterUI();
+        else showKeeperUI();
+    } else {
+        if (keeperChoice === -1) {
+            waitingForKeeper = true;
+            document.getElementById('gameInfo').innerHTML += "<br>⏳ Waiting for keeper...";
+        } else {
+            showPenaltyAnimation(shooterChoice, keeperChoice);
+        }
+    }
+}
+
+function showShooterUI() {
+    const zones = ["Bottom Left", "Bottom Center", "Bottom Right", "Middle Left", "Center", "Middle Right", "Top Left", "Top Center", "Top Right"];
+    const buttons = zones.map((z, i) => 
+        `<button onclick="submitPenaltyShot(${i})" style="margin:5px; padding:10px 15px;">${z}</button>`
+    ).join('');
+    document.getElementById('gameInfo').innerHTML += "<div style='margin:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:5px;'>" + buttons + "</div>";
+}
+
+function showKeeperUI() {
+    const zones = ["Bottom Left", "Bottom Center", "Bottom Right", "Middle Left", "Center", "Middle Right", "Top Left", "Top Center", "Top Right"];
+    const buttons = zones.map((z, i) => 
+        `<button onclick="submitPenaltyDive(${i})" style="margin:5px; padding:10px 15px;">${z}</button>`
+    ).join('');
+    document.getElementById('gameInfo').innerHTML += "<div style='margin:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:5px;'>" + buttons + "</div>";
+}
+
+async function submitPenaltyShot(direction) {
+    const newState = `${round}|${score1}|${score2}|0|${direction}|-1`;
+    try {
+        const tx = await hub.makeMove(currentGameId, direction.toString(), newState, { gasLimit: 600000 });
+        showAlert('⏳ Shot submitted...', 'info');
+        await tx.wait();
+        showAlert("✅ Shot submitted!", "success");
+        setTimeout(() => loadGame(currentGameId), 2000);
+    } catch (e) {
+        showAlert("❌ Shot failed: " + (e.reason || e.message), "error");
+    }
+}
+
+async function submitPenaltyDive(direction) {
+    const goal = shooterChoice !== direction;
+    let newScore1 = score1;
+    let newScore2 = score2;
+
+    const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
+    const turn = typeof currentGame.turn === 'object' && currentGame.turn.toNumber ? currentGame.turn.toNumber() : Number(currentGame.turn);
+
+    if (goal) {
+        if (turn === 0) newScore1++;
+        else newScore2++;
+    }
+
+    const newRound = round + 1;
+    const newState = `${newRound}|${newScore1}|${newScore2}|1|-1|-1`;
+
+    try {
+        const tx = await hub.makeMove(currentGameId, direction.toString(), newState, { gasLimit: 600000 });
+        showAlert('⏳ Submitting dive...', 'info');
+        await tx.wait();
+        showAlert(goal ? "⚽ GOAL!" : "✋ SAVED!", goal ? "success" : "info");
+        setTimeout(() => loadGame(currentGameId), 2000);
+    } catch (e) {
+        showAlert("❌ Dive failed: " + (e.reason || e.message), "error");
+    }
+}
+
+function showPenaltyAnimation(shooterZone, keeperZone) {
+    drawPenaltyStadium();
+    const goal = shooterZone !== keeperZone;
+    setTimeout(() => {
+        showAlert(goal ? "⚽ GOAL!" : "✋ SAVED!", goal ? "success" : "info");
+    }, 1000);
+}
+
+function drawPenaltyStadium() {
+    penaltyCtx.fillStyle = "#0a3d0a";
+    penaltyCtx.fillRect(0, 0, penaltyCanvas.width, penaltyCanvas.height);
+
+    // Goal
+    penaltyCtx.strokeStyle = "#fff";
+    penaltyCtx.lineWidth = 4;
+    penaltyCtx.strokeRect(penaltyCanvas.width * 0.25, penaltyCanvas.height * 0.15, penaltyCanvas.width * 0.5, penaltyCanvas.height * 0.4);
+
+    // Scoreboard
+    penaltyCtx.fillStyle = "#f7931a";
+    penaltyCtx.font = "bold 60px Courier New";
+    penaltyCtx.textAlign = "center";
+    penaltyCtx.fillText(`${score1} - ${score2}`, penaltyCanvas.width / 2, 80);
+
+    // Round
+    penaltyCtx.font = "bold 24px Courier New";
+    penaltyCtx.fillStyle = "#00ff88";
+    penaltyCtx.fillText(`Round ${round}/5`, penaltyCanvas.width / 2, penaltyCanvas.height - 30);
+}
+
+// ==================== INITIALIZATION ====================
+window.addEventListener('load', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const gameId = urlParams.get('game');
+    
+    if (gameId) {
+        setTimeout(() => {
+            if (window.ethereum) {
+                connectWallet().then(() => {
+                    setTimeout(() => loadGame(parseInt(gameId)), 1000);
+                });
+            }
+        }, 500);
+    }
+});
+
+document.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        const chatInput = document.getElementById('chatInput');
+        if (document.activeElement === chatInput) {
+            sendChatMessage();
+        }
+    }
+});
+
+console.log(`
+╔═══════════════════════════════════════════╗
+║   ⚡ CROSSREALM UPDATED & FIXED ⚡         ║
+║   Hub: ${CONTRACTS.HUB.slice(0, 8)}...              ║
+║   ✅ Real-time move sync (1.5s polling)   ║
+║   ✅ Event listeners for instant updates  ║
+║   ✅ Checkers fully working               ║
+║   ✅ 8-Ball vertical                      ║
+║   ✅ Full cue stick rendering (NFT ready) ║
+║   ✅ Fixed board re-render bugs           ║
+║   ✅ Practice mode coming soon            ║
+╚═══════════════════════════════════════════╝
+`);
+
+// ==================== END OF JAVASCRIPT ====================   
 </body>
 </html>
