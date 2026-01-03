@@ -374,16 +374,16 @@
             overflow: hidden;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             /* VERTICAL orientation for mobile-first pool */
-            width: min(450px, 90vw);
-            height: min(900px, 180vw);
+            width: min(400px, 90vw);
+            height: min(700px, 175vw);
             max-width: 100%;
         }
 
         /* Mobile landscape optimization */
         @media (max-width: 968px) and (orientation: landscape) {
             #gameCanvas {
-                width: min(40vh, 90vw);
-                height: min(80vh, 180vw);
+                width: min(35vh, 90vw);
+                height: min(61vh, 175vw);
             }
     
             .board-container {
@@ -395,8 +395,8 @@
         /* Portrait optimization */
         @media (max-width: 768px) and (orientation: portrait) {
             #gameCanvas {
-                width: min(95vw, 450px);
-                height: min(190vw, 900px);
+                width: min(90vw, 400px);
+                height: min(157vw, 700px);
             }
         }
 
@@ -1178,7 +1178,7 @@
 
         // 8-Ball Pool state
         let poolCanvas, poolCtx;
-        let cueBall = { x: 225, y: 450, vx: 0, vy: 0, radius: 20, color: "#fff" };
+        let cueBall = { x: 225, y: 750, vx: 0, vy: 0, radius: 18, color: "#fff" };
         let balls = [];
         let cueStick = { angle: 0, power: 0, visible: false };
         let isAiming = false, isShooting = false;
@@ -1266,7 +1266,6 @@
                 loadPendingGames();
                 loadMyGames();
                 startAutoRefresh();
-                setupEventListeners(); // NEW: Listen to blockchain events
 
                 showAlert('Connected to Core Blockchain!', 'success');
             } catch (e) {
@@ -1294,22 +1293,6 @@
             } catch (e) {
                 console.error('Balance update error:', e);
             }
-        }
-
-        // ==================== NEW: EVENT LISTENERS FOR REAL-TIME SYNC ====================
-        function setupEventListeners() {
-            if (!hub || !currentGameId) return;
-    
-            // Listen for MoveMade events on current game
-            const moveFilter = hub.filters.MoveMade(currentGameId);
-    
-            hub.on(moveFilter, async (gameId, player, move, newFen, event) => {
-                console.log('🎯 Move detected on-chain!', gameId.toNumber());
-                if (gameId.toNumber() === currentGameId) {
-                    await loadGame(currentGameId);
-                    showAlert('✅ Opponent moved!', 'info');
-                }
-            });
         }
 
         function startAutoRefresh() {
@@ -2281,8 +2264,10 @@ function renderCheckersBoard() {
 
 /* Part 7: Checkers Logic & Staking Functions */
 
-// ==================== CHECKERS FUNCTIONS (CONTINUED) ====================
+// ==================== CHECKERS FUNCTIONS (FIXED) ====================
 function selectCheckersSquare(row, col) {
+    console.log('🎯 Clicked:', { row, col, isMyTurn, piece: checkersBoard[row][col] });
+    
     if (!isMyTurn) {
         showAlert('⏸️ Not your turn!', 'error');
         return;
@@ -2290,36 +2275,63 @@ function selectCheckersSquare(row, col) {
 
     const piece = checkersBoard[row][col];
     const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
-    const myPieceTypes = amICreator ? [2, 4] : [1, 3];
+    
+    // ✅ FIXED: Correct piece ownership
+    const myPieceTypes = amICreator ? [2, 4] : [1, 3]; // Creator=red(2,4), Joiner=black(1,3)
+
+    console.log('🎯 Piece check:', { piece, myPieceTypes, amICreator });
 
     if (!checkersSelectedSquare) {
-        if (piece === 0) return;
+        // First click - selecting piece
+        if (piece === 0) {
+            console.log('❌ Empty square');
+            return;
+        }
         
         if (!myPieceTypes.includes(piece)) {
+            console.log('❌ Not my piece');
             showAlert('❌ Not your piece!', 'error');
             return;
         }
         
+        console.log('✅ Piece selected');
         checkersSelectedSquare = { row, col };
+        
+        // Highlight selected square
         document.querySelectorAll('.board-square').forEach(s => {
             s.classList.remove('selected', 'possible');
+            s.style.boxShadow = '';
         });
+        
         const selectedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
         if (selectedSquare) {
             selectedSquare.classList.add('selected');
             selectedSquare.style.boxShadow = 'inset 0 0 0 4px #FFD700';
         }
+        
         showCheckersPossibleMoves(row, col, piece);
+        
     } else {
-        if (row === checkersSelectedSquare.row && col === checkersSelectedSquare.col) {
+        // Second click - trying to move
+        const fromRow = checkersSelectedSquare.row;
+        const fromCol = checkersSelectedSquare.col;
+        
+        console.log('🎯 Second click:', { from: { fromRow, fromCol }, to: { row, col } });
+        
+        if (row === fromRow && col === fromCol) {
+            // Deselect
+            console.log('🔄 Deselecting');
             checkersSelectedSquare = null;
             document.querySelectorAll('.board-square').forEach(s => {
                 s.classList.remove('selected', 'possible');
                 s.style.boxShadow = '';
             });
-        } else if (piece === 0) {
-            makeCheckersMove(checkersSelectedSquare.row, checkersSelectedSquare.col, row, col);
-        } else if (myPieceTypes.includes(piece)) {
+            return;
+        }
+        
+        // Check if clicking another own piece (reselect)
+        if (myPieceTypes.includes(piece)) {
+            console.log('🔄 Reselecting different piece');
             checkersSelectedSquare = { row, col };
             document.querySelectorAll('.board-square').forEach(s => {
                 s.classList.remove('selected', 'possible');
@@ -2331,11 +2343,20 @@ function selectCheckersSquare(row, col) {
                 selectedSquare.style.boxShadow = 'inset 0 0 0 4px #FFD700';
             }
             showCheckersPossibleMoves(row, col, piece);
+            return;
+        }
+        
+        // Trying to move to empty square
+        if (piece === 0) {
+            console.log('✅ Attempting move');
+            makeCheckersMove(fromRow, fromCol, row, col);
         }
     }
 }
 
 function showCheckersPossibleMoves(row, col, piece) {
+    console.log('🎯 Showing possible moves for piece:', piece, 'at', { row, col });
+    
     document.querySelectorAll('.board-square').forEach(s => {
         s.classList.remove('possible');
         if (!s.classList.contains('selected')) {
@@ -2347,54 +2368,74 @@ function showCheckersPossibleMoves(row, col, piece) {
     const isRed = piece === 2 || piece === 4;
     const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
 
-    const directions = [];
+    let directions = [];
 
+    // ✅ FIXED: Proper direction logic
     if (isKing) {
-        directions.push([-1, -1], [-1, 1], [1, -1], [1, 1]);
+        directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]]; // Kings move all 4 diagonals
     } else {
-        if (isRed) {
-            directions.push([-1, -1], [-1, 1]);
+        if (amICreator) {
+            // Creator (red pieces) move UP (negative row)
+            directions = [[-1, -1], [-1, 1]];
         } else {
-            directions.push([1, -1], [1, 1]);
+            // Joiner (black pieces) move DOWN (positive row)
+            directions = [[1, -1], [1, 1]];
         }
     }
+
+    console.log('🎯 Checking directions:', directions);
+
+    let movesFound = 0;
 
     directions.forEach(([dRow, dCol]) => {
         const newRow = row + dRow;
         const newCol = col + dCol;
     
+        // Simple move
         if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
             if (checkersBoard[newRow][newCol] === 0) {
                 const square = document.querySelector(`[data-row="${newRow}"][data-col="${newCol}"]`);
                 if (square) {
                     square.classList.add('possible');
                     square.style.boxShadow = 'inset 0 0 0 3px #00FF00';
+                    movesFound++;
+                    console.log('✅ Simple move:', { newRow, newCol });
                 }
             }
         
+            // Jump move
             const jumpRow = row + dRow * 2;
             const jumpCol = col + dCol * 2;
             if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8) {
                 const middlePiece = checkersBoard[newRow][newCol];
                 const opponentPieces = amICreator ? [1, 3] : [2, 4];
+                
                 if (opponentPieces.includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
                     const square = document.querySelector(`[data-row="${jumpRow}"][data-col="${jumpCol}"]`);
                     if (square) {
                         square.classList.add('possible');
                         square.style.boxShadow = 'inset 0 0 0 3px #FF0000';
+                        movesFound++;
+                        console.log('✅ Jump move:', { jumpRow, jumpCol, captures: { newRow, newCol } });
                     }
                 }
             }
         }
     });
+    
+    console.log('🎯 Total moves found:', movesFound);
 }
 
 async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
+    console.log('🎯 Making move:', { from: { fromRow, fromCol }, to: { toRow, toCol } });
+    
     try {
         const rowDiff = Math.abs(toRow - fromRow);
         const colDiff = Math.abs(toCol - fromCol);
     
+        // Validate diagonal move
         if (rowDiff !== colDiff || (rowDiff !== 1 && rowDiff !== 2)) {
+            console.log('❌ Invalid move - not diagonal or wrong distance');
             showAlert('❌ Invalid move!', 'error');
             checkersSelectedSquare = null;
             document.querySelectorAll('.board-square').forEach(s => {
@@ -2405,25 +2446,34 @@ async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
         }
     
         const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
+        console.log('🎯 Move string:', moveStr);
     
+        // Move piece
         checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
         checkersBoard[fromRow][fromCol] = 0;
     
+        // Handle jump (capture)
         if (rowDiff === 2) {
             const captureRow = Math.floor((fromRow + toRow) / 2);
             const captureCol = Math.floor((fromCol + toCol) / 2);
+            console.log('🎯 Capturing piece at:', { captureRow, captureCol });
             checkersBoard[captureRow][captureCol] = 0;
         }
     
+        // Handle king promotion
         const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
         if (amICreator && toRow === 0 && checkersBoard[toRow][toCol] === 2) {
+            console.log('👑 Promoting to Red King');
             checkersBoard[toRow][toCol] = 4;
         } else if (!amICreator && toRow === 7 && checkersBoard[toRow][toCol] === 1) {
+            console.log('👑 Promoting to Black King');
             checkersBoard[toRow][toCol] = 3;
         }
     
         const newFen = checkersToFen();
+        console.log('🎯 New FEN:', newFen);
     
+        // Update UI immediately
         renderCheckersBoard();
         checkersSelectedSquare = null;
         document.querySelectorAll('.board-square').forEach(s => {
@@ -2437,19 +2487,20 @@ async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
         await tx.wait();
     
         showAlert('✅ Move successful!', 'success');
+        console.log('✅ Move submitted successfully');
+        
         await new Promise(resolve => setTimeout(resolve, 500));
         await loadGame(currentGameId);
     
     } catch (e) {
-        console.error('Checkers move error:', e);
-        showAlert('❌ Move failed', 'error');
+        console.error('❌ Checkers move error:', e);
+        showAlert('❌ Move failed: ' + (e.reason || e.message), 'error');
         setTimeout(() => loadGame(currentGameId), 1000);
     }
 }
 
 async function makeCheckersAIMove() {
     if (!currentGame || !currentGame.isAI || isMyTurn || aiMoveInProgress) return;
-
     if (!currentGame.active) return;
 
     aiMoveInProgress = true;
@@ -2458,7 +2509,7 @@ async function makeCheckersAIMove() {
         showAlert('🤖 AI is thinking...', 'info');
         await new Promise(resolve => setTimeout(resolve, 1500));
     
-        const aiPieces = [1, 3];
+        const aiPieces = [1, 3]; // AI plays black pieces
         let possibleMoves = [];
     
         for (let fromRow = 0; fromRow < 8; fromRow++) {
@@ -2469,11 +2520,12 @@ async function makeCheckersAIMove() {
                   const isKing = piece === 3;
                   const directions = isKing ? 
                       [[-1, -1], [-1, 1], [1, -1], [1, 1]] : 
-                      [[1, -1], [1, 1]];
+                      [[1, -1], [1, 1]]; // Black moves down
             
                   directions.forEach(([dRow, dCol]) => {
                       const newRow = fromRow + dRow;
                       const newCol = fromCol + dCol;
+                      
                       if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
                           if (checkersBoard[newRow][newCol] === 0) {
                               possibleMoves.push({ fromRow, fromCol, toRow: newRow, toCol: newCol, isJump: false });
@@ -2486,53 +2538,56 @@ async function makeCheckersAIMove() {
                               if ([2, 4].includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
                                   possibleMoves.push({ fromRow, fromCol, toRow: jumpRow, toCol: jumpCol, isJump: true });
                               }
-                            }
-                        }
-                    });
-                }
-            }
+                          }
+                      }
+                  });
+              }
+          }
     
-            if (possibleMoves.length === 0) return;
+          if (possibleMoves.length === 0) {
+              aiMoveInProgress = false;
+              return;
+          }
     
-            const jumps = possibleMoves.filter(m => m.isJump);
-            const move = jumps.length > 0 ? 
-                jumps[Math.floor(Math.random() * jumps.length)] :
-                possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+          // Prefer jumps
+          const jumps = possibleMoves.filter(m => m.isJump);
+          const move = jumps.length > 0 ? 
+              jumps[Math.floor(Math.random() * jumps.length)] :
+              possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
     
-            const { fromRow, fromCol, toRow, toCol } = move;
+          const { fromRow, fromCol, toRow, toCol } = move;
     
-            checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
-            checkersBoard[fromRow][fromCol] = 0;
+          checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
+          checkersBoard[fromRow][fromCol] = 0;
     
-            if (move.isJump) {
-                const captureRow = Math.floor((fromRow + toRow) / 2);
-                const captureCol = Math.floor((fromCol + toCol) / 2);
-                checkersBoard[captureRow][captureCol] = 0;
-            }
+          if (move.isJump) {
+              const captureRow = Math.floor((fromRow + toRow) / 2);
+              const captureCol = Math.floor((fromCol + toCol) / 2);
+              checkersBoard[captureRow][captureCol] = 0;
+          }
     
-            if (toRow === 7 && checkersBoard[toRow][toCol] === 1) {
-                checkersBoard[toRow][toCol] = 3;
-            } else if (toRow === 0 && checkersBoard[toRow][toCol] === 2) {
-                checkersBoard[toRow][toCol] = 4;
-            }
+          // King promotion
+          if (toRow === 7 && checkersBoard[toRow][toCol] === 1) {
+              checkersBoard[toRow][toCol] = 3;
+          }
     
-            const newFen = checkersToFen();
-            const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
+          const newFen = checkersToFen();
+          const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
     
-            renderCheckersBoard();
+          renderCheckersBoard();
     
-            const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
-            await tx.wait();
+          const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
+          await tx.wait();
     
-            showAlert('✅ AI moved!', 'success');
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            await loadGame(currentGameId);
+          showAlert('✅ AI moved!', 'success');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          await loadGame(currentGameId);
     
-        } catch (e) {
-            console.error('AI checkers move error:', e);
-        } finally {
-            aiMoveInProgress = false;
-        }
+      } catch (e) {
+          console.error('AI checkers move error:', e);
+      } finally {
+          aiMoveInProgress = false;
+      }
 }
 
 function checkersToFen() {
@@ -2730,15 +2785,16 @@ function escapeHtml(text) {
 
 /* Part 8: 8-Ball Pool Game (VERTICAL/PORTRAIT Miniclip-Style) */
 
-// ==================== 8-BALL POOL (VERTICAL LAYOUT) ====================
+// ==================== 8-BALL POOL (FIXED) ====================
 function init8BallPool(id) {
     poolCanvas = document.getElementById('gameCanvas');
     poolCtx = poolCanvas.getContext('2d');
 
     poolCanvas.style.display = 'block';
-    // VERTICAL orientation like Miniclip mobile
-    poolCanvas.width = 450;
-    poolCanvas.height = 900;
+    
+    // ✅ FIXED: Scaled down to fit screens (was 450x900)
+    poolCanvas.width = 400;
+    poolCanvas.height = 700;
 
     currentGameId = id;
     document.getElementById('boardTitle').innerHTML = 
@@ -2785,12 +2841,12 @@ function init8BallPool(id) {
 }
 
 function reset8BallTable() {
-    // Cue ball at bottom (player's side)
+    // ✅ FIXED: Cue ball at BOTTOM (player shoots UP toward rack at top)
     cueBall = { 
         x: poolCanvas.width / 2, 
-        y: poolCanvas.height - 200, 
+        y: poolCanvas.height - 120,  // Near bottom
         vx: 0, vy: 0, 
-        radius: 20, 
+        radius: 18, 
         color: "#fff", 
         potted: false,
         spinX: 0,
@@ -2806,20 +2862,20 @@ function reset8BallTable() {
         "#008000", "#8b4513"
     ];
 
-    // Rack at TOP (opponent's side)
+    // ✅ FIXED: Rack at TOP (opponent's side) - pointing DOWN toward player
     const rackX = poolCanvas.width / 2;
-    const rackY = 150;
-    const spacing = 42;
+    const rackY = 120;  // Near top
+    const spacing = 38;
 
     const ballOrder = [0, 9, 2, 10, 7, 3, 11, 4, 12, 13, 5, 14, 6, 1, 8];
     let ballNum = 0;
 
-    // Triangle points DOWN towards player
+    // ✅ FIXED: Triangle points DOWN (row spacing goes down screen)
     for (let row = 0; row < 5; row++) {
         for (let col = 0; col <= row; col++) {
             if (ballNum >= 15) break;
             const x = rackX + (col - row / 2) * spacing;
-            const y = rackY + row * (spacing * 0.866);
+            const y = rackY + row * (spacing * 0.866);  // Points downward
             
             const colorIndex = ballOrder[ballNum];
             const number = colorIndex + 1;
@@ -2832,7 +2888,7 @@ function reset8BallTable() {
                 color: colors[colorIndex],
                 stripe: number > 8 && number !== 8,
                 potted: false,
-                radius: 20
+                radius: 18
             });
             ballNum++;
         }
@@ -2983,7 +3039,7 @@ function move8Ball(ball) {
 }
 
 function wall8BallCollision(ball) {
-    const margin = 60;
+    const margin = 50;
     if (ball.x - ball.radius < margin) { 
         ball.x = margin + ball.radius; 
         ball.vx = -(ball.vx || 0) * 0.73;
@@ -3045,16 +3101,16 @@ function collide8Balls(b1, b2) {
 }
 
 function check8BallPockets() {
-    const cornerPocketR = 38;
-    const sidePocketR = 34;
+    const cornerPocketR = 32;
+    const sidePocketR = 28;
     
     const pockets = [
-        { x: 60, y: 60, r: cornerPocketR },
-        { x: poolCanvas.width - 60, y: 60, r: cornerPocketR },
-        { x: poolCanvas.width / 2, y: 58, r: sidePocketR },
-        { x: 60, y: poolCanvas.height - 60, r: cornerPocketR },
-        { x: poolCanvas.width - 60, y: poolCanvas.height - 60, r: cornerPocketR },
-        { x: poolCanvas.width / 2, y: poolCanvas.height - 58, r: sidePocketR }
+        { x: 50, y: 50, r: cornerPocketR },
+        { x: poolCanvas.width - 50, y: 50, r: cornerPocketR },
+        { x: poolCanvas.width / 2, y: 48, r: sidePocketR },
+        { x: 50, y: poolCanvas.height - 50, r: cornerPocketR },
+        { x: poolCanvas.width - 50, y: poolCanvas.height - 50, r: cornerPocketR },
+        { x: poolCanvas.width / 2, y: poolCanvas.height - 48, r: sidePocketR }
     ];
 
     [cueBall, ...balls].forEach(ball => {
@@ -3071,7 +3127,7 @@ function check8BallPockets() {
                     setTimeout(() => {
                         cueBall.potted = false;
                         cueBall.x = poolCanvas.width / 2;
-                        cueBall.y = poolCanvas.height - 200;
+                        cueBall.y = poolCanvas.height - 120;
                         cueBall.vx = 0;
                         cueBall.vy = 0;
                     }, 700);
@@ -3081,6 +3137,17 @@ function check8BallPockets() {
     });
 }
 
+function make8BallAIMove() {
+    if (!currentGame.isAI || isMyTurn) return;
+    showAlert("🤖 AI is aiming...", "info");
+
+    setTimeout(() => {
+        cueStick.angle = Math.random() * Math.PI * 2;
+        cueStick.power = 40 + Math.random() * 50;
+        shoot8BallCue();
+    }, 2000);
+}
+        
 /* Part 9: Drawing Functions, Penalties & Initialization (FINAL PART) */
 
 // ==================== 8-BALL DRAWING ====================
