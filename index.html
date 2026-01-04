@@ -1323,12 +1323,19 @@
                 const newFen = game.fen;
                 const newTurn = typeof game.turn === 'object' ? game.turn.toNumber() : Number(game.turn);
         
-                // Create state signature to detect ANY change
-                const newState = `${newFen}|${newTurn}|${game.active}`;
+                // ✅ FIX: Include FEN in state check
+                const newState = `${newFen}|${newTurn}|${game.active}|${game.player2}`;
         
                 if (lastGameState && newState !== lastGameState) {
-                    console.log('🔄 Game state changed:', { old: lastGameState, new: newState });
+                    console.log('🔄 Game state changed, reloading...');
+                    console.log('   Old:', lastGameState);
+                    console.log('   New:', newState);
                     lastGameState = newState;
+            
+                    // ✅ FIX: Clear board before reload
+                    checkersBoard = null;
+                    gameEngine = null;
+            
                     await loadGame(currentGameId);
                 } else if (!lastGameState) {
                     lastGameState = newState;
@@ -1693,9 +1700,17 @@ async function loadChessGame(id, g, fen) {
 }
 
 async function loadCheckersGame(id, g, fen) {
+    console.log('🎯 loadCheckersGame() called');
+    console.log('   FEN:', fen);
+    console.log('   Turn:', g.turn);
+    
+    // ✅ FIX: Force board reset
+    checkersBoard = null;
+    checkersSelectedSquare = null;
+    
     initCheckersBoard(fen);
 
-    const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();
+    const amICreator = g.creator.toLowerCase() === userAddress.toLowerCase();    
     const contractTurn = typeof g.turn === 'object' && g.turn.toNumber ? g.turn.toNumber() : Number(g.turn);
 
     console.log('🎯 CHECKERS DEBUG:', {
@@ -1724,8 +1739,17 @@ async function loadCheckersGame(id, g, fen) {
     document.getElementById('boardTitle').innerHTML = 
         `<span>🎯 Checkers Game #${id}</span><span id="boardToggle" style="font-size: 20px;">▼</span>`;
 
-    if (g.isAI && !isMyTurn && g.active && !aiMoveInProgress && g.player2 !== ethers.constants.AddressZero) {
+    // ✅ FIX: Better AI trigger
+    if (g.isAI && !isMyTurn && g.active && !aiMoveInProgress) {
+        console.log('🤖 Triggering AI move...');
         setTimeout(() => makeCheckersAIMove(), 2000);
+    } else {
+        console.log('🤖 AI NOT triggered:', { 
+            isAI: g.isAI, 
+            isMyTurn, 
+            active: g.active, 
+            inProgress: aiMoveInProgress 
+        });
     }
 }
 
@@ -2148,21 +2172,7 @@ function getPieceValue(piece, x, y) {
 function initCheckersBoard(fen) {
     console.log('🎲 initCheckersBoard() called with FEN:', fen);
     
-    // Guard: Don't reinitialize if board already has pieces
-    if (checkersBoard && checkersBoard.length === 8) {
-        let pieceCount = 0;
-        for (let row of checkersBoard) {
-            for (let piece of row) {
-                if (piece > 0) pieceCount++;
-            }
-        }
-
-        if (pieceCount >= 20) {
-            console.log('✅ Board already initialized with', pieceCount, 'pieces - skipping');
-            return;
-        }
-    }
-
+    
     // Initialize empty board
     checkersBoard = [];
     for (let i = 0; i < 8; i++) {
