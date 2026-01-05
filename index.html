@@ -1229,6 +1229,11 @@
 
         async function connectWallet() {
             try {
+                // ✅ FIX: Wait for page to fully load
+                if (document.readyState !== 'complete') {
+                    await new Promise(resolve => window.addEventListener('load', resolve));
+                }
+        
                 if (!window.ethereum) throw new Error('Install MetaMask');
 
                 try {
@@ -2172,8 +2177,7 @@ function getPieceValue(piece, x, y) {
 function initCheckersBoard(fen) {
     console.log('🎲 initCheckersBoard() called with FEN:', fen);
     
-    
-    // Initialize empty board
+    // ✅ ALWAYS initialize empty board first
     checkersBoard = [];
     for (let i = 0; i < 8; i++) {
         checkersBoard[i] = new Array(8).fill(0);
@@ -2181,50 +2185,66 @@ function initCheckersBoard(fen) {
 
     let useDefaultPosition = true;
 
-    // Try to parse FEN if provided
-    if (fen && fen !== '') {
-        const fenParts = fen.split(' ')[0];
-        const rows = fenParts.split('/');
+    // ✅ FIX: Parse FEN properly
+    if (fen && fen !== '' && fen !== 'undefined') {
+        try {
+            const fenParts = fen.split(' ')[0];
+            const rows = fenParts.split('/');
 
-        let pieceCount = 0;
-        for (let row of rows) {
-            for (let char of row) {
-                if (char === 'b' || char === 'w' || char === 'B' || char === 'W') {
-                    pieceCount++;
-                }
-            }
-        }
-
-        if (pieceCount >= 20 && pieceCount <= 24) {
-            console.log('✅ Using FEN position with', pieceCount, 'pieces');
-            useDefaultPosition = false;
-
-            for (let row = 0; row < 8 && row < rows.length; row++) {
-                let col = 0;
-                for (let char of rows[row]) {
-                    if (char >= '0' && char <= '9') {
-                        col += parseInt(char);
-                    } else if (col < 8) {
-                        if (char === 'b') checkersBoard[row][col] = 1;
-                        else if (char === 'w') checkersBoard[row][col] = 2;
-                        else if (char === 'B') checkersBoard[row][col] = 3;
-                        else if (char === 'W') checkersBoard[row][col] = 4;
-                        col++;
+            // ✅ FIX: Count pieces correctly
+            let pieceCount = 0;
+            for (let row of rows) {
+                for (let char of row) {
+                    if (char === 'b' || char === 'w' || char === 'B' || char === 'W') {
+                        pieceCount++;
                     }
                 }
             }
+
+            console.log('   📊 FEN has', pieceCount, 'pieces');
+
+            // ✅ FIX: Accept ANY valid piece count (not just 20-24)
+            if (pieceCount > 0 && pieceCount <= 24 && rows.length === 8) {
+                console.log('   ✅ Using FEN position');
+                useDefaultPosition = false;
+
+                for (let row = 0; row < 8; row++) {
+                    let col = 0;
+                    const rowStr = rows[row] || '';
+                    
+                    for (let i = 0; i < rowStr.length; i++) {
+                        const char = rowStr[i];
+                        
+                        if (char >= '0' && char <= '9') {
+                            col += parseInt(char);
+                        } else if (col < 8) {
+                            if (char === 'b') checkersBoard[row][col] = 1;
+                            else if (char === 'w') checkersBoard[row][col] = 2;
+                            else if (char === 'B') checkersBoard[row][col] = 3;
+                            else if (char === 'W') checkersBoard[row][col] = 4;
+                            col++;
+                        }
+                    }
+                }
+                
+                console.log('   ✅ Board loaded from FEN:', checkersBoard);
+            } else {
+                console.log('   ⚠️ Invalid FEN, using default');
+            }
+        } catch (e) {
+            console.error('   ❌ FEN parse error:', e);
         }
     }
 
-    // Use default starting position
+    // Use default starting position if needed
     if (useDefaultPosition) {
-        console.log('✅ Using default starting position');
+        console.log('   ✅ Using default starting position');
         
         // Black pieces (top 3 rows)
         for (let row = 0; row < 3; row++) {
             for (let col = 0; col < 8; col++) {
                 if ((row + col) % 2 === 1) {
-                    checkersBoard[row][col] = 1; // Black piece
+                    checkersBoard[row][col] = 1;
                 }
             }
         }
@@ -2233,15 +2253,14 @@ function initCheckersBoard(fen) {
         for (let row = 5; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
                 if ((row + col) % 2 === 1) {
-                    checkersBoard[row][col] = 2; // Red piece
+                    checkersBoard[row][col] = 2;
                 }
             }
         }
     }
     
-    console.log('✅ Board initialized:', checkersBoard);
+    console.log('   ✅ Final board:', checkersBoard);
 }
-
 // ==================== CHECKERS RENDERING ====================
 function renderCheckersBoard() {
     console.log('🎨 renderCheckersBoard() called');
@@ -2493,19 +2512,23 @@ async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
             return;
         }
     
+        const isJump = rowDiff === 2;
         const moveStr = `${fromRow},${fromCol}-${toRow},${toCol}`;
-        console.log('   📝 Move:', moveStr);
+        console.log('   📝 Move:', moveStr, isJump ? '(JUMP)' : '(SIMPLE)');
     
+        // Make move
         checkersBoard[toRow][toCol] = checkersBoard[fromRow][fromCol];
         checkersBoard[fromRow][fromCol] = 0;
     
-        if (rowDiff === 2) {
+        // Handle capture
+        if (isJump) {
             const captureRow = Math.floor((fromRow + toRow) / 2);
             const captureCol = Math.floor((fromCol + toCol) / 2);
             console.log('   🎯 Capture:', { captureRow, captureCol });
             checkersBoard[captureRow][captureCol] = 0;
         }
     
+        // Handle king promotion
         const amICreator = currentGame.creator.toLowerCase() === userAddress.toLowerCase();
         if (amICreator && toRow === 0 && checkersBoard[toRow][toCol] === 2) {
             console.log('   👑 Red King');
@@ -2515,34 +2538,83 @@ async function makeCheckersMove(fromRow, fromCol, toRow, toCol) {
             checkersBoard[toRow][toCol] = 3;
         }
     
-        const newFen = checkersToFen();
-    
         renderCheckersBoard();
+    
+        // ✅ FIX: Check for multi-jump
+        if (isJump) {
+            const piece = checkersBoard[toRow][toCol];
+            const myPieceTypes = amICreator ? [2, 4] : [1, 3];
+            const opponentPieces = amICreator ? [1, 3] : [2, 4];
+            
+            const isKing = piece >= 3;
+            const directions = isKing ? 
+                [[-1, -1], [-1, 1], [1, -1], [1, 1]] : 
+                (amICreator ? [[-1, -1], [-1, 1]] : [[1, -1], [1, 1]]);
+            
+            let hasMoreJumps = false;
+            for (const [dRow, dCol] of directions) {
+                const jumpRow = toRow + dRow * 2;
+                const jumpCol = toCol + dCol * 2;
+                const middleRow = toRow + dRow;
+                const middleCol = toCol + dCol;
+                
+                if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8) {
+                    const middlePiece = checkersBoard[middleRow][middleCol];
+                    if (opponentPieces.includes(middlePiece) && checkersBoard[jumpRow][jumpCol] === 0) {
+                        hasMoreJumps = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (hasMoreJumps) {
+                console.log('   🎯 MULTI-JUMP AVAILABLE!');
+                showAlert('🎯 Multi-jump available! Continue jumping...', 'info');
+                
+                // Keep the same piece selected
+                checkersSelectedSquare = { row: toRow, col: toCol };
+                
+                // Clear highlights
+                document.querySelectorAll('.board-square').forEach(s => {
+                    s.classList.remove('selected', 'possible');
+                    s.style.boxShadow = '';
+                });
+                
+                // Highlight current position
+                const selectedSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
+                if (selectedSquare) {
+                    selectedSquare.classList.add('selected');
+                    selectedSquare.style.boxShadow = 'inset 0 0 0 4px #FFD700';
+                }
+                
+                // Show possible jumps
+                showCheckersPossibleMoves(toRow, toCol, piece);
+                return; // Don't submit yet!
+            }
+        }
+    
+        // No more jumps, submit move
         checkersSelectedSquare = null;
         document.querySelectorAll('.board-square').forEach(s => {
             s.classList.remove('selected', 'possible');
             s.style.boxShadow = '';
         });
     
-        showAlert('⏳ Submitting...', 'info');
+        const newFen = checkersToFen();
+        showAlert('⏳ Submitting move...', 'info');
     
         const tx = await hub.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
         await tx.wait();
     
         showAlert('✅ Move confirmed on-chain!', 'success');
         
-        // ✅ CRITICAL: Force state refresh
         lastGameState = null;
-        
-        // Wait for blockchain to update, then reload
         await new Promise(resolve => setTimeout(resolve, 1500));
         await loadGame(currentGameId);
     
     } catch (e) {
         console.error('❌ Error:', e);
         showAlert('❌ Move failed: ' + (e.reason || e.message), 'error');
-        
-        // ✅ CRITICAL: Reload game to sync with blockchain state
         lastGameState = null;
         setTimeout(() => loadGame(currentGameId), 1000);
     }
