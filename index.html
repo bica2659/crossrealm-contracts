@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrossRealm • Blockchain Gaming</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+/* [SAME CSS AS BEFORE - TRUNCATED FOR BREVITY] */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#080810;--bg2:#0d0d1a;--bg3:#111120;--bg4:#161628;
+  --border:#1a1a2e;--border2:#242440;
+  --orange:#f7931a;--orange2:#cc6600;--orange3:#ff9500;
+  --green:#00ff88;--green2:#00cc6a;
+  --blue:#4488ff;--purple:#8844ff;--red:#ff4455;
+  --text:#d0d8f0;--dim:#606080;--dim2:#3a3a55;
+  --realm:#f7931a;
+}
+body{font-family:'Space Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.08) 3px,rgba(0,0,0,0.08) 4px);pointer-events:none;z-index:9998}
+.app{display:grid;grid-template-columns:220px 1fr;grid-template-rows:56px 1fr;height:100vh}
+.topbar{grid-column:1/-1;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:16px;position:relative;z-index:100}
+.topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--orange),transparent);opacity:.4}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;letter-spacing:3px;text-transform:uppercase;color:var(--orange);white-space:nowrap}
+.logo em{color:var(--green);font-style:normal}
+.net-badge{font-size:9px;letter-spacing:2px;color:var(--green);background:rgba(0,255,136,.07);border:1px solid rgba(0,255,136,.2);padding:4px 12px;border-radius:20px;white-space:nowrap}
+.topbar-spacer{flex:1}
+.realm-balance{font-size:12px;font-weight:700;color:var(--orange);white-space:nowrap}
+.realm-balance small{color:var(--dim);font-weight:400;margin-left:2px;font-size:10px}
+#walletInfo{display:none;align-items:center;gap:12px}
+.wallet-addr{font-size:11px;color:var(--dim)}
+.connect-btn{background:linear-gradient(135deg,var(--orange),var(--orange2));border:none;color:#000;font-family:inherit;font-size:10px;font-weight:700;padding:9px 18px;border-radius:4px;cursor:pointer;letter-spacing:1px;white-space:nowrap;transition:all .2s}
+.connect-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(247,147,26,.4)}
+.connect-btn.connected{background:linear-gradient(135deg,#ff4455,#cc0022);color:#fff}
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:12px 0;overflow-y:auto}
+.sidebar-section{padding:0 10px;margin-bottom:16px}
+.sidebar-label{font-size:8px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;margin-bottom:6px;padding:0 6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;cursor:pointer;font-size:11px;color:var(--dim);transition:all .15s;border:1px solid transparent;user-select:none}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:rgba(247,147,26,.1);color:var(--orange);border-color:rgba(247,147,26,.2)}
+.nav-item .ni{font-size:15px;width:20px;text-align:center}
+.nbadge{margin-left:auto;background:var(--orange);color:#000;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;min-width:18px;text-align:center}
+.nbadge.g{background:var(--green)}
+.nbadge.b{background:var(--blue)}
+.online-dot{width:7px;height:7px;background:var(--green);border-radius:50%;margin-left:auto;box-shadow:0 0 6px var(--green);animation:pdot 2s infinite}
+@keyframes pdot{0%,100%{opacity:1}50%{opacity:.3}}
+.sdivider{height:1px;background:var(--border);margin:8px 10px 14px}
+.main{overflow:hidden;display:flex;flex-direction:column}
+.view{display:none;flex-direction:column;height:100%;overflow:hidden}
+.view.active{display:flex}
+.view-scroll{flex:1;overflow-y:auto;padding:24px}
+.view-scroll::-webkit-scrollbar{width:4px}
+.view-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.vhead{padding:22px 24px 18px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(247,147,26,.04),transparent)}
+.vtitle{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:3px}
+.vtitle em{color:var(--orange);font-style:normal}
+.vsub{font-size:10px;color:var(--dim);letter-spacing:.5px}
+.card{background:var(--bg2);border:1px solid var(--border);padding:22px;border-radius:8px;margin-bottom:16px}
+.card h3{font-size:12px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:2px;margin-bottom:18px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+input,select,textarea{width:100%;padding:11px 12px;background:rgba(0,0,0,.4);border:1px solid var(--border2);color:var(--text);margin-bottom:12px;border-radius:4px;font-family:inherit;font-size:13px;outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--orange);box-shadow:0 0 12px rgba(247,147,26,.15)}
+textarea{min-height:80px;resize:vertical}
+label{display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;font-size:12px;color:var(--dim)}
+label input[type=checkbox]{width:auto;margin:0}
+.field-label{font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;display:block;margin-bottom:6px}
+.btn{background:linear-gradient(135deg,var(--orange),var(--orange2));border:none;color:#000;font-family:inherit;font-size:11px;font-weight:700;padding:12px 20px;cursor:pointer;letter-spacing:1px;border-radius:4px;transition:all .2s;width:100%;text-transform:uppercase}
+.btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(247,147,26,.35)}
+.btn:disabled{background:var(--border2);color:var(--dim);cursor:not-allowed;transform:none;box-shadow:none;opacity:.6}
+.btn-ghost{background:none;border:1px solid var(--border2);color:var(--text);font-family:inherit;font-size:11px;font-weight:700;padding:11px 20px;cursor:pointer;letter-spacing:1px;border-radius:4px;transition:all .15s;width:100%;text-transform:uppercase}
+.btn-ghost:hover{border-color:var(--orange);color:var(--orange)}
+.btn-green{background:linear-gradient(135deg,var(--green),var(--green2));color:#000}
+.btn-red{background:linear-gradient(135deg,#ff4455,#cc0022);color:#fff}
+.btn-sm{padding:7px 14px;font-size:10px;width:auto}
+.toast-stack{position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:4px;font-size:12px;font-weight:700;animation:tin .3s cubic-bezier(.34,1.56,.64,1);border:1px solid;max-width:360px}
+.toast.success{background:rgba(0,255,136,.12);border-color:var(--green);color:var(--green)}
+.toast.error{background:rgba(255,68,85,.12);border-color:var(--red);color:var(--red)}
+.toast.info{background:rgba(247,147,26,.12);border-color:var(--orange);color:var(--orange)}
+@keyframes tin{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.stat-card{background:var(--bg3);border:1px solid var(--border);padding:20px;border-radius:8px;text-align:center;transition:all .2s}
+.stat-card:hover{border-color:var(--orange);transform:translateY(-3px)}
+.stat-card .sv{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--orange);margin:6px 0}
+.stat-card .sl{font-size:9px;color:var(--dim);letter-spacing:2px;text-transform:uppercase}
+.badge-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.5px}
+.badge-pill.live{background:rgba(0,255,136,.12);border:1px solid rgba(0,255,136,.3);color:var(--green)}
+.badge-pill.soon{background:rgba(68,136,255,.12);border:1px solid rgba(68,136,255,.3);color:var(--blue)}
+.badge-pill.open{background:rgba(247,147,26,.12);border:1px solid rgba(247,147,26,.3);color:var(--orange)}
+.info-box{padding:12px;background:rgba(247,147,26,.06);border:1px solid rgba(247,147,26,.2);border-radius:6px;margin:12px 0;font-size:11px;line-height:1.7;color:var(--dim)}
+.info-box strong{color:var(--orange)}
+.play-layout{display:grid;grid-template-columns:340px 1fr;gap:0;flex:1;overflow:hidden}
+.play-sidebar{border-right:1px solid var(--border);overflow-y:auto;padding:20px}
+.play-sidebar::-webkit-scrollbar{width:4px}
+.play-sidebar::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.game-area{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;align-items:center}
+.board-wrap{border:2px solid var(--orange);border-radius:6px;overflow:hidden;box-shadow:0 0 40px rgba(247,147,26,.15);display:none}
+.board-grid{display:grid;grid-template-columns:repeat(8,1fr);width:min(480px,90vw);height:min(480px,90vw)}
+.sq{display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;position:relative;aspect-ratio:1}
+.sq.light{background:#e8d5b0}
+.sq.dark{background:#a07850}
+.sq.selected{background:#cc6600!important;box-shadow:inset 0 0 0 3px #FFD700}
+.sq.possible::after{content:'';position:absolute;width:18px;height:18px;background:var(--green);border-radius:50%;opacity:.75;animation:pdot 1.5s infinite;box-shadow:0 0 10px var(--green)}
+.sq:hover{filter:brightness(1.15)}
+.cp{font-size:clamp(28px,4.5vw,42px);line-height:1;pointer-events:none;user-select:none}
+.cp.w{color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000}
+.cp.b{color:#000;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff}
+.ck{width:70%;height:70%;border-radius:50%;border:3px solid;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.6)}
+.ck.red{background:radial-gradient(circle at 30% 30%,#ff6b6b,#c92a2a);border-color:#8b0000;color:#fff}
+.ck.blk{background:radial-gradient(circle at 30% 30%,#555,#111);border-color:#000;color:#fff}
+#gameCanvas{display:none;border:2px solid var(--orange);border-radius:6px;box-shadow:0 0 40px rgba(247,147,26,.15);max-width:100%;touch-action:none}
+.ai-thinking{text-align:center;padding:14px;background:rgba(0,255,136,.07);border:1px solid rgba(0,255,136,.3);border-radius:6px;margin:12px 0;font-size:12px;color:var(--green);animation:pulse 1.5s infinite;display:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.game-item{padding:13px;border:1px solid var(--border);margin-bottom:8px;cursor:pointer;border-radius:6px;background:rgba(0,0,0,.2);transition:all .2s}
+.game-item:hover{border-color:var(--orange);background:rgba(247,147,26,.07);transform:translateX(4px)}
+.game-item .gid{color:var(--orange);font-weight:700;font-size:12px;margin-bottom:3px}
+.game-item .gmeta{color:var(--dim);font-size:10px}
+.game-scroll{max-height:300px;overflow-y:auto}
+.game-scroll::-webkit-scrollbar{width:3px}
+.game-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.game-info-bar{text-align:center;font-size:12px;color:var(--dim);margin:12px 0;padding:10px;background:var(--bg3);border-radius:6px;border:1px solid var(--border)}
+.my-turn{color:var(--green);font-weight:700}
+.opp-turn{color:var(--dim)}
+.lock-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.lock-opt{padding:14px 8px;border:2px solid var(--border);border-radius:6px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg3)}
+.lock-opt:hover{border-color:var(--orange)}
+.lock-opt.sel{border-color:var(--green);background:rgba(0,255,136,.07)}
+.lock-opt .la{font-size:16px;font-weight:700;color:var(--green);margin-bottom:3px}
+.lock-opt .lp{font-size:9px;color:var(--dim)}
+.meter-wrap{margin:12px 0}
+.meter-row{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);margin-bottom:5px}
+.meter-track{height:6px;background:var(--border2);border-radius:3px;overflow:hidden}
+.meter-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.34,1.56,.64,1)}
+.meter-fill.o{background:linear-gradient(90deg,var(--orange),#ffbb44)}
+.meter-fill.g{background:linear-gradient(90deg,var(--green2),var(--green))}
+.irow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
+.irow:last-child{border-bottom:none}
+.irow .il{color:var(--dim)}
+.irow .iv{font-weight:700}
+.irow .iv.g{color:var(--green)}
+.irow .iv.o{color:var(--orange)}
+.irow .iv.b{color:var(--blue)}
+</style>
+</head>
+<body>
+<div class="toast-stack" id="toasts"></div>
+<div class="app">
+<header class="topbar">
+  <div class="logo">CROSS<em>REALM</em></div>
+  <span class="net-badge">● CORE MAINNET</span>
+  <div class="topbar-spacer"></div>
+  <div id="walletInfo">
+    <span class="realm-balance" id="realmBal">0 <small>REALM</small></span>
+    <span class="wallet-addr" id="walletAddr"></span>
+  </div>
+  <button class="connect-btn" id="connectBtn" onclick="toggleWallet()">Connect Wallet</button>
+</header>
+<nav class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-label">Gaming</div>
+    <div class="nav-item active" onclick="switchView('play',this)"><span class="ni">⚔️</span>Play</div>
+  </div>
+</nav>
+<main class="main">
+<div id="view-play" class="view active">
+  <div class="play-layout">
+    <div class="play-sidebar">
+      <div class="card">
+        <h3>➕ Create Game</h3>
+        <span class="field-label">Game Type</span>
+        <select id="gameType">
+          <option value="chess">♟️ Chess</option>
+          <option value="checkers">🎯 Checkers</option>
+        </select>
+        <span class="field-label">Stake (REALM)</span>
+        <input type="number" id="stakeAmount" value="100" min="10" step="10">
+        <div class="info-box">
+💰 <strong>Payment</strong>: Stake in REALM + 5% fee<br>
+<strong>Example</strong>: 100 REALM game = pay 105 REALM total<br>
+<strong>Winner</strong>: Both stakes (200 REALM) 🏆
+        </div>
+        <label><input type="checkbox" id="isPrivate"> 🔒 Private</label>
+        <label><input type="checkbox" id="isAI" checked> 🤖 vs AI</label>
+        <button class="btn" onclick="createGame()">Create Game</button>
+      </div>
+      <div class="card">
+        <h3>🌐 Available Games</h3>
+        <button class="btn-ghost" onclick="refreshGames()" style="margin-bottom:12px">🔄 Refresh</button>
+        <div class="game-scroll" id="gamesList"><p style="color:var(--dim);font-size:11px;text-align:center;padding:20px">Connect wallet</p></div>
+      </div>
+      <div class="card">
+        <h3>⚔️ My Games</h3>
+        <div class="game-scroll" id="myGamesList"><p style="color:var(--dim);font-size:11px;text-align:center;padding:20px">None</p></div>
+      </div>
+    </div>
+    <div class="game-area">
+      <div id="aiThinking" class="ai-thinking">🤖 AI calculating...</div>
+      <canvas id="gameCanvas"></canvas>
+      <div id="boardContainer" class="board-wrap"><div id="boardGrid" class="board-grid"></div></div>
+      <div id="gameInfo" class="game-info-bar" style="width:100%;max-width:520px">Create or join a game</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:520px;margin-top:8px">
+        <button class="btn btn-red" id="forfeitBtn" onclick="forfeitGame()" disabled>Forfeit</button>
+        <button class="btn btn-ghost" id="shareBtn" onclick="shareGame()" disabled>🔗 Share</button>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// CONTRACTS - CORE MAINNET (ACTUAL DEPLOYED ADDRESSES)
+// ══════════════════════════════════════════════════════════════════════════
+const CONTRACTS = {
+  REALM_TOKEN:   '0x736C7B66F0Dd6dB1bB20f365f6aED498d8059b4A',
+  HUB:           '0x070BB4a8Fa33A39497634e9e8413098C7AcB1a23',
+  REWARDS:       '0x888F0Daa4A92463bC4B0c39CcB47Bb9f8d8232BB',
+  STAKING:       '0x23b0A480aAEF4596926b303deDe130e555A02428',
+  GAME_CHAT:     '0xF5092178D8c9eacd5d8f13F3BC60A8d66839baf7',
+  CRNFT:         '0x3E07C5b214BA6A887a15889d848d7E8772F4B66C',
+  CHESS_V:       '0xF36997EF2156d46Ef8f4a5438De7E2fdD56Cc660',
+  CHECKERS_V:    '0xA9a9aAEcFb787d9F77033054d3037d1c48511F36',
+};
+
+const CORE_NET = {
+  chainId:'0x45c',chainName:'Core',
+  rpcUrls:['https://rpc.coredao.org'],
+  nativeCurrency:{name:'Core',symbol:'CORE',decimals:18},
+  blockExplorerUrls:['https://scan.coredao.org']
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+// ABIs - PROPERLY MATCHED TO DEPLOYED CONTRACTS
+// ══════════════════════════════════════════════════════════════════════════
+const ERC20_ABI = [
+  'function balanceOf(address) view returns (uint256)',
+  'function allowance(address,address) view returns (uint256)',
+  'function approve(address,uint256) returns (bool)',
+  'function decimals() view returns (uint8)',
+];
+
+const HUB_ABI = [
+  'function gameCount() view returns (uint256)',
+  'function games(uint256) view returns (uint id, string gameType, uint stake, address token, address creator, address player2, bool isAI, bool isPrivate, address referral, bool zeroGas, bool active, string fen, address verifier, uint turn, uint lastMoveTime, uint createdAt)',
+  'function createGame(string _gameType, uint _stake, address _token, bool _isPrivate, address _referral, bool _isAI, bool _zeroGas, address _verifier) payable returns (uint)',
+  'function joinGame(uint _gameId) payable',
+  'function makeMove(uint _gameId, string _move, string _newFen)',
+  'function forfeitGame(uint _gameId)',
+  'function getInitialFen(string) view returns (string)',
+];
+
+const REWARDS_ABI = [
+  'function playerCashbackCORE(address) view returns (uint256)',
+  'function referralEarningsCORE(address,uint256) view returns (uint256)',
+  'function creatorBonusCORE(address,uint256) view returns (uint256)',
+  'function getUserStats(address) view returns (uint wins, uint losses, uint totalStakes, uint elo)',
+  'function getUserGamesCount(address) view returns (uint)',
+  'function claimRewards(address _user, address _token, uint _timestamp)',
+  'function primaryReferrer(address) view returns (address)',
+];
+
+const STAKING_ABI = [
+  'function stake(uint256 _lockPeriod) payable',
+  'function withdraw(uint256 _amount)',
+  'function claimRewards()',
+  'function calculatePendingRewards(address) view returns (uint256)',
+  'function getStakeInfo(address) view returns (uint256 amount, uint256 stakedAt, uint256 lockPeriod, uint256 unlocksAt, uint256 pendingRewards)',
+  'function totalStaked() view returns (uint256)',
+  'function baseAPY() view returns (uint256)',
+];
+
+const CHAT_ABI = [
+  'function sendMessage(uint256,string)',
+  'function getMessages(uint256) view returns (tuple(address sender,string text,uint256 timestamp)[])',
+];
+
+// ══════════════════════════════════════════════════════════════════════════
+// PIECE MAPS
+// ══════════════════════════════════════════════════════════════════════════
+const PIECE_UC = {K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
+const PIECE_VAL = {p:100,n:320,b:330,r:500,q:900,k:20000};
+
+// ══════════════════════════════════════════════════════════════════════════
+// GLOBAL STATE
+// ══════════════════════════════════════════════════════════════════════════
+let provider,signer,userAddr;
+let hubC,rewardsC,stakingC,gameChatC,realmToken;
+let isConnected=false;
+let currentGameId=null,currentGame=null,isAIGame=false,isMyTurn=false;
+let gameEngine=null,checkersBoard=null;
+let moveFrom=null,checkersSelected=null;
+let aiInProgress=false,isLoadingGame=false,lastGameState=null;
+let autoRefreshInterval=null;
+
+// ══════════════════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════════════════
+function showToast(msg,type='success'){
+  const el=document.createElement('div');
+  el.className=`toast ${type}`;el.textContent=msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>el.remove(),4000);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════════════════════════════════
+function switchView(id,el){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  if(el)el.classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// WALLET
+// ══════════════════════════════════════════════════════════════════════════
+async function toggleWallet(){
+  if(isConnected)disconnectWallet();
+  else await connectWallet();
+}
+
+async function connectWallet(){
+  try{
+    if(!window.ethereum)throw new Error('Install MetaMask');
+    try{
+      await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:CORE_NET.chainId}]});
+    }catch(e){
+      if(e.code===4902)await window.ethereum.request({method:'wallet_addEthereumChain',params:[CORE_NET]});
+    }
+    provider=new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send('eth_requestAccounts',[]);
+    signer=provider.getSigner();
+    userAddr=await signer.getAddress();
+
+    hubC=new ethers.Contract(CONTRACTS.HUB,HUB_ABI,signer);
+    rewardsC=new ethers.Contract(CONTRACTS.REWARDS,REWARDS_ABI,signer);
+    stakingC=new ethers.Contract(CONTRACTS.STAKING,STAKING_ABI,signer);
+    gameChatC=new ethers.Contract(CONTRACTS.GAME_CHAT,CHAT_ABI,signer);
+    realmToken=new ethers.Contract(CONTRACTS.REALM_TOKEN,ERC20_ABI,signer);
+
+    isConnected=true;
+    document.getElementById('walletAddr').textContent=userAddr.slice(0,6)+'...'+userAddr.slice(-4);
+    document.getElementById('walletInfo').style.display='flex';
+    document.getElementById('connectBtn').textContent='Disconnect';
+    document.getElementById('connectBtn').classList.add('connected');
+
+    updateRealmBalance();
+    loadPendingGames();
+    loadMyGames();
+    startAutoRefresh();
+    showToast('Connected to Core Blockchain!','success');
+  }catch(e){
+    showToast('Connection failed: '+e.message,'error');
+  }
+}
+
+function disconnectWallet(){
+  isConnected=false;userAddr=null;
+  if(autoRefreshInterval)clearInterval(autoRefreshInterval);
+  document.getElementById('walletInfo').style.display='none';
+  document.getElementById('connectBtn').textContent='Connect Wallet';
+  document.getElementById('connectBtn').classList.remove('connected');
+  showToast('Disconnected','info');
+}
+
+async function updateRealmBalance(){
+  if(!realmToken||!userAddr)return;
+  try{
+    const bal=await realmToken.balanceOf(userAddr);
+    const fmt=parseFloat(ethers.utils.formatEther(bal)).toFixed(2);
+    document.getElementById('realmBal').innerHTML=`${parseFloat(fmt).toLocaleString()} <small>REALM</small>`;
+  }catch(e){}
+}
+
+function startAutoRefresh(){
+  autoRefreshInterval=setInterval(()=>{
+    if(isConnected){
+      updateRealmBalance();
+      if(currentGameId)checkGameStateChanged();
+      loadPendingGames();
+      loadMyGames();
+    }
+  },5000);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// GAME MANAGEMENT
+// ══════════════════════════════════════════════════════════════════════════
+async function createGame(){
+  if(!hubC)return showToast('Connect wallet first','error');
+  try{
+    const gType=document.getElementById('gameType').value;
+    const stakeAmt=document.getElementById('stakeAmount').value||'100';
+    const stakeF=parseFloat(stakeAmt);
+    if(stakeF<10)return showToast('Minimum 10 REALM','error');
+    
+    // Calculate total cost: stake + 5% fee
+    const stake=ethers.utils.parseEther(stakeAmt);
+    const fee=stake.mul(5).div(100);
+    const totalCost=stake.add(fee);
+    
+    const isPrivate=document.getElementById('isPrivate').checked;
+    const isAI=document.getElementById('isAI').checked;
+    
+    // Approve REALM spend (total cost)
+    showToast('⏳ Approving REALM...','info');
+    const allowance=await realmToken.allowance(userAddr,CONTRACTS.HUB);
+    if(allowance.lt(totalCost)){
+      const appTx=await realmToken.approve(CONTRACTS.HUB,ethers.constants.MaxUint256);
+      await appTx.wait();
+    }
+    
+    // Approve REALM for Rewards contract (for fees)
+    const rewardsAllowance=await realmToken.allowance(userAddr,CONTRACTS.REWARDS);
+    if(rewardsAllowance.lt(fee)){
+      const appTx2=await realmToken.approve(CONTRACTS.REWARDS,ethers.constants.MaxUint256);
+      await appTx2.wait();
+    }
+    
+    const verifier={chess:CONTRACTS.CHESS_V,checkers:CONTRACTS.CHECKERS_V}[gType];
+    showToast('⏳ Creating game...','info');
+    
+    // Call createGame with all 8 parameters as per Hub contract
+    const tx=await hubC.createGame(
+      gType,                    // _gameType
+      stake,                    // _stake
+      CONTRACTS.REALM_TOKEN,    // _token (REALM address)
+      isPrivate,                // _isPrivate
+      ethers.constants.AddressZero, // _referral (none for now)
+      isAI,                     // _isAI
+      false,                    // _zeroGas (reserved)
+      verifier,                 // _verifier
+      {gasLimit:900000}
+    );
+    await tx.wait();
+    showToast('✅ Game created!','success');
+    await loadPendingGames();await loadMyGames();
+    const count=await hubC.gameCount();
+    if(isAI)setTimeout(()=>loadGame(count.toNumber()),1500);
+  }catch(e){
+    console.error('Create error:',e);
+    showToast('❌ '+(e.reason||e.message),'error');
+  }
+}
+
+async function loadPendingGames(){
+  if(!hubC||!userAddr)return;
+  const list=document.getElementById('gamesList');
+  try{
+    const count=await hubC.gameCount();
+    let html='';
+    for(let i=count.toNumber();i>=Math.max(1,count.toNumber()-20);i--){
+      try{
+        const g=await hubC.games(i);
+        if(!g.active)continue;
+        const isMe=g.creator.toLowerCase()===userAddr.toLowerCase();
+        if(g.player2===ethers.constants.AddressZero&&!g.isPrivate&&!g.isAI&&!isMe){
+          html+=`<div class="game-item" onclick="joinGame(${i})">
+            <div class="gid">🟢 Game #${i}</div>
+            <div class="gmeta">${g.gameType.toUpperCase()} · ${ethers.utils.formatEther(g.stake)} REALM · ${g.creator.slice(0,6)}...${g.creator.slice(-4)}</div>
+          </div>`;
+        }
+      }catch(e){}
+    }
+    list.innerHTML=html||'<p style="color:var(--dim);font-size:11px;text-align:center;padding:20px">No open games</p>';
+  }catch(e){}
+}
+
+async function loadMyGames(){
+  if(!hubC||!userAddr)return;
+  const list=document.getElementById('myGamesList');
+  try{
+    const count=await hubC.gameCount();
+    let html='';
+    for(let i=count.toNumber();i>=1;i--){
+      try{
+        const g=await hubC.games(i);
+        const isPlayer=g.creator.toLowerCase()===userAddr.toLowerCase()||g.player2.toLowerCase()===userAddr.toLowerCase();
+        if(g.active&&isPlayer){
+          const icon={chess:'♟️',checkers:'🎯'}[g.gameType]||'🎮';
+          html+=`<div class="game-item" onclick="loadGame(${i})">
+            <div class="gid">⚔️ Game #${i}</div>
+            <div class="gmeta">${icon} ${g.gameType.toUpperCase()} · ${g.isAI?'🤖 AI':'👥 P2P'}</div>
+          </div>`;
+        }
+      }catch(e){}
+    }
+    list.innerHTML=html||'<p style="color:var(--dim);font-size:11px;text-align:center;padding:20px">No active games</p>';
+  }catch(e){}
+}
+
+async function refreshGames(){
+  if(!hubC)return showToast('Connect wallet first','error');
+  showToast('🔄 Refreshing...','info');
+  await Promise.all([loadPendingGames(),loadMyGames()]);
+  showToast('✅ Refreshed!','success');
+}
+
+async function joinGame(id){
+  if(!hubC)return;
+  try{
+    const g=await hubC.games(id);
+    const fee=g.stake.mul(5).div(100);
+    const total=g.stake.add(fee);
+    
+    // Approve REALM
+    const allowance=await realmToken.allowance(userAddr,CONTRACTS.HUB);
+    if(allowance.lt(total)){
+      const appTx=await realmToken.approve(CONTRACTS.HUB,ethers.constants.MaxUint256);
+      await appTx.wait(1);
+    }
+    const rewardsAllowance=await realmToken.allowance(userAddr,CONTRACTS.REWARDS);
+    if(rewardsAllowance.lt(fee)){
+      const appTx2=await realmToken.approve(CONTRACTS.REWARDS,ethers.constants.MaxUint256);
+      await appTx2.wait(1);
+    }
+    
+    const tx=await hubC.joinGame(id,{gasLimit:500000});
+    showToast('⏳ Joining...','info');
+    await tx.wait();
+    showToast('✅ Joined!','success');
+    loadGame(id);loadPendingGames();loadMyGames();
+  }catch(e){showToast('❌ '+(e.reason||e.message),'error')}
+}
+
+async function checkGameStateChanged(){
+  if(!hubC||!currentGameId||isLoadingGame)return;
+  try{
+    const g=await hubC.games(currentGameId);
+    const newState=`${g.fen}|${Number(g.turn)}|${g.active}|${g.player2}`;
+    if(lastGameState&&newState!==lastGameState){
+      lastGameState=newState;
+      checkersBoard=null;gameEngine=null;
+      await loadGame(currentGameId);
+    }else if(!lastGameState){lastGameState=newState}
+  }catch(e){}
+}
+
+async function loadGame(id){
+  if(!hubC||isLoadingGame)return;
+  isLoadingGame=true;
+  try{
+    currentGameId=id;
+    const g=await hubC.games(id);
+    currentGame=g;isAIGame=g.isAI;
+    let fen=g.fen;
+    if(!fen||fen==='')fen=await hubC.getInitialFen(g.gameType);
+    document.getElementById('gameCanvas').style.display='none';
+    document.getElementById('boardContainer').style.display='none';
+    if(g.gameType==='chess')await loadChessGame(id,g,fen);
+    else if(g.gameType==='checkers')await loadCheckersGame(id,g,fen);
+    document.getElementById('forfeitBtn').disabled=false;
+    document.getElementById('shareBtn').disabled=false;
+    switchView('play',document.querySelector('.nav-item'));
+  }catch(e){showToast('❌ Error loading game: '+(e.reason||e.message),'error')}
+  finally{isLoadingGame=false}
+}
+
+async function forfeitGame(){
+  if(!hubC||!userAddr||!currentGameId)return showToast('No game loaded','error');
+  try{
+    const tx=await hubC.forfeitGame(currentGameId,{gasLimit:500000});
+    showToast('⏳ Forfeiting...','info');await tx.wait();
+    showToast('✅ Forfeited','success');
+    currentGameId=null;loadPendingGames();loadMyGames();
+  }catch(e){showToast('❌ '+(e.reason||e.message),'error')}
+}
+
+function shareGame(){
+  if(!currentGameId)return;
+  const url=window.location.href.split('?')[0]+'?game='+currentGameId;
+  navigator.clipboard.writeText(url);
+  showToast('✅ Link copied!','success');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CHESS [Same as before - truncated for space]
+// ══════════════════════════════════════════════════════════════════════════
+async function loadChessGame(id,g,fen){
+  gameEngine=new Chess(fen);
+  const turnColor=fen.split(' ')[1];
+  const amCreator=g.creator.toLowerCase()===userAddr.toLowerCase();
+  isMyTurn=isAIGame?turnColor==='w':(turnColor==='w'&&amCreator)||(turnColor==='b'&&!amCreator);
+  document.getElementById('gameInfo').innerHTML=`Game #${id} · CHESS · ${ethers.utils.formatEther(g.stake)} REALM<br><span class="${isMyTurn?'my-turn':'opp-turn'}">${isMyTurn?'🟢 YOUR TURN':'⏳ Opponent'}</span>`;
+  renderChessBoard();
+  if(isAIGame&&!isMyTurn&&!gameEngine.game_over()&&!aiInProgress)setTimeout(()=>makeChessAI(),1500);
+}
+
+function renderChessBoard(){
+  if(!gameEngine)return;
+  const cont=document.getElementById('boardContainer');
+  const grid=document.getElementById('boardGrid');
+  cont.style.display='block';grid.innerHTML='';
+  const board=gameEngine.board();
+  for(let r=0;r<8;r++){
+    for(let c=0;c<8;c++){
+      const sq=document.createElement('div');
+      sq.className=`sq ${(r+c)%2===0?'light':'dark'}`;
+      sq.dataset.r=r;sq.dataset.c=c;
+      sq.onclick=()=>selectChessSq(r,c);
+      const piece=board[r][c];
+      if(piece){
+        const span=document.createElement('span');
+        const key=piece.color==='w'?piece.type.toUpperCase():piece.type;
+        span.className=`cp ${piece.color==='w'?'w':'b'}`;
+        span.textContent=PIECE_UC[key]||'?';
+        sq.appendChild(span);
+      }
+      grid.appendChild(sq);
+    }
+  }
+}
+
+function selectChessSq(r,c){
+  if(!gameEngine||!isMyTurn){if(!isMyTurn)showToast('Not your turn!','error');return}
+  const files='abcdefgh';
+  const sq=files[c]+(8-r);
+  if(!moveFrom){
+    const piece=gameEngine.get(sq);
+    if(!piece)return;
+    const turnColor=gameEngine.fen().split(' ')[1];
+    if(piece.color!==turnColor)return showToast('Not your piece!','error');
+    moveFrom=sq;
+    document.querySelectorAll('.sq').forEach(s=>s.classList.remove('selected','possible'));
+    document.querySelector(`[data-r="${r}"][data-c="${c}"]`).classList.add('selected');
+    gameEngine.moves({square:sq,verbose:true}).forEach(m=>{
+      const tc=m.to.charCodeAt(0)-97;const tr=8-parseInt(m.to[1]);
+      const target=document.querySelector(`[data-r="${tr}"][data-c="${tc}"]`);
+      if(target)target.classList.add('possible');
+    });
+  }else{makeChessMove(sq)}
+}
+
+async function makeChessMove(to){
+  if(!moveFrom||!hubC||!currentGameId)return;
+  if(moveFrom===to){moveFrom=null;document.querySelectorAll('.sq').forEach(s=>s.classList.remove('selected','possible'));return}
+  const testMove=gameEngine.move({from:moveFrom,to,promotion:'q'});
+  if(!testMove){
+    showToast('Invalid move!','error');
+    moveFrom=null;document.querySelectorAll('.sq').forEach(s=>s.classList.remove('selected','possible'));
+    return;
+  }
+  const moveStr=moveFrom+to;
+  let newFen=gameEngine.fen();
+  if(gameEngine.in_checkmate()||!newFen.includes('K')||!newFen.includes('k'))newFen+='#';
+  renderChessBoard();
+  showToast('⏳ Submitting...','info');
+  try{
+    const tx=await hubC.makeMove(currentGameId,moveStr,newFen,{gasLimit:600000});
+    await tx.wait();
+    moveFrom=null;document.querySelectorAll('.sq').forEach(s=>s.classList.remove('selected','possible'));
+    showToast('✅ Move confirmed!','success');
+    await new Promise(r=>setTimeout(r,1500));
+    await loadGame(currentGameId);
+  }catch(e){
+    gameEngine.undo();moveFrom=null;
+    document.querySelectorAll('.sq').forEach(s=>s.classList.remove('selected','possible'));
+    renderChessBoard();showToast('❌ '+(e.reason||e.message),'error');
+  }
+}
+
+async function makeChessAI(){
+  if(!gameEngine||!currentGame?.isAI||isMyTurn||gameEngine.game_over()||aiInProgress)return;
+  aiInProgress=true;
+  document.getElementById('aiThinking').style.display='block';
+  try{
+    await new Promise(r=>setTimeout(r,1500));
+    const best=getBestMove(gameEngine,2);
+    if(!best){aiInProgress=false;document.getElementById('aiThinking').style.display='none';return}
+    const move=gameEngine.move(best);
+    if(!move){aiInProgress=false;document.getElementById('aiThinking').style.display='none';return}
+    let newFen=gameEngine.fen();
+    if(gameEngine.in_checkmate()||!newFen.includes('K')||!newFen.includes('k'))newFen+='#';
+    const tx=await hubC.makeMove(currentGameId,best.from+best.to,newFen,{gasLimit:600000});
+    await tx.wait();
+    showToast('✅ AI moved!','info');
+    await new Promise(r=>setTimeout(r,1500));
+    await loadGame(currentGameId);
+  }catch(e){if(gameEngine)gameEngine.undo();showToast('❌ AI failed','error')}
+  finally{aiInProgress=false;document.getElementById('aiThinking').style.display='none'}
+}
+
+function getBestMove(chess,depth){
+  const moves=chess.moves({verbose:true});
+  if(!moves.length)return null;
+  let best=moves[0],bestVal=-9999;
+  for(const m of moves){
+    chess.move(m);
+    const v=-minimax(chess,depth-1,-10000,10000,false);
+    chess.undo();
+    if(v>bestVal){bestVal=v;best=m}
+  }
+  return best;
+}
+function minimax(chess,depth,alpha,beta,isMax){
+  if(!depth)return evalBoard(chess.board());
+  const moves=chess.moves({verbose:true});
+  if(!moves.length)return chess.in_checkmate()?(isMax?-9999:9999):0;
+  if(isMax){let max=-10000;for(const m of moves){chess.move(m);const e=minimax(chess,depth-1,alpha,beta,false);chess.undo();max=Math.max(max,e);alpha=Math.max(alpha,e);if(beta<=alpha)break}return max}
+  else{let min=10000;for(const m of moves){chess.move(m);const e=minimax(chess,depth-1,alpha,beta,true);chess.undo();min=Math.min(min,e);beta=Math.min(beta,e);if(beta<=alpha)break}return min}
+}
+function evalBoard(board){let total=0;for(let i=0;i<8;i++)for(let j=0;j<8;j++){const p=board[i][j];if(p){const v=PIECE_VAL[p.type.toLowerCase()]||0;const sign=p.color==='w'?1:-1;total+=sign*v}}return total}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CHECKERS [Same as before - truncated]
+// ══════════════════════════════════════════════════════════════════════════
+async function loadCheckersGame(id,g,fen){
+  checkersBoard=null;checkersSelected=null;
+  initCheckersBoard(fen);
+  const amCreator=g.creator.toLowerCase()===userAddr.toLowerCase();
+  const turn=Number(g.turn);
+  isMyTurn=g.isAI?(turn===0):(turn===0&&amCreator)||(turn===1&&!amCreator);
+  renderCheckersBoard();
+  document.getElementById('gameInfo').innerHTML=`Game #${id} · CHECKERS · ${ethers.utils.formatEther(g.stake)} REALM<br><span class="${isMyTurn?'my-turn':'opp-turn'}">${isMyTurn?'🟢 YOUR TURN':'⏳ Opponent'}</span>`;
+  if(g.isAI&&!isMyTurn&&g.active&&!aiInProgress)setTimeout(()=>makeCheckersAI(),1500);
+}
+
+function initCheckersBoard(fen){
+  checkersBoard=[];
+  for(let i=0;i<8;i++)checkersBoard[i]=new Array(8).fill(0);
+  if(fen&&fen!==''&&fen!=='undefined'){
+    try{
+      const rows=fen.split(' ')[0].split('/');
+      let cnt=0;
+      for(const row of rows)for(const c of row)if('bwBW'.includes(c))cnt++;
+      if(cnt>0&&rows.length===8){
+        for(let r=0;r<8;r++){
+          let col=0;const row=rows[r]||'';
+          for(const c of row){
+            if(c>='0'&&c<='9')col+=parseInt(c);
+            else if(col<8){
+              if(c==='b')checkersBoard[r][col]=1;
+              else if(c==='w')checkersBoard[r][col]=2;
+              else if(c==='B')checkersBoard[r][col]=3;
+              else if(c==='W')checkersBoard[r][col]=4;
+              col++;
+            }
+          }
+        }
+        return;
+      }
+    }catch(e){}
+  }
+  for(let r=0;r<3;r++)for(let c=0;c<8;c++)if((r+c)%2===1)checkersBoard[r][c]=1;
+  for(let r=5;r<8;r++)for(let c=0;c<8;c++)if((r+c)%2===1)checkersBoard[r][c]=2;
+}
+
+function renderCheckersBoard(){
+  const cont=document.getElementById('boardContainer');
+  const grid=document.getElementById('boardGrid');
+  cont.style.display='block';grid.innerHTML='';
+  for(let r=0;r<8;r++){
+    for(let c=0;c<8;c++){
+      const sq=document.createElement('div');
+      sq.className=`sq ${(r+c)%2===0?'light':'dark'}`;
+      sq.dataset.r=r;sq.dataset.c=c;
+      sq.onclick=()=>selectCheckersSq(r,c);
+      const piece=checkersBoard[r][c];
+      if(piece>0){
+        const p=document.createElement('div');
+        p.className=`ck ${(piece===2||piece===4)?'red':'blk'}`;
+        if(piece>=3)p.innerHTML='<span style="color:#FFD700;font-size:18px">♔</span>';
+        sq.appendChild(p);
+      }
+      grid.appendChild(sq);
+    }
+  }
+}
+
+function selectCheckersSq(r,c){
+  if(!isMyTurn)return showToast('Not your turn!','error');
+  const piece=checkersBoard[r][c];
+  const amCreator=currentGame.creator.toLowerCase()===userAddr.toLowerCase();
+  const mine=amCreator?[2,4]:[1,3];
+  if(!checkersSelected){
+    if(!piece||!mine.includes(piece))return;
+    checkersSelected={r,c};
+    document.querySelectorAll('.sq').forEach(s=>{s.classList.remove('selected','possible');s.style.boxShadow=''});
+    const sel=document.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+    if(sel){sel.classList.add('selected');sel.style.boxShadow='inset 0 0 0 3px #FFD700'}
+  }else{
+    const {r:fr,c:fc}=checkersSelected;
+    if(r===fr&&c===fc){checkersSelected=null;document.querySelectorAll('.sq').forEach(s=>{s.classList.remove('selected','possible');s.style.boxShadow=''});return}
+    if(mine.includes(piece)){
+      checkersSelected={r,c};
+      document.querySelectorAll('.sq').forEach(s=>{s.classList.remove('selected','possible');s.style.boxShadow=''});
+      const sel=document.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+      if(sel){sel.classList.add('selected');sel.style.boxShadow='inset 0 0 0 3px #FFD700'}
+      return;
+    }
+    if(piece===0)makeCheckersMove(fr,fc,r,c);
+  }
+}
+
+async function makeCheckersMove(fr,fc,tr,tc){
+  const rDiff=Math.abs(tr-fr),cDiff=Math.abs(tc-fc);
+  if(rDiff!==cDiff||(rDiff!==1&&rDiff!==2))return showToast('Invalid move!','error');
+  const isJump=rDiff===2;
+  checkersBoard[tr][tc]=checkersBoard[fr][fc];
+  checkersBoard[fr][fc]=0;
+  if(isJump){const cr=Math.floor((fr+tr)/2),cc=Math.floor((fc+tc)/2);checkersBoard[cr][cc]=0}
+  const amCreator=currentGame.creator.toLowerCase()===userAddr.toLowerCase();
+  if(amCreator&&tr===0&&checkersBoard[tr][tc]===2)checkersBoard[tr][tc]=4;
+  if(!amCreator&&tr===7&&checkersBoard[tr][tc]===1)checkersBoard[tr][tc]=3;
+  checkersSelected=null;
+  document.querySelectorAll('.sq').forEach(s=>{s.classList.remove('selected','possible');s.style.boxShadow=''});
+  renderCheckersBoard();
+  const newFen=checkersToFen();
+  const moveStr=`${fr},${fc}-${tr},${tc}`;
+  showToast('⏳ Submitting...','info');
+  try{
+    const tx=await hubC.makeMove(currentGameId,moveStr,newFen,{gasLimit:600000});
+    await tx.wait();
+    showToast('✅ Confirmed!','success');
+    lastGameState=null;
+    await new Promise(r=>setTimeout(r,1500));
+    await loadGame(currentGameId);
+  }catch(e){showToast('❌ '+(e.reason||e.message),'error');lastGameState=null;setTimeout(()=>loadGame(currentGameId),1000)}
+}
+
+async function makeCheckersAI(){
+  if(!currentGame?.isAI||isMyTurn||aiInProgress)return;
+  aiInProgress=true;
+  document.getElementById('aiThinking').style.display='block';
+  try{
+    await new Promise(r=>setTimeout(r,1500));
+    const aiPieces=[1,3];let moves=[];
+    for(let fr=0;fr<8;fr++)for(let fc=0;fc<8;fc++){
+      const piece=checkersBoard[fr][fc];
+      if(!aiPieces.includes(piece))continue;
+      const isKing=piece===3;
+      const dirs=isKing?[[-1,-1],[-1,1],[1,-1],[1,1]]:[[1,-1],[1,1]];
+      dirs.forEach(([dr,dc])=>{
+        const nr=fr+dr,nc=fc+dc;
+        if(nr>=0&&nr<8&&nc>=0&&nc<8){
+          if(!checkersBoard[nr][nc])moves.push({fr,fc,tr:nr,tc:nc,isJump:false});
+          const jr=fr+dr*2,jc=fc+dc*2;
+          if(jr>=0&&jr<8&&jc>=0&&jc<8&&[2,4].includes(checkersBoard[nr][nc])&&!checkersBoard[jr][jc])
+            moves.push({fr,fc,tr:jr,tc:jc,isJump:true});
+        }
+      });
+    }
+    if(!moves.length){aiInProgress=false;document.getElementById('aiThinking').style.display='none';return}
+    const jumps=moves.filter(m=>m.isJump);
+    const move=jumps.length?jumps[Math.floor(Math.random()*jumps.length)]:moves[Math.floor(Math.random()*moves.length)];
+    const {fr,fc,tr,tc}=move;
+    checkersBoard[tr][tc]=checkersBoard[fr][fc];checkersBoard[fr][fc]=0;
+    if(move.isJump){const cr=Math.floor((fr+tr)/2),cc=Math.floor((fc+tc)/2);checkersBoard[cr][cc]=0}
+    if(tr===7&&checkersBoard[tr][tc]===1)checkersBoard[tr][tc]=3;
+    renderCheckersBoard();
+    const tx=await hubC.makeMove(currentGameId,`${fr},${fc}-${tr},${tc}`,checkersToFen(),{gasLimit:600000});
+    await tx.wait();
+    showToast('✅ AI moved!','success');
+    lastGameState=null;
+    await new Promise(r=>setTimeout(r,1500));
+    await loadGame(currentGameId);
+  }catch(e){showToast('❌ AI failed','error');lastGameState=null}
+  finally{aiInProgress=false;document.getElementById('aiThinking').style.display='none'}
+}
+
+function checkersToFen(){
+  let fen='';
+  for(let r=0;r<8;r++){
+    let empty=0;
+    for(let c=0;c<8;c++){
+      const p=checkersBoard[r][c];
+      if(!p)empty++;
+      else{if(empty){fen+=empty;empty=0}fen+=['','b','w','B','W'][p]}
+    }
+    if(empty)fen+=empty;
+    if(r<7)fen+='/';
+  }
+  return fen+' b';
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════
+window.addEventListener('load',()=>{
+  const params=new URLSearchParams(window.location.search);
+  const gameId=params.get('game');
+  if(gameId&&window.ethereum){
+    connectWallet().then(()=>setTimeout(()=>loadGame(parseInt(gameId)),1000));
+  }
+});
+
+console.log(`
+╔══════════════════════════════════════════════════════════════════╗
+║   CROSSREALM v2.1 — PROPERLY WIRED TO DEPLOYED CONTRACTS        ║
+║   Hub:    ${CONTRACTS.HUB.slice(0,10)}...                                  ║
+║   Token:  ${CONTRACTS.REALM_TOKEN.slice(0,10)}...                          ║
+║   ✅ REALM payments (stake + 5% fee)                            ║
+║   ✅ Proper approval flow                                       ║
+║   ✅ Full 8-parameter createGame()                              ║
+║   ✅ Matching actual deployed ABIs                              ║
+╚══════════════════════════════════════════════════════════════════╝
+`);
+</script>
+</body>
+</html>
