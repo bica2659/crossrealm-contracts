@@ -1141,6 +1141,12 @@ const GATEWAY_ABI = [
   'function totalRealmSold() view returns (uint256)',
   'function MIN_PURCHASE() view returns (uint256)',
   'function MAX_PURCHASE() view returns (uint256)',
+  'function setRate(uint256 _rate) external',
+  'function owner() view returns (address)',
+  'function paused() view returns (bool)',
+  'function pause() external',
+  'function unpause() external',
+  'function withdrawReserve(address _to, uint256 _amount) external',
 ];
 
 // CrossChainBridge — LayerZero
@@ -2853,7 +2859,7 @@ function setQuickRate(multiplier) {
 
 async function updateGatewayRate() {
   if (!isOwner) return showToast('Only contract owner can update rate', 'error');
-  if (!gatewayC) return showToast('Gateway contract not loaded', 'error');
+  if (!signer) return showToast('Wallet not connected', 'error');
   
   const newRateInput = document.getElementById('newGatewayRate').value;
   if (!newRateInput || parseFloat(newRateInput) <= 0) {
@@ -2861,11 +2867,15 @@ async function updateGatewayRate() {
   }
   
   try {
+    // Create writable contract instance with signer
+    const ADMIN_ABI = ['function setRate(uint256 _rate) external'];
+    const gatewayAdmin = new ethers.Contract(CONTRACTS.TOKEN_GATEWAY, ADMIN_ABI, signer);
+    
     const newRate = ethers.utils.parseEther(newRateInput);
     
     showToast('⏳ Updating Gateway rate...', 'info');
     
-    const tx = await gatewayC.setRate(newRate, { gasLimit: 150000 });
+    const tx = await gatewayAdmin.setRate(newRate, { gasLimit: 150000 });
     await tx.wait();
     
     showToast(`✅ Gateway rate updated to ${newRateInput} REALM per CORE!`, 'success');
