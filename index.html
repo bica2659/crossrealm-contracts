@@ -1238,6 +1238,8 @@ let isLoadingGame  = false;
 let lastGameState  = null;
 let chatPollInterval   = null;
 let autoRefreshInterval = null;
+let lastGameState = null; // Track game state for change detection
+let isLoadingGame = false; // Prevent duplicate loads
 
 // Pool / Penalty state
 let poolCanvas, poolCtx, cueBall, balls = [], cueStick = {}, isAiming = false, isShooting = false;
@@ -1289,15 +1291,43 @@ async function toggleWallet() {
 
 async function connectWallet() {
   try {
-    if (!window.ethereum) throw new Error('Please install MetaMask or a Web3 wallet');
+    // Detect wallet provider (desktop or mobile)
+    let ethereum = window.ethereum;
+    
+    // Mobile wallet detection
+    if (!ethereum) {
+      // Check for Trust Wallet
+      if (window.trustwallet) ethereum = window.trustwallet;
+      // Check for Coinbase Wallet
+      else if (window.coinbaseWalletExtension) ethereum = window.coinbaseWalletExtension;
+      // Check for injected providers array (some mobile wallets)
+      else if (window.ethereum) ethereum = window.ethereum;
+    }
+    
+    if (!ethereum) {
+      // On mobile, provide deep link options
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        showToast('📱 Opening MetaMask...', 'info');
+        const currentUrl = encodeURIComponent(window.location.href);
+        const metamaskDeepLink = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`;
+        window.location.href = metamaskDeepLink;
+        return;
+      } else {
+        throw new Error('Please install MetaMask or a Web3 wallet');
+      }
+    }
+    
     // Switch/add Core network
     try {
-      await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CORE_NET.chainId }] });
+      await ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CORE_NET.chainId }] });
     } catch (e) {
-      if (e.code === 4902) await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [CORE_NET] });
-      else throw e;
+      if (e.code === 4902) {
+        await ethereum.request({ method: 'wallet_addEthereumChain', params: [CORE_NET] });
+      } else throw e;
     }
-    provider = new ethers.providers.Web3Provider(window.ethereum);
+    
+    provider = new ethers.providers.Web3Provider(ethereum);
     await provider.send('eth_requestAccounts', []);
     signer   = provider.getSigner();
     userAddr = await signer.getAddress();
@@ -1338,6 +1368,7 @@ async function connectWallet() {
     if (gameId) setTimeout(() => loadGame(parseInt(gameId)), 1200);
 
   } catch (e) {
+    console.error('❌ Wallet connection error:', e);
     showToast('❌ Connection failed: ' + e.message, 'error');
   }
 }
@@ -1700,9 +1731,20 @@ async function makeChessMove(to) {
 
   renderChessBoard();
   showToast('⏳ Submitting move…', 'info');
+  
+  console.log('🎮 Chess Move Details:', {
+    gameId: currentGameId,
+    from: moveFrom,
+    to: to,
+    moveStr: moveStr,
+    newFen: newFen
+  });
+  
   try {
     const tx = await hubC.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
+    console.log('✅ Transaction sent:', tx.hash);
     await tx.wait();
+    console.log('✅ Transaction confirmed!');
     moveFrom = null;
     document.querySelectorAll('.sq').forEach(s => s.classList.remove('selected', 'possible'));
     showToast('✅ Move confirmed!', 'success');
@@ -1710,10 +1752,17 @@ async function makeChessMove(to) {
     await new Promise(r => setTimeout(r, 1500));
     await loadGame(currentGameId);
   } catch (e) {
+    console.error('❌ Chess move transaction failed:', e);
+    console.error('Error details:', {
+      message: e.message,
+      code: e.code,
+      reason: e.reason,
+      data: e.data
+    });
     gameEngine.undo(); moveFrom = null;
     document.querySelectorAll('.sq').forEach(s => s.classList.remove('selected', 'possible'));
     renderChessBoard();
-    showToast('❌ ' + (e.reason || e.message), 'error');
+    showToast('❌ Transaction failed: ' + (e.reason || e.message || 'Unknown error'), 'error');
   }
 }
 
@@ -1914,15 +1963,33 @@ async function submitCheckersMove(fr, fc, tr, tc) {
   const newFen   = checkersToFen();
   const moveStr  = `${fr},${fc}-${tr},${tc}`;
   showToast('⏳ Submitting move…', 'info');
+  
+  console.log('🎯 Checkers Move Details:', {
+    gameId: currentGameId,
+    from: `(${fr},${fc})`,
+    to: `(${tr},${tc})`,
+    moveStr: moveStr,
+    newFen: newFen
+  });
+  
   try {
     const tx = await hubC.makeMove(currentGameId, moveStr, newFen, { gasLimit: 600000 });
+    console.log('✅ Transaction sent:', tx.hash);
     await tx.wait();
+    console.log('✅ Transaction confirmed!');
     showToast('✅ Move confirmed!', 'success');
     lastGameState = null;
     await new Promise(r => setTimeout(r, 1500));
     await loadGame(currentGameId);
   } catch (e) {
-    showToast('❌ ' + (e.reason || e.message), 'error');
+    console.error('❌ Checkers move transaction failed:', e);
+    console.error('Error details:', {
+      message: e.message,
+      code: e.code,
+      reason: e.reason,
+      data: e.data
+    });
+    showToast('❌ Transaction failed: ' + (e.reason || e.message || 'Unknown error'), 'error');
     lastGameState = null; setTimeout(() => loadGame(currentGameId), 1000);
   }
 }
@@ -3096,13 +3163,18 @@ document.addEventListener('keypress', e => {
   if (e.key === 'Enter' && document.activeElement === document.getElementById('chatInput')) sendChatMessage();
 });
 
-// Account change handling
-if (window.ethereum) {
-  window.ethereum.on('accountsChanged', async (accounts) => {
-    if (accounts.length === 0) disconnectWallet();
-    else if (isConnected) { await connectWallet(); }
-  });
-  window.ethereum.on('chainChanged', () => { window.location.reload(); });
+// Account change handling - support mobile wallets
+const walletProvider = window.ethereum || window.trustwallet || window.coinbaseWalletExtension;
+if (walletProvider) {
+  try {
+    walletProvider.on('accountsChanged', async (accounts) => {
+      if (accounts.length === 0) disconnectWallet();
+      else if (isConnected) { await connectWallet(); }
+    });
+    walletProvider.on('chainChanged', () => { window.location.reload(); });
+  } catch(e) {
+    console.log('Wallet event listeners not available (mobile wallet may handle differently)');
+  }
 }
 
 console.log(`
