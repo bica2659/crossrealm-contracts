@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#080810">
 <title>CrossRealm • On-Chain Gaming</title>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
@@ -318,27 +322,144 @@ label input[type=checkbox]{width:auto;margin:0}
 
 /* ═══════════════════ MOBILE ═══════════════════ */
 @media(max-width:768px){
-  .app{grid-template-columns:1fr;grid-template-rows:56px 60px 1fr}
+  /* Mobile app layout - stack everything vertically */
+  .app{grid-template-columns:1fr;grid-template-rows:56px auto 1fr;height:100vh;overflow:hidden}
+  
+  /* Show toggle icon on mobile */
+  .mobile-toggle{display:inline-block!important}
+  
+  /* Card content can be collapsed */
+  .card-content{display:block;transition:all .3s ease}
+  
+  /* Horizontal scrollable navigation */
   .sidebar{
     flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:8px 4px;
     border-right:none;border-bottom:1px solid var(--border);
     scrollbar-width:none;-ms-overflow-style:none;
+    white-space:nowrap;
   }
   .sidebar::-webkit-scrollbar{display:none}
-  .sidebar-section{display:flex;gap:4px;padding:0 4px;margin:0;flex-shrink:0}
+  .sidebar-section{display:inline-flex;gap:4px;padding:0 4px;margin:0;flex-shrink:0;vertical-align:top}
   .sidebar-label{display:none}
-  .sdivider{width:1px;height:40px;background:var(--border);margin:0 8px;flex-shrink:0}
-  .nav-item{flex-direction:column;gap:3px;padding:8px;min-width:60px;text-align:center;font-size:9px;flex-shrink:0}
+  .sdivider{width:1px;height:40px;background:var(--border);margin:0 8px;flex-shrink:0;display:inline-block;vertical-align:top}
+  .nav-item{flex-direction:column;gap:3px;padding:8px;min-width:60px;text-align:center;font-size:9px;flex-shrink:0;display:inline-flex}
   .nav-item .ni{font-size:18px;width:auto}
   .nbadge{margin:0}
-  .play-layout,.discovery-layout,.rooms-layout,.bridge-grid{grid-template-columns:1fr}
-  .play-sidebar,.discovery-panel,.rooms-sidebar{border:none;border-bottom:1px solid var(--border);max-height:none}
+  
+  /* Main content area - full screen */
+  .main{overflow-y:auto;-webkit-overflow-scrolling:touch;height:100%}
+  .view-scroll{padding:12px;overflow-y:auto;height:100%}
+  
+  /* Play layout - stack sidebar on top, then game area */
+  .play-layout{
+    display:flex;flex-direction:column;height:100%;overflow:hidden;
+  }
+  .play-sidebar{
+    border:none;border-bottom:1px solid var(--border);
+    overflow-y:auto;max-height:50vh;padding:12px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .game-area{
+    flex:1;overflow-y:auto;padding:12px;
+    -webkit-overflow-scrolling:touch;
+  }
+  
+  /* Cards - full width on mobile */
+  .card{padding:16px;margin-bottom:12px}
+  .card h3{font-size:11px;margin-bottom:12px}
+  
+  /* Forms - bigger touch targets */
+  input,select,textarea{
+    font-size:16px;padding:12px;margin-bottom:10px;
+  }
+  .btn{padding:14px 20px;font-size:12px}
+  .btn-sm{padding:10px 16px;font-size:11px}
+  
+  /* Board - centered and responsive */
+  .board-wrap{
+    width:calc(100vw - 32px);max-width:400px;
+    margin:16px auto;
+  }
+  .board-grid{
+    width:100%;max-width:400px;min-width:280px;
+  }
+  
+  /* Game info - stack vertically */
+  .game-info-bar{font-size:11px;padding:8px;margin:8px 0}
+  
+  /* Discovery, Rooms, Bridge - single column */
+  .discovery-layout,.rooms-layout,.bridge-grid{
+    display:flex;flex-direction:column;height:100%;overflow:hidden;
+  }
+  .discovery-panel,.rooms-sidebar{
+    border:none;border-bottom:1px solid var(--border);
+    max-height:40vh;overflow-y:auto;padding:12px;
+  }
+  .discovery-main{flex:1;overflow-y:auto;padding:12px}
+  
+  /* Grids - single column */
   .grid2,.grid3,.chain-select-grid{grid-template-columns:1fr}
-  .main{overflow-y:auto;-webkit-overflow-scrolling:touch}
-  .view-scroll{padding:16px}
+  
+  /* Toast - smaller on mobile */
+  .toast{max-width:90vw;font-size:11px;padding:10px 16px}
+  
+  /* Modal - full width on mobile */
+  .modal{width:calc(100vw - 32px);padding:20px;max-height:80vh}
+  
+  /* Player cards - compact */
+  .player-card{padding:10px;font-size:11px}
+  .player-avatar{width:32px;height:32px;font-size:14px}
+  
+  /* Stats - smaller */
+  .stat-card{padding:16px}
+  .stat-card .sv{font-size:24px}
+  
+  /* Hide some labels on mobile to save space */
+  .field-label{font-size:8px;margin-bottom:4px}
+  
+  /* Topbar - compact */
+  .logo{font-size:16px;letter-spacing:2px}
+  .net-badge{font-size:8px;padding:3px 8px}
+  .realm-balance{font-size:11px}
+  .wallet-addr{font-size:10px}
+  .connect-btn{font-size:9px;padding:8px 14px}
+  
+  /* Better spacing for mobile */
+  .vhead{padding:16px 12px 14px}
+  .vtitle{font-size:18px}
+  .vsub{font-size:9px}
+  
+  /* Game scroll lists - max height */
+  .game-scroll{max-height:200px}
+  
+  /* Ensure proper stacking */
+  .play-sidebar > *{position:relative;z-index:1}
+  
+  /* Fix overlapping issues */
+  .nav-item.active{z-index:2}
+  
+  /* Better touch targets */
+  .sq{min-height:35px;min-width:35px}
+  
+  /* Chat area - full height */
+  .chat-area{height:100%;display:flex;flex-direction:column}
+  .messages-area{flex:1;min-height:300px}
 }
+
+/* Prevent horizontal scroll on entire page */
+body{overflow-x:hidden;max-width:100vw}
+html{overflow-x:hidden;max-width:100vw}
+
+/* Better touch interactions */
 *{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 button,.sq,.room-item,.nav-item,.game-item,.player-card{-webkit-user-select:none;user-select:none}
+
+/* iOS Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+  .app{height:-webkit-fill-available}
+  input,select,textarea{font-size:16px!important} /* Prevent zoom on focus */
+}
+
 </style>
 </head>
 <body>
@@ -395,31 +516,36 @@ button,.sq,.room-item,.nav-item,.game-item,.player-card{-webkit-user-select:none
 <div id="view-play" class="view active">
   <div class="play-layout">
     <div class="play-sidebar">
-      <div class="card">
-        <h3>➕ Create Game</h3>
-        <span class="field-label">Game Type</span>
-        <select id="gameType">
-          <option value="chess">♟️ Chess</option>
-          <option value="checkers">🎯 Checkers</option>
-          <option value="8ball">🎱 8-Ball Pool</option>
-          <option value="penalties">⚽ Penalty Shootout</option>
-        </select>
-        <span class="field-label">Stake (REALM)</span>
-        <input type="number" id="stakeAmount" value="10" min="1" step="1">
-        <span class="field-label">Challenge Window (seconds)</span>
-        <select id="challengeWindow">
-          <option value="60">60s — Fast</option>
-          <option value="180" selected>180s — Standard</option>
-          <option value="600">600s — Careful</option>
-          <option value="3600">3600s — Slow</option>
-        </select>
-        <div class="info-box">
-          💰 <strong>Cost:</strong> Stake + 2.5% fee in REALM<br>
-          <strong>Winner:</strong> Both stakes minus fees 🏆
+      <div class="card" id="createGameCard">
+        <h3 onclick="toggleMobileCard('createGameCard')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between">
+          <span>➕ Create Game</span>
+          <span class="mobile-toggle" style="font-size:20px;display:none">▼</span>
+        </h3>
+        <div class="card-content">
+          <span class="field-label">Game Type</span>
+          <select id="gameType">
+            <option value="chess">♟️ Chess</option>
+            <option value="checkers">🎯 Checkers</option>
+            <option value="8ball">🎱 8-Ball Pool</option>
+            <option value="penalties">⚽ Penalty Shootout</option>
+          </select>
+          <span class="field-label">Stake (REALM)</span>
+          <input type="number" id="stakeAmount" value="10" min="1" step="1">
+          <span class="field-label">Challenge Window (seconds)</span>
+          <select id="challengeWindow">
+            <option value="60">60s — Fast</option>
+            <option value="180" selected>180s — Standard</option>
+            <option value="600">600s — Careful</option>
+            <option value="3600">3600s — Slow</option>
+          </select>
+          <div class="info-box">
+            💰 <strong>Cost:</strong> Stake + 2.5% fee in REALM<br>
+            <strong>Winner:</strong> Both stakes minus fees 🏆
+          </div>
+          <label><input type="checkbox" id="isPrivate"> 🔒 Private Game</label>
+          <label><input type="checkbox" id="isAI" checked> 🤖 vs AI (instant)</label>
+          <button class="btn" onclick="createGame()">Create Game</button>
         </div>
-        <label><input type="checkbox" id="isPrivate"> 🔒 Private Game</label>
-        <label><input type="checkbox" id="isAI" checked> 🤖 vs AI (instant)</label>
-        <button class="btn" onclick="createGame()">Create Game</button>
       </div>
       <div class="card">
         <h3>🌐 Available Games</h3>
@@ -1238,6 +1364,8 @@ let isLoadingGame  = false;
 let lastGameState  = null;
 let chatPollInterval   = null;
 let autoRefreshInterval = null;
+let lastGameState = null; // Track game state for change detection
+let isLoadingGame = false; // Prevent duplicate loads
 
 // Pool / Penalty state
 let poolCanvas, poolCtx, cueBall, balls = [], cueStick = {}, isAiming = false, isShooting = false;
@@ -3134,6 +3262,26 @@ PropertyNFT: ${CONTRACTS.PROPERTY_NFT}`;
   navigator.clipboard.writeText(addresses).then(() => {
     showToast('✅ All contract addresses copied!', 'success');
   });
+}
+
+// ═══════════════════════════════════════════════════════════
+// MOBILE CARD TOGGLE
+// ═══════════════════════════════════════════════════════════
+function toggleMobileCard(cardId) {
+  const isMobile = window.innerWidth <= 768;
+  if (!isMobile) return; // Only works on mobile
+  
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  
+  const content = card.querySelector('.card-content');
+  const toggle = card.querySelector('.mobile-toggle');
+  
+  if (content && toggle) {
+    const isCollapsed = content.style.display === 'none';
+    content.style.display = isCollapsed ? 'block' : 'none';
+    toggle.textContent = isCollapsed ? '▲' : '▼';
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
