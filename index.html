@@ -169,9 +169,17 @@ label input[type=checkbox]{width:auto;margin:0}
 .sq.selected{background:#cc6600!important;box-shadow:inset 0 0 0 3px #FFD700}
 .sq.possible::after{content:'';position:absolute;width:18px;height:18px;background:var(--green);border-radius:50%;opacity:.75;animation:pdot 1.5s infinite;box-shadow:0 0 10px var(--green)}
 .sq:hover{filter:brightness(1.15)}
-.cp{font-size:clamp(28px,4.5vw,42px);line-height:1;pointer-events:none;user-select:none;font-family:'Segoe UI Symbol','Noto Sans Symbols','Apple Color Emoji',sans-serif}
-.cp.w{color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000}
-.cp.b{color:#000;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff}
+.cp{
+  font-size:clamp(32px,5.5vw,48px);
+  line-height:1;
+  pointer-events:none;
+  user-select:none;
+  font-family:'Segoe UI Symbol','Noto Sans Symbols 2','Apple Color Emoji','Symbola','DejaVu Sans',sans-serif;
+  font-weight:400;
+  display:block;
+}
+.cp.w{color:#fff;text-shadow:-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,2px 2px 0 #000,0 0 8px rgba(0,0,0,.5)}
+.cp.b{color:#222;text-shadow:-2px -2px 0 #fff,2px -2px 0 #fff,-2px 2px 0 #fff,2px 2px 0 #fff,0 0 8px rgba(255,255,255,.3)}
 .ck{width:70%;height:70%;border-radius:50%;border:3px solid;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.6)}
 .ck.red{background:radial-gradient(circle at 30% 30%,#ff6b6b,#c92a2a);border-color:#8b0000;color:#fff}
 .ck.blk{background:radial-gradient(circle at 30% 30%,#555,#111);border-color:#000;color:#fff}
@@ -310,16 +318,24 @@ label input[type=checkbox]{width:auto;margin:0}
 
 /* ═══════════════════ MOBILE ═══════════════════ */
 @media(max-width:768px){
-  .app{grid-template-columns:1fr;grid-template-rows:56px auto 1fr}
-  .sidebar{flex-direction:row;overflow-x:auto;padding:8px;border-right:none;border-bottom:1px solid var(--border)}
-  .sidebar-section{display:flex;gap:4px;padding:0;margin:0}
-  .sidebar-label,.sdivider{display:none}
-  .nav-item{flex-direction:column;gap:3px;padding:8px;min-width:60px;text-align:center;font-size:9px}
+  .app{grid-template-columns:1fr;grid-template-rows:56px 60px 1fr}
+  .sidebar{
+    flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:8px 4px;
+    border-right:none;border-bottom:1px solid var(--border);
+    scrollbar-width:none;-ms-overflow-style:none;
+  }
+  .sidebar::-webkit-scrollbar{display:none}
+  .sidebar-section{display:flex;gap:4px;padding:0 4px;margin:0;flex-shrink:0}
+  .sidebar-label{display:none}
+  .sdivider{width:1px;height:40px;background:var(--border);margin:0 8px;flex-shrink:0}
+  .nav-item{flex-direction:column;gap:3px;padding:8px;min-width:60px;text-align:center;font-size:9px;flex-shrink:0}
   .nav-item .ni{font-size:18px;width:auto}
   .nbadge{margin:0}
   .play-layout,.discovery-layout,.rooms-layout,.bridge-grid{grid-template-columns:1fr}
   .play-sidebar,.discovery-panel,.rooms-sidebar{border:none;border-bottom:1px solid var(--border);max-height:none}
   .grid2,.grid3,.chain-select-grid{grid-template-columns:1fr}
+  .main{overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .view-scroll{padding:16px}
 }
 *{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 button,.sq,.room-item,.nav-item,.game-item,.player-card{-webkit-user-select:none;user-select:none}
@@ -1184,7 +1200,18 @@ const SOCIAL_CHAT_ABI = [
 // ═══════════════════════════════════════════════════════════
 // CHESS PIECES + VALUES
 // ═══════════════════════════════════════════════════════════
-const PIECE_UC  = {K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
+// Using emoji chess pieces for better cross-platform support
+const PIECE_UC  = {
+  K:'♔', Q:'♕', R:'♖', B:'♗', N:'♘', P:'♙',
+  k:'♚', q:'♛', r:'♜', b:'♝', n:'♞', p:'♟'
+};
+
+// Fallback to letters if Unicode fails
+const PIECE_LETTERS = {
+  K:'K', Q:'Q', R:'R', B:'B', N:'N', P:'P',
+  k:'k', q:'q', r:'r', b:'b', n:'n', p:'p'
+};
+
 const PIECE_VAL = {p:100,n:320,b:330,r:500,q:900,k:20000};
 
 // ═══════════════════════════════════════════════════════════
@@ -1555,6 +1582,19 @@ async function loadChessGame(id, g, fen) {
      <span class="${isMyTurn ? 'my-turn' : 'opp-turn'}">${isMyTurn ? '🟢 YOUR TURN' : '⏳ Opponent\'s Turn'}</span>`;
 
   renderChessBoard();
+  
+  // Diagnostic: Check if pieces rendered
+  setTimeout(() => {
+    const pieces = document.querySelectorAll('.cp');
+    if (pieces.length === 0) {
+      console.warn('⚠️ Chess pieces not rendering! Check font support.');
+      document.getElementById('gameInfo').innerHTML += 
+        '<br><span style="color:var(--orange);font-size:10px">⚠️ Chess pieces may not display in your browser. Try Chrome or Firefox.</span>';
+    } else {
+      console.log(`✅ ${pieces.length} chess pieces rendered successfully`);
+    }
+  }, 500);
+  
   if (isAIGame && !isMyTurn && !gameEngine.game_over() && !aiInProgress)
     setTimeout(() => makeChessAI(), 1500);
 }
@@ -1565,6 +1605,19 @@ function renderChessBoard() {
   const grid = document.getElementById('boardGrid');
   cont.style.display = 'block'; grid.innerHTML = '';
   const board = gameEngine.board();
+  
+  // Detect if Unicode chess symbols are supported
+  const testSupport = () => {
+    const test = document.createElement('span');
+    test.innerHTML = '♔';
+    test.style.font = '16px sans-serif';
+    document.body.appendChild(test);
+    const width = test.offsetWidth;
+    document.body.removeChild(test);
+    return width > 0; // If width is 0, font doesn't support the character
+  };
+  const useUnicode = testSupport();
+  
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
       const sq = document.createElement('div');
@@ -1576,8 +1629,19 @@ function renderChessBoard() {
       if (piece) {
         const span = document.createElement('span');
         const key  = piece.color === 'w' ? piece.type.toUpperCase() : piece.type;
-        span.className   = `cp ${piece.color === 'w' ? 'w' : 'b'}`;
-        span.textContent = PIECE_UC[key] || '?';
+        span.className = `cp ${piece.color === 'w' ? 'w' : 'b'}`;
+        
+        if (useUnicode && PIECE_UC[key]) {
+          // Use Unicode symbols
+          span.innerHTML = PIECE_UC[key];
+        } else {
+          // Fallback to letters in bold
+          span.textContent = PIECE_LETTERS[key] || '?';
+          span.style.fontFamily = "'Syne', sans-serif";
+          span.style.fontWeight = '800';
+          span.style.fontSize = 'clamp(24px, 4vw, 36px)';
+        }
+        
         sq.appendChild(span);
       }
       grid.appendChild(sq);
