@@ -1238,6 +1238,8 @@ let isLoadingGame  = false;
 let lastGameState  = null;
 let chatPollInterval   = null;
 let autoRefreshInterval = null;
+let lastGameState = null; // Track game state for change detection
+let isLoadingGame = false; // Prevent duplicate loads
 
 // Pool / Penalty state
 let poolCanvas, poolCtx, cueBall, balls = [], cueStick = {}, isAiming = false, isShooting = false;
@@ -1364,12 +1366,20 @@ async function updateRealmBalance() {
 }
 
 function startAutoRefresh() {
+  // Fast polling for active game moves (1 second)
+  setInterval(() => {
+    if (hubC && currentGameId) checkGameStateChanged();
+  }, 1000);
+  
+  // Medium polling for balance and chat (5 seconds)
   autoRefreshInterval = setInterval(() => {
     if (isConnected) {
       updateRealmBalance();
-      if (currentGameId) checkGameStateChanged();
+      if (currentGameId) loadChatMessages();
     }
   }, 5000);
+  
+  // Slow polling for game lists (20 seconds)
   setInterval(() => {
     if (isConnected) { loadPendingGames(); loadMyGames(); }
   }, 20000);
@@ -1698,6 +1708,7 @@ async function makeChessMove(to) {
     moveFrom = null;
     document.querySelectorAll('.sq').forEach(s => s.classList.remove('selected', 'possible'));
     showToast('✅ Move confirmed!', 'success');
+    lastGameState = null; // Force state refresh
     await new Promise(r => setTimeout(r, 1500));
     await loadGame(currentGameId);
   } catch (e) {
