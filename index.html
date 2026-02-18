@@ -163,7 +163,7 @@ label input[type=checkbox]{width:auto;margin:0}
 .game-area{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;align-items:center}
 
 .board-wrap{border:2px solid var(--orange);border-radius:6px;overflow:hidden;box-shadow:0 0 40px rgba(247,147,26,.15);display:none}
-.board-grid{display:grid;grid-template-columns:repeat(8,1fr);width:min(480px,90vw);height:min(480px,90vw)}
+.board-grid{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);width:min(520px,92vw);height:min(520px,92vw);aspect-ratio:1}
 .sq{display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;position:relative;aspect-ratio:1}
 .sq.light{background:#e8d5b0}.sq.dark{background:#a07850}
 .sq.selected{background:#cc6600!important;box-shadow:inset 0 0 0 3px #FFD700}
@@ -1238,6 +1238,8 @@ let isLoadingGame  = false;
 let lastGameState  = null;
 let chatPollInterval   = null;
 let autoRefreshInterval = null;
+let lastGameState = null; // Track game state for change detection
+let isLoadingGame = false; // Prevent duplicate loads
 
 // Pool / Penalty state
 let poolCanvas, poolCtx, cueBall, balls = [], cueStick = {}, isAiming = false, isShooting = false;
