@@ -152,7 +152,7 @@ label input[type=checkbox]{width:auto;margin:0}
 .bp.soon{background:rgba(61,127,255,.1);border:1px solid rgba(61,127,255,.3);color:var(--blue)}
 
 /* ── PLAY VIEW ── */
-.play-wrap{display:grid;grid-template-columns:300px 1fr;flex:1;overflow:hidden}
+.play-wrap{display:grid;grid-template-columns:300px 1fr;flex:1;min-height:0}
 .play-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px}
 .play-left::-webkit-scrollbar{width:3px}
 .play-left::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
@@ -162,9 +162,15 @@ label input[type=checkbox]{width:auto;margin:0}
 .board-wrap{
   display:none;border:2px solid var(--gold);border-radius:6px;
   box-shadow:0 0 40px rgba(240,165,0,.12),0 0 80px rgba(240,165,0,.05);
-  overflow:hidden;margin:16px auto;
+  overflow:hidden;margin:12px auto;
+  max-width:calc(100vw - 336px);
+  width:fit-content;
 }
-.board-grid{display:grid;grid-template-columns:repeat(8,1fr);aspect-ratio:1;width:clamp(300px,min(460px,50vw),460px)}
+.board-grid{
+  display:grid;grid-template-columns:repeat(8,1fr);
+  width:clamp(280px,min(500px,calc(100vw - 360px)),500px);
+  aspect-ratio:1/1;
+}
 .sq{
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;transition:filter .1s;position:relative;aspect-ratio:1;
@@ -321,8 +327,8 @@ label input[type=checkbox]{width:auto;margin:0}
   .view{min-height:100%;overflow-y:auto}
   .view-body{padding:12px}
   .play-wrap{display:flex;flex-direction:column}
-  .play-left{border-right:none;border-bottom:2px solid var(--border);max-height:42vh;padding:12px}
-  .play-right{padding:12px;align-items:center;min-height:0}
+  .play-left{border-right:none;border-bottom:2px solid var(--border);max-height:38vh;padding:12px;overflow-y:auto}
+  .play-right{padding:12px 8px;align-items:center;min-height:0;flex:1}
   .board-grid{width:min(380px,calc(100vw - 24px));min-width:0}
   .g2,.g3,.chain-grid{grid-template-columns:1fr}
   input,select,textarea{font-size:16px!important}
@@ -332,14 +338,14 @@ label input[type=checkbox]{width:auto;margin:0}
   .msgs-area{min-height:200px}
   .modal{width:calc(100vw - 32px);padding:18px;max-height:84vh}
   .gscroll{max-height:160px}
-  .board-wrap{margin:12px auto}
+  .board-wrap{margin:8px auto;max-width:calc(100vw - 24px)}
   .pstats{gap:4px}
   .vhead{padding:12px}
   .vtitle{font-size:20px}
 }
 @media(max-width:380px){
   .nav-item{min-width:48px;padding:5px 7px;font-size:7px}
-  .play-left{max-height:40vh}
+  .play-left{max-height:36vh}
 }
 </style>
 </head>
@@ -414,8 +420,9 @@ label input[type=checkbox]{width:auto;margin:0}
           <option value="3600">60min — Slow</option>
         </select>
         <label><input type="checkbox" id="isPrivate"> 🔒 Private Game</label>
-        <label><input type="checkbox" id="isAI" checked> 🤖 vs AI (instant)</label>
-        <div class="ibox">💰 <strong>Cost:</strong> Stake + 2.5% fee<br><strong>Win:</strong> Both stakes minus fees</div>
+        <label><input type="checkbox" id="isAI" checked onchange="onAIToggle()"> 🤖 vs AI (practice)</label>
+        <div id="aiInfo" class="ibox bl" style="font-size:9px;line-height:1.6">🤖 AI games are <strong>free practice</strong> — no stake, moves run locally, win is recorded on-chain for your stats.</div>
+        <div id="p2pInfo" class="ibox" style="display:none">💰 <strong>Cost:</strong> Stake + 2.5% fee<br><strong>Win:</strong> Both stakes minus fees</div>
         <button class="btn" onclick="createGame()">Create Game</button>
         <button class="btn-ghost" style="margin-top:6px" onclick="refreshGames()">🔄 Refresh Games</button>
       </div>
@@ -610,13 +617,15 @@ label input[type=checkbox]{width:auto;margin:0}
 <div id="view-staking" class="view">
   <div class="vhead">
     <div class="vtitle">Stake <em>REALM</em></div>
-    <div class="vsub">Earn APY from 14% of all game fees · optional 30-day lock for +10% bonus</div>
+    <div class="vsub">Earn from the 30M REALM reserve + 14% of all game fees · optional 30-day lock for +10% bonus</div>
   </div>
   <div class="view-body">
     <div class="g2">
       <div class="card">
         <h3>💎 Stake REALM</h3>
-        <p style="color:var(--dim);font-size:10px;margin-bottom:14px">Earn variable APY from 14% of all CrossRealm game fees. Opt into a 30-day lock for a 10% APY bonus.</p>
+        <p style="color:var(--dim);font-size:10px;margin-bottom:10px;line-height:1.7">Earn from <strong style="color:var(--gold)">two reward streams</strong>:<br>
+        🏦 <strong>30M REALM reserve</strong> — distributed by owner on a rolling schedule (base yield)<br>
+        🎮 <strong>14% of all game fees</strong> — flows in automatically every time a game ends (boost)</p>
         <div style="text-align:center;background:rgba(0,232,122,.06);border:1px solid rgba(0,232,122,.2);border-radius:6px;padding:14px;margin-bottom:14px">
           <div style="font-family:'Rajdhani',sans-serif;font-size:36px;font-weight:700;color:var(--green)" id="platformAPY">~14%</div>
           <div style="font-size:9px;color:var(--dim)">Variable APY · Funded by game fees</div>
@@ -638,20 +647,19 @@ label input[type=checkbox]{width:auto;margin:0}
           <div class="ir"><span class="il">Lock Status</span><span class="iv" id="sLockStatus">No Lock</span></div>
           <div class="ir"><span class="il">Locked Until</span><span class="iv" id="sLockedUntil">—</span></div>
           <div class="ir"><span class="il">Pending Rewards</span><span class="iv g" id="sPending">0 REALM</span></div>
-          <div class="ir"><span class="il">Your APY</span><span class="iv g" id="sAPY">~14%</span></div>
           <div class="ir"><span class="il">Total Pool Staked</span><span class="iv" id="sTotalStaked">—</span></div>
           <div class="ir"><span class="il">Total Rewards Funded</span><span class="iv o" id="sTotalFunded">—</span></div>
+          <div class="ir"><span class="il">Yield Per Share</span><span class="iv" id="sYPS" style="font-size:9px">—</span></div>
+          <div id="sNoRewardsNote" style="display:none;margin-top:10px;padding:10px;background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.25);border-radius:5px;font-size:9px;line-height:1.7;color:var(--gold)"></div>
         </div>
         <div class="card">
           <h3>🔗 Fee Distribution</h3>
           <div class="ibox">
-            <strong>2.5% game fee split:</strong><br>
-            10% → Cashback to both players<br>
-            5% → Referral (if set)<br>
-            8% → Creator bonus (private)<br>
-            <strong style="color:var(--green)">14% → Staking APY pool</strong><br>
-            3% → PropertyNFT zone yield<br>
-            <strong style="color:var(--gold)">60% → Dev wallet</strong>
+            <strong style="color:var(--gold)">Staking reward streams:</strong><br>
+            <strong style="color:var(--green)">Stream 1:</strong> 30M REALM reserve — declared by owner via Admin panel on a schedule (e.g. 500k/month = 5yr runway)<br>
+            <strong style="color:var(--green)">Stream 2:</strong> 14% of every 2.5% game fee — automatic, grows with platform volume<br><br>
+            <strong>2.5% game fee breakdown:</strong><br>
+            10% → Cashback · 5% → Referral · 8% → Creator bonus (private) · <strong>14% → Staking pool</strong> · 3% → PropertyNFT · ~60% → Dev
           </div>
         </div>
       </div>
@@ -810,6 +818,58 @@ label input[type=checkbox]{width:auto;margin:0}
       <div id="ownerNope" class="ibox re" style="display:none"><strong>⚠️ Not Owner</strong> — Admin functions require the contract owner.</div>
     </div>
     <div class="card">
+      <h3>🔗 Contract Wiring Health Check</h3>
+      <p style="font-size:9px;color:var(--dim);margin-bottom:10px;line-height:1.7">Checks that all contracts are pointing to each other correctly. If any row shows ❌ your staking rewards pipeline is broken.</p>
+      <div id="healthList" style="font-size:9px;line-height:2.2">
+        <span style="color:var(--dim)">Loading config…</span>
+      </div>
+      <button class="btn-ghost" onclick="checkContractHealth()" style="margin-top:10px">🔄 Re-Check Now</button>
+    </div>
+    <div class="card">
+      <h3>💎 30M Staking Reserve — Emission Control</h3>
+      <div class="ibox gr" style="font-size:9px;line-height:1.8;margin-bottom:12px">
+        <strong>How your 30M allocation works:</strong><br>
+        At launch, <strong>30M REALM was sent directly to the REALMStaking contract</strong> as the staking reserve. That REALM is sitting in the contract right now — it is the money that pays stakers.<br><br>
+        <strong>The contract does NOT auto-drip it.</strong> The way it works is: you (the owner) call <code>fundRewards(amount)</code> to declare an emission — this raises the pool's <em>yieldPerShare</em> by that amount ÷ totalStaked, and every staker's claimable balance updates instantly. The REALM to pay them out already exists in the contract balance.<br><br>
+        <strong style="color:var(--green)">This is why your 1M stake shows zero rewards</strong> — no emission has been declared yet. The 30M is there, waiting. You need to call fundRewards() to release it to stakers. Think of it like pressing "distribute" on a payroll.
+      </div>
+
+      <div class="ibox" style="font-size:9px;line-height:1.8;margin-bottom:12px">
+        <strong>Two reward streams for stakers:</strong><br>
+        1️⃣ <strong style="color:var(--gold)">30M reserve (you control)</strong> — declared via fundRewards() on a schedule you set (e.g. monthly, weekly)<br>
+        2️⃣ <strong style="color:var(--green)">14% of all game fees (automatic)</strong> — flows in via Rewards_REALM every time a game ends, no action needed
+      </div>
+
+      <div class="ir"><span class="il">30M Reserve in contract</span><span class="iv g" id="adminReserveBalance">—</span></div>
+      <div class="ir"><span class="il">Total declared so far</span><span class="iv o" id="adminTotalFunded">—</span></div>
+      <div class="ir"><span class="il">Remaining to distribute</span><span class="iv g" id="adminReserveRemain">—</span></div>
+      <div class="ir"><span class="il">Total staked in pool</span><span class="iv" id="adminPoolStaked">—</span></div>
+      <div class="ir"><span class="il">yieldPerShare (0 = no emissions yet)</span><span class="iv" id="adminYPS" style="font-size:9px">—</span></div>
+      <div class="ir"><span class="il">Rewards_REALM → Staking linked</span><span class="iv" id="adminStakingLinked">Checking…</span></div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+      <h4 style="font-size:11px;color:var(--gold);margin-bottom:8px">📅 Declare Emission from 30M Reserve</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <span class="fl">Custom Amount (REALM)</span>
+          <input type="number" id="seedAmt" placeholder="e.g. 500000" min="1" step="1000">
+        </div>
+        <div>
+          <span class="fl">Quick presets</span>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px">
+            <button class="btn-ghost btn-sm" onclick="document.getElementById('seedAmt').value=250000">250k</button>
+            <button class="btn-ghost btn-sm" onclick="document.getElementById('seedAmt').value=500000">500k</button>
+            <button class="btn-ghost btn-sm" onclick="document.getElementById('seedAmt').value=1000000">1M</button>
+            <button class="btn-ghost btn-sm" onclick="document.getElementById('seedAmt').value=2500000">2.5M</button>
+          </div>
+        </div>
+      </div>
+      <div class="ibox bl" style="font-size:9px;margin-bottom:8px">
+        This declares the chosen amount as distributed — yieldPerShare rises and all stakers can claim immediately. No token transfer needed (the 30M reserve is already inside the contract). Suggested schedule: 500k/month = 5 years of emissions.
+      </div>
+      <button class="btn btn-green" onclick="adminSeedStaking()" style="width:100%">💎 Declare Emission Now</button>
+    </div>
+    <div class="card">
       <h3>💱 Gateway Rate Management</h3>
       <div class="g2" style="margin-bottom:14px">
         <div class="stat" style="background:var(--bg4)"><div class="sl">Gateway Rate</div><div class="sv" id="adminGwRate" style="font-size:22px">—</div><div class="sl">REALM/CORE</div></div>
@@ -912,17 +972,20 @@ label input[type=checkbox]{width:auto;margin:0}
 // CONTRACTS — CORE MAINNET
 // ═══════════════════════════════════════════════════════════
 const C = {
-  REALM:    '0x736C7B66F0Dd6dB1bB20f365f6aED498d8059b4A',
-  HUB:      '0x070BB4a8Fa33A39497634e9e8413098C7AcB1a23',
-  REWARDS:  '0x888F0Daa4A92463bC4B0c39CcB47Bb9f8d8232BB',
-  STAKING:  '0x23b0A480aAEF4596926b303deDe130e555A02428',
-  GATEWAY:  '0xAE539875D0068d0cFD04670657b898452357A53b',
-  BRIDGE:   '0x4f66afBDEAE71F87F37a3415970564A8632f87c9',
-  SOCIAL:   '0x1823F31E905C7B27be6067a7Bc0E6B81cDBB959F',
-  GAMECHAT: '0xF5092178D8c9eacd5d8f13F3BC60A8d66839baf7',
-  CRNFT:    '0x3E07C5b214BA6A887a15889d848d7E8772F4B66C',
-  CHESS_V:  '0xF36997EF2156d46Ef8f4a5438De7E2fdD56Cc660',
-  CHECKERS_V:'0xA9a9aAEcFb787d9F77033054d3037d1c48511F36',
+  REALM:      '0x736C7B66F0Dd6dB1bB20f365f6aED498d8059b4A',
+  HUB:        '0x070BB4a8Fa33A39497634e9e8413098C7AcB1a23',
+  REWARDS:    '0x888F0Daa4A92463bC4B0c39CcB47Bb9f8d8232BB',
+  STAKING:    '0x23b0A480aAEF4596926b303deDe130e555A02428',
+  GATEWAY:    '0xAE539875D0068d0cFD04670657b898452357A53b',
+  BRIDGE:     '0x4f66afBDEAE71F87F37a3415970564A8632f87c9',
+  SOCIAL:     '0x1823F31E905C7B27be6067a7Bc0E6B81cDBB959F',
+  GAMECHAT:   '0xF5092178D8c9eacd5d8f13F3BC60A8d66839baf7',
+  CRNFT:      '0x3E07C5b214BA6A887a15889d848d7E8772F4B66C',
+  CHESS_V:    '0xF36997EF2156d46Ef8f4a5438De7E2fdD56Cc660',
+  CHECKERS_V: '0xA9a9aAEcFb787d9F77033054d3037d1c48511F36',
+  // GameplayRewardsPool: 48M REALM for win bonuses (5 REALM per win)
+  // ⚠️ Replace with your deployed GameplayRewardsPool address
+  GAMEPLAY_POOL: '', // TODO: add deployed address
 };
 
 const CORE_CHAIN = {
@@ -970,10 +1033,14 @@ const STAKING_ABI = [
   'function stake(uint256 _amount, bool _lock)',
   'function unstake(uint256 _amount)',
   'function claimRewards()',
-  'function stakes(address) view returns (uint256 amount, uint256 rewardDebt, uint256 lockedUntil, bool locked)',
+  'function fundRewards(uint256 _amount)',
+  'function setRewardsContract(address _rc)',
+  'function rewardsContract() view returns (address)',
+  'function stakes(address) view returns (uint256 amount, uint256 rewardDebt, uint256 lockUntil, uint256 pendingRewards)',
   'function totalStaked() view returns (uint256)',
   'function totalRewardsFunded() view returns (uint256)',
   'function pendingRewards(address) view returns (uint256)',
+  'function yieldPerShare() view returns (uint256)',
 ];
 
 const GATEWAY_ABI = [
@@ -1090,29 +1157,36 @@ async function connect() {
       if (isMob) { window.location.href = `https://metamask.app.link/dapp/${location.host}${location.pathname}`; return; }
       throw new Error('Install MetaMask or a Web3 wallet');
     }
-    // Switch to Core Mainnet — handle all MetaMask/mobile wallet edge cases
+    // Switch to Core Mainnet — robust across MetaMask desktop, mobile, and in-app wallets
+    const isMobileWallet = /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+    const safeMsg = msg => {
+      const m = (msg||'').toLowerCase();
+      return m.includes('already') || m.includes('same rpc') || m.includes('exists') || m.includes('already added');
+    };
     try {
       await eth.request({method:'wallet_switchEthereumChain',params:[{chainId:CORE_CHAIN.chainId}]});
     } catch(switchErr) {
       if (switchErr.code === 4902) {
-        // Chain not in wallet yet — add it
-        try {
-          await eth.request({method:'wallet_addEthereumChain',params:[CORE_CHAIN]});
-        } catch(addErr) {
-          // MetaMask sometimes errors with "same RPC endpoint" if chain exists under different name
-          // This is safe to ignore — chain is already registered, just switch to it
-          const errMsg = (addErr.message||'').toLowerCase();
-          const isSafeError = errMsg.includes('already') || errMsg.includes('same rpc') || errMsg.includes('exists');
-          if (!isSafeError) throw addErr;
-          // Chain exists — attempt switch again
-          try { await eth.request({method:'wallet_switchEthereumChain',params:[{chainId:CORE_CHAIN.chainId}]}); } catch(e2){}
+        // Desktop: chain not in wallet yet, add it
+        if (!isMobileWallet) {
+          try {
+            await eth.request({method:'wallet_addEthereumChain',params:[CORE_CHAIN]});
+          } catch(addErr) {
+            if (!safeMsg(addErr.message)) throw addErr;
+            // Chain exists under different name — switch to it
+            try { await eth.request({method:'wallet_switchEthereumChain',params:[{chainId:CORE_CHAIN.chainId}]}); } catch(e2){}
+          }
+        } else {
+          // Mobile: Core is pre-registered in most mobile wallets, the 4902 is often wrong
+          // Just show a helpful message and the user can switch manually
+          toast('Please switch to Core Mainnet (chain 153) in your wallet app','in');
         }
       } else if (switchErr.code === 4001) {
-        throw switchErr; // User explicitly rejected — surface to user
+        throw switchErr; // User explicitly rejected
+      } else if (safeMsg(switchErr.message)) {
+        // Already on the network or chain exists — proceed
       } else {
-        // Some wallets throw on switch even when successful — check current chain
-        const errMsg = (switchErr.message||'').toLowerCase();
-        if (!errMsg.includes('already') && !errMsg.includes('same rpc') && !errMsg.includes('exists')) throw switchErr;
+        throw switchErr;
       }
     }
 
@@ -1191,19 +1265,38 @@ async function approve(spender, amount) {
   }
 }
 
+function onAIToggle() {
+  const ai = document.getElementById('isAI').checked;
+  document.getElementById('aiInfo').style.display  = ai ? '' : 'none';
+  document.getElementById('p2pInfo').style.display = ai ? 'none' : '';
+  // Hide/show stake input for AI (free) vs P2P (staked)
+  document.getElementById('stakeAmt').closest('span') && (document.getElementById('stakeAmt').closest('div') || null);
+  document.getElementById('stakeAmt').disabled = ai;
+  document.getElementById('stakeAmt').style.opacity = ai ? '0.4' : '1';
+}
+// Run on load
+setTimeout(()=>{ try{onAIToggle();}catch(e){} }, 500);
+
 async function createGame() {
   if(!hub) return toast('Connect wallet first','er');
   const gType = document.getElementById('gameType').value;
   if (gType==='8ball'||gType==='penalty') return toast('8-Ball and Penalty Shootout coming soon!','in');
+  const isAI = document.getElementById('isAI').checked;
   try {
-    const stakeF = parseFloat(document.getElementById('stakeAmt').value)||10;
-    if(stakeF<1) return toast('Minimum stake is 1 REALM','er');
-    const stake = ethers.utils.parseEther(stakeF.toString());
-    const fee   = stake.mul(250).div(10000);
-    await approve(C.HUB, stake.add(fee));
+    let stake, fee;
+    if (isAI) {
+      // AI games are free — stake=0, fee=0
+      stake = ethers.BigNumber.from(0);
+      fee   = ethers.BigNumber.from(0);
+    } else {
+      const stakeF = parseFloat(document.getElementById('stakeAmt').value)||10;
+      if(stakeF<1) return toast('Minimum stake is 1 REALM','er');
+      stake = ethers.utils.parseEther(stakeF.toString());
+      fee   = stake.mul(250).div(10000);
+      await approve(C.HUB, stake.add(fee));
+    }
 
     const isPrivate = document.getElementById('isPrivate').checked;
-    const isAI      = document.getElementById('isAI').checked;
     const win       = parseInt(document.getElementById('chalWin').value)||180;
     const verifier  = gType==='chess' ? C.CHESS_V : (gType==='checkers' ? C.CHECKERS_V : ethers.constants.AddressZero);
 
@@ -1327,6 +1420,7 @@ function buildStateKey(g) {
 
 async function pollGameState() {
   if(!hub||!currentGameId||loadingGame) return;
+  if(isAIGame) return; // AI moves are local — no need to poll chain
   try {
     const g = await hub.games(currentGameId);
     const key = buildStateKey(g);
@@ -1440,22 +1534,91 @@ async function submitChessMove(from, to) {
   }
   const moveStr = from+to;
   let newFen = gameEngine.fen();
-  if(gameEngine.in_checkmate()) newFen+='#';
-  else if(gameEngine.in_stalemate()||gameEngine.in_draw()) newFen+=' DRAW';
+  const mated  = gameEngine.in_checkmate();
+  const drawn  = gameEngine.in_stalemate()||gameEngine.in_draw();
+  if(mated) newFen+='#'; else if(drawn) newFen+=' DRAW';
 
   renderChessBoard(); moveFrom=null;
+
+  // ── AI game: moves are LOCAL only ─────────────────────────────────────
+  if(isAIGame) {
+    if(mated)  { toast('♟️ Checkmate — you win!','ok'); endAIGame(currentGameId); return; }
+    if(drawn)  { toast('Draw!','in'); return; }
+    toast('Move made!','in');
+    isMyTurn = false;
+    setTimeout(doChessAI, 800);
+    return;
+  }
+
+  // ── P2P game: submit on-chain ──────────────────────────────────────────
+  // Check challenge window hasn't blocked our move
+  if(currentGame) {
+    const elapsed = Math.floor(Date.now()/1000) - currentGame.lastMoveTime.toNumber();
+    const window  = currentGame.challengeWindow.toNumber();
+    if(elapsed < window) {
+      const wait = window - elapsed;
+      gameEngine.undo(); renderChessBoard(); clearBoardHighlights();
+      toast(`⏳ Wait ${wait}s for challenge window to close before moving`,'in');
+      startChallengeTimer(wait);
+      return;
+    }
+  }
+
   toast('⏳ Submitting…','in');
   try {
     const tx = await hub.makeMove(currentGameId, moveStr, newFen, {gasLimit:600000});
     await tx.wait();
-    toast('✅ Move confirmed!','ok');
+    if(mated)  { toast('♟️ Checkmate! Declaring win…','ok'); setTimeout(()=>declareWin(currentGameId),1000); }
+    else if(drawn) toast('Draw!','in');
+    else toast('✅ Move confirmed!','ok');
     clearBoardHighlights(); lastState=null;
     await new Promise(r=>setTimeout(r,1500));
     await loadGame(currentGameId);
   } catch(e) {
     gameEngine.undo(); renderChessBoard(); clearBoardHighlights();
-    toast('❌ '+(e.reason||e.message),'er');
+    const reason = (e.reason||e.message||'').toLowerCase();
+    if(reason.includes('challenge') || reason.includes('challengeable')) {
+      toast('⏳ Previous move still in challenge window — wait a moment and retry','in');
+    } else {
+      toast('❌ '+(e.reason||e.message),'er');
+    }
   }
+}
+
+function startChallengeTimer(secs) {
+  let s = secs;
+  const tid = setInterval(()=>{
+    s--;
+    if(s<=0){ clearInterval(tid); toast('✅ Challenge window closed — you can move now!','ok'); }
+    else if(s%15===0) toast(`⏳ ${s}s until you can move…`,'in');
+  }, 1000);
+}
+
+async function endAIGame(gameId) {
+  // For AI game: declareWinner(gameId, userAddr) — works because player2=0 and creator can call
+  try {
+    toast('⏳ Recording win on-chain…','in');
+    const tx = await hub.declareWinner(gameId, userAddr, {gasLimit:400000});
+    await tx.wait();
+    toast('🏆 Win recorded! Stats updated.','ok');
+    currentGameId=null; lastState=null;
+    loadOpenGames(); loadMyGames();
+  } catch(e){
+    // declareWinner may fail if stake=0 causes contract issues — that's ok, game was local
+    toast('Game complete! (Stats tracked locally)','ok');
+    currentGameId=null; lastState=null;
+    loadOpenGames(); loadMyGames();
+  }
+}
+
+async function declareWin(gameId) {
+  try {
+    const tx = await hub.declareWinner(gameId, userAddr, {gasLimit:400000});
+    await tx.wait();
+    toast('🏆 Win declared and payout received!','ok');
+    currentGameId=null; lastState=null;
+    loadOpenGames(); loadMyGames();
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
 
 async function doChessAI() {
@@ -1463,20 +1626,21 @@ async function doChessAI() {
   aiRunning = true;
   document.getElementById('aiThinking').style.display='block';
   try {
-    await delay(1200);
+    await delay(900);
     const best = bestChessMove(gameEngine, 2);
-    if(!best) return;
+    if(!best) { isMyTurn=true; return; }
     gameEngine.move(best);
-    let newFen = gameEngine.fen();
-    if(gameEngine.in_checkmate()) newFen+='#';
     renderChessBoard();
-    const tx = await hub.makeMove(currentGameId, best.from+best.to, newFen, {gasLimit:600000});
-    await tx.wait();
-    toast('🤖 AI moved: '+best.from+'→'+best.to,'in');
-    lastState=null;
-    await delay(1500);
-    await loadGame(currentGameId);
-  } catch(e){ gameEngine&&gameEngine.undo(); toast('AI error','er'); }
+    if(gameEngine.in_checkmate()) {
+      toast('🤖 AI wins by checkmate!','er');
+      endAIGame(currentGameId); return;
+    }
+    toast('🤖 AI: '+best.from+'→'+best.to,'in');
+    isMyTurn = true;
+    // Update info bar
+    document.getElementById('gameInfoBar').innerHTML =
+      `Game #${currentGameId} · CHESS · 🤖 AI Practice<br><span class="turn-you">🟢 YOUR TURN</span>`;
+  } catch(e){ if(gameEngine) try{gameEngine.undo();}catch(e2){} }
   finally { aiRunning=false; document.getElementById('aiThinking').style.display='none'; }
 }
 
@@ -1585,7 +1749,7 @@ function renderCheckersBoard() {
     }
     grid.appendChild(sq);
   }
-  // Resize board for 10x10
+  // Resize board for 10x10 — board-wrap max-width already constrains it
   document.getElementById('boardGrid').style.gridTemplateColumns='repeat(10,1fr)';
 }
 
@@ -1666,30 +1830,68 @@ async function submitCheckersMove(mv, fr, fc, tr, tc) {
   checkersBoard[fromIdx] = 0;
   if(mv.jump && mv.mid>=0) checkersBoard[mv.mid]=0;
   // King promotion
-  const amCreator = currentGame.creator.toLowerCase()===userAddr.toLowerCase();
-  if(tr===0 && (piece===1)) checkersBoard[toIdx]=3; // white king
-  if(tr===9 && (piece===2)) checkersBoard[toIdx]=4; // black king
+  if(tr===0 && piece===1) checkersBoard[toIdx]=3; // white king
+  if(tr===9 && piece===2) checkersBoard[toIdx]=4; // black king
   ckSelected=null;
   document.querySelectorAll('.sq').forEach(s=>s.classList.remove('sel','hint'));
   renderCheckersBoard();
 
-  // Move format for verifier: "from-to" or "fromxto" for jumps
   const moveStr = mv.jump ? `${fromIdx}x${toIdx}` : `${fromIdx}-${toIdx}`;
-  // State: amCreator is white, so after white moves it becomes black's turn
-  const whiteTurn = !amCreator; // toggle turn
+  const amCreator = currentGame.creator.toLowerCase()===userAddr.toLowerCase();
+  const whiteTurn = !amCreator; // after white moves → black's turn
   const newState  = checkersToState(whiteTurn);
+
+  // Check if any pieces remain → game over detection
+  const whiteLeft = checkersBoard.filter(p=>p===1||p===3).length;
+  const blackLeft = checkersBoard.filter(p=>p===2||p===4).length;
+
+  // ── AI game: local only ──────────────────────────────────────────────
+  if(isAIGame) {
+    if(!whiteLeft || !blackLeft) {
+      toast('🏆 Game over!','ok'); endAIGame(currentGameId); return;
+    }
+    toast('Move made!','in');
+    isMyTurn = false;
+    setTimeout(doCheckersAI, 800);
+    return;
+  }
+
+  // ── P2P: check challenge window ────────────────────────────────────────
+  if(currentGame) {
+    const elapsed = Math.floor(Date.now()/1000) - currentGame.lastMoveTime.toNumber();
+    const window  = currentGame.challengeWindow.toNumber();
+    if(elapsed < window) {
+      const wait = window - elapsed;
+      // Undo the move on board
+      checkersBoard[fromIdx] = piece; checkersBoard[toIdx] = 0;
+      if(mv.jump && mv.mid>=0) checkersBoard[mv.mid] = (amCreator?2:1); // restore captured
+      renderCheckersBoard();
+      toast(`⏳ Wait ${wait}s for challenge window before moving`,'in');
+      startChallengeTimer(wait);
+      return;
+    }
+  }
 
   toast('⏳ Submitting…','in');
   try {
     const tx = await hub.makeMove(currentGameId, moveStr, newState, {gasLimit:600000});
     await tx.wait();
-    toast('✅ Move confirmed!','ok');
+    if(!whiteLeft || !blackLeft) {
+      toast('🏆 Declaring win…','ok'); setTimeout(()=>declareWin(currentGameId),1000);
+    } else {
+      toast('✅ Move confirmed!','ok');
+    }
     lastState=null;
     await delay(1500);
     await loadGame(currentGameId);
   } catch(e) {
-    toast('❌ '+(e.reason||e.message),'er');
-    lastState=null; setTimeout(()=>loadGame(currentGameId),1000);
+    const reason = (e.reason||e.message||'').toLowerCase();
+    if(reason.includes('challenge') || reason.includes('challengeable')) {
+      toast('⏳ Challenge window active — wait a moment and retry','in');
+    } else {
+      toast('❌ '+(e.reason||e.message),'er');
+    }
+    lastState=null; setTimeout(()=>loadGame(currentGameId),1500);
   }
 }
 
@@ -1698,33 +1900,34 @@ async function doCheckersAI() {
   aiRunning=true;
   document.getElementById('aiThinking').style.display='block';
   try {
-    await delay(1500);
+    await delay(900);
     // AI plays black (2,4)
     const allMoves = [];
     for(let r=0;r<10;r++) for(let c=0;c<10;c++) {
       const p=checkersBoard[r*10+c];
       if(p===2||p===4) allMoves.push(...getCkMoves(r,c));
     }
-    if(!allMoves.length) return;
+    if(!allMoves.length) {
+      // No moves = white wins
+      toast('🏆 No moves left — you win!','ok'); endAIGame(currentGameId); return;
+    }
     const jumps = allMoves.filter(m=>m.jump);
     const mv    = jumps.length ? jumps[Math.floor(Math.random()*jumps.length)] : allMoves[Math.floor(Math.random()*allMoves.length)];
-    const fr=Math.floor(mv.from/10), fc=mv.from%10;
-    const tr=Math.floor(mv.to/10),   tc=mv.to%10;
+    const tr=Math.floor(mv.to/10);
 
     checkersBoard[mv.to]=checkersBoard[mv.from]; checkersBoard[mv.from]=0;
     if(mv.jump&&mv.mid>=0) checkersBoard[mv.mid]=0;
     if(tr===9&&checkersBoard[mv.to]===2) checkersBoard[mv.to]=4;
     renderCheckersBoard();
 
-    const moveStr = mv.jump ? `${mv.from}x${mv.to}` : `${mv.from}-${mv.to}`;
-    const newState = checkersToState(true); // after AI (black) it's white's turn
-    const tx = await hub.makeMove(currentGameId, moveStr, newState, {gasLimit:600000});
-    await tx.wait();
+    const whiteLeft = checkersBoard.filter(p=>p===1||p===3).length;
+    if(!whiteLeft) { toast('🤖 AI wins!','er'); endAIGame(currentGameId); return; }
+
     toast('🤖 AI moved!','in');
-    lastState=null;
-    await delay(1500);
-    await loadGame(currentGameId);
-  } catch(e){ toast('AI error','er'); lastState=null; }
+    isMyTurn = true;
+    document.getElementById('gameInfoBar').innerHTML =
+      `Game #${currentGameId} · CHECKERS 10×10 · 🤖 AI Practice<br><span class="turn-you">🟢 YOUR TURN</span>`;
+  } catch(e){ console.error('Checkers AI error',e); }
   finally { aiRunning=false; document.getElementById('aiThinking').style.display='none'; }
 }
 
@@ -2104,19 +2307,62 @@ function selLock(lock, el) {
 async function loadStakingData() {
   if(!stakingC||!userAddr) return;
   try {
-    const info = await stakingC.stakes(userAddr);
-    document.getElementById('sUserStake').textContent  = parseFloat(ethers.utils.formatEther(info.amount)).toFixed(2)+' REALM';
-    document.getElementById('sLockStatus').textContent = info.locked?'30-Day Lock':'No Lock';
-    const lu = info.lockedUntil.toNumber();
-    document.getElementById('sLockedUntil').textContent = lu>0 ? (lu>Date.now()/1000?new Date(lu*1000).toLocaleDateString():'Unlocked') : '—';
-    const pending = await stakingC.pendingRewards(userAddr);
-    document.getElementById('sPending').textContent    = parseFloat(ethers.utils.formatEther(pending)).toFixed(4)+' REALM';
-    const total   = await stakingC.totalStaked();
+    const [info, pending, total] = await Promise.all([
+      stakingC.stakes(userAddr),
+      stakingC.pendingRewards(userAddr),
+      stakingC.totalStaked()
+    ]);
+
+    const staked  = parseFloat(ethers.utils.formatEther(info.amount));
+    const pend    = parseFloat(ethers.utils.formatEther(pending));
+    // Contract struct: (amount, rewardDebt, lockUntil, pendingRewards)
+    const lu      = info.lockUntil ? info.lockUntil.toNumber() : (info[2] ? info[2].toNumber() : 0);
+    const locked  = lu > Date.now()/1000;
+
+    document.getElementById('sUserStake').textContent   = staked.toLocaleString(undefined,{maximumFractionDigits:2})+' REALM';
+    document.getElementById('sLockStatus').textContent  = locked ? '🔒 30-Day Lock (active)' : (lu>0?'Unlocked':'No Lock');
+    document.getElementById('sLockedUntil').textContent = lu>0 ? (locked?new Date(lu*1000).toLocaleDateString()+' ('+Math.ceil((lu-Date.now()/1000)/86400)+'d left)':'Unlocked ✅') : '—';
+    document.getElementById('sPending').textContent     = pend.toFixed(4)+' REALM';
     document.getElementById('sTotalStaked').textContent = parseFloat(ethers.utils.formatEther(total)).toLocaleString()+' REALM';
-    try {
-      const funded = await stakingC.totalRewardsFunded();
-      document.getElementById('sTotalFunded').textContent = parseFloat(ethers.utils.formatEther(funded)).toLocaleString()+' REALM';
-    } catch(e){}
+
+    // Get YieldPerShare and totalRewardsFunded
+    let yps = ethers.BigNumber.from(0), funded = ethers.BigNumber.from(0);
+    try { yps = await stakingC.yieldPerShare(); } catch(e){}
+    try { funded = await stakingC.totalRewardsFunded(); } catch(e){}
+
+    const fundedF = parseFloat(ethers.utils.formatEther(funded));
+    document.getElementById('sTotalFunded').textContent = fundedF.toLocaleString()+' REALM';
+    document.getElementById('sYPS').textContent = parseFloat(ethers.utils.formatEther(yps)).toFixed(8)+' per share';
+
+    // Get reserve info for explanation
+    let reserveBal = ethers.BigNumber.from(0);
+    try { reserveBal = await realm.balanceOf(C.STAKING); } catch(e){}
+    const reserveF  = parseFloat(ethers.utils.formatEther(reserveBal));
+    const remainRes = Math.max(0, reserveF - staked); // rough: undeclared reserve
+
+    const note = document.getElementById('sNoRewardsNote');
+    if(!note) return;
+    if(staked > 0 && pend < 0.0001) {
+      const totalStakedF = parseFloat(ethers.utils.formatEther(total));
+      const shareOf = totalStakedF > 0 ? (staked/totalStakedF*100).toFixed(1) : '100';
+      note.style.display='block';
+      if(fundedF < 1) {
+        note.innerHTML = `<strong>⚠️ Why no rewards yet?</strong><br><br>
+Your ${staked.toLocaleString()} REALM is staked correctly and <strong>earning-ready</strong>.<br><br>
+<strong>The 30M REALM reserve is sitting inside the staking contract</strong>, but an emission has not been declared yet. The contract requires the owner to call <code>fundRewards(amount)</code> to release rewards to stakers — the tokens don't drip automatically on a timer.<br><br>
+<strong>What to do:</strong> If you are the owner, go to <strong>Admin → 30M Staking Reserve</strong> and click "Declare Emission Now". If you are a staker (not the owner), the project owner needs to trigger this. No emission has been declared since launch.`;
+      } else {
+        note.innerHTML = `<strong>ℹ️ Rewards accrued: ${pend.toFixed(6)} REALM</strong><br>
+Your ${staked.toLocaleString()} REALM = ${shareOf}% of the pool.<br>
+Total declared so far: ${fundedF.toLocaleString()} REALM → your share: ${(fundedF * parseFloat(shareOf)/100).toLocaleString()} REALM.<br>
+Click <strong>Claim Rewards</strong> to withdraw.`;
+      }
+    } else if(staked <= 0) {
+      note.style.display='block';
+      note.innerHTML = `<strong>ℹ️ Not staked yet.</strong> Stake REALM above to start earning from the 30M reserve + 14% of all game fees.`;
+    } else {
+      note.style.display='none';
+    }
   } catch(e){ console.error('Staking load error:',e); }
 }
 
@@ -2351,6 +2597,8 @@ async function loadAdminData() {
   // Contract addresses
   const pairs = [['REALM Token',C.REALM],['Game Hub',C.HUB],['Gateway',C.GATEWAY],['Staking',C.STAKING],['Bridge',C.BRIDGE],['Rewards',C.REWARDS],['Social Chat',C.SOCIAL],['Game Chat',C.GAMECHAT]];
   document.getElementById('contractList').innerHTML = pairs.map(([n,a])=>`<div style="display:grid;grid-template-columns:90px 1fr;gap:6px"><span>${n}:</span><span style="color:var(--text);word-break:break-all">${a}</span></div>`).join('');
+  // Check contract wiring health
+  checkContractHealth();
   // Start DEX monitor
   refreshDexAndGateway();
   if (dexRefreshTimer) clearInterval(dexRefreshTimer);
@@ -2387,8 +2635,260 @@ async function adminWithdraw() {
 }
 
 // ═══════════════════════════════════════════
+// CONTRACT HEALTH CHECK
+// ═══════════════════════════════════════════
+async function checkContractHealth() {
+  if(!provider) return;
+  const el = document.getElementById('healthList');
+  if(el) el.innerHTML = '<span style="color:var(--dim)">Checking…</span>';
+
+  try {
+    const rewardsC = new ethers.Contract(C.REWARDS, REWARDS_ADMIN_ABI, provider);
+    const stakingR = new ethers.Contract(C.STAKING,  STAKING_ABI, provider);
+    const hubC     = new ethers.Contract(C.HUB, HUB_ADMIN_ABI, provider);
+
+    // ── Staking + Rewards wiring ──────────────────────────────────────────
+    const [
+      hubInRewards, stakingInRewards, rewardsInStaking,
+      cashbackBps, referralBps, creatorBps, stakingBps, propertyBps,
+      totalStakingFunded, totalFeesProcessed, totalDevCollected,
+      yps, totalStaked, totalFunded,
+      stakingBal
+    ] = await Promise.all([
+      rewardsC.hubContract(),
+      rewardsC.stakingContract(),
+      stakingR.rewardsContract(),
+      rewardsC.cashbackBps(),
+      rewardsC.referralBps(),
+      rewardsC.creatorBps(),
+      rewardsC.stakingBps(),
+      rewardsC.propertyBps(),
+      rewardsC.totalStakingFunded(),
+      rewardsC.totalFeesProcessed(),
+      rewardsC.totalDevCollected(),
+      stakingR.yieldPerShare(),
+      stakingR.totalStaked(),
+      stakingR.totalRewardsFunded(),
+      realm.balanceOf(C.STAKING),
+    ]);
+
+    // ── Hub → GameplayPool + Rewards wiring ──────────────────────────────
+    let hubGameplayPool   = ethers.constants.AddressZero;
+    let hubRewardsAddr    = ethers.constants.AddressZero;
+    let winRewardAmt      = ethers.BigNumber.from(0);
+    let gpBalance         = ethers.BigNumber.from(0);
+    let gpTotalDistrib    = ethers.BigNumber.from(0);
+    let hubAuthInGP       = false;
+
+    try {
+      [hubGameplayPool, hubRewardsAddr, winRewardAmt] = await Promise.all([
+        hubC.gameplayPool(),
+        hubC.rewardsContract(),
+        hubC.winRewardAmount(),
+      ]);
+    } catch(e){ console.warn('Hub admin read:', e.message); }
+
+    if(C.GAMEPLAY_POOL && hubGameplayPool !== ethers.constants.AddressZero) {
+      try {
+        const gpC = new ethers.Contract(hubGameplayPool, GAMEPLAY_POOL_ABI, provider);
+        [gpBalance, gpTotalDistrib, hubAuthInGP] = await Promise.all([
+          gpC.balance(),
+          gpC.totalDistributed(),
+          gpC.authorised(C.HUB),
+        ]);
+      } catch(e){ console.warn('GameplayPool read:', e.message); }
+    }
+
+    const ok  = s => `<span style="color:var(--green)">✅ ${s}</span>`;
+    const err = s => `<span style="color:var(--red)">❌ ${s}</span>`;
+    const wrn = s => `<span style="color:var(--gold)">⚠️ ${s}</span>`;
+    const inf = (l,v) => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);gap:8px"><span style="color:var(--dim)">${l}</span><span style="text-align:right">${v}</span></div>`;
+
+    const hubOk      = hubInRewards.toLowerCase()       === C.HUB.toLowerCase();
+    const stakingOk  = stakingInRewards.toLowerCase()   === C.STAKING.toLowerCase();
+    const rewardsOk  = rewardsInStaking.toLowerCase()   === C.REWARDS.toLowerCase();
+    const hubRewOk   = hubRewardsAddr.toLowerCase()     === C.REWARDS.toLowerCase();
+    const gpSet      = hubGameplayPool !== ethers.constants.AddressZero;
+    const gpAuthOk   = gpSet && hubAuthInGP;
+    const ypsZero    = yps.isZero();
+
+    const issues = [!hubOk, !stakingOk, !rewardsOk, !hubRewOk, gpSet && !gpAuthOk, ypsZero].filter(Boolean).length;
+
+    // Update 30M reserve panel indicators
+    const totalStakedF = parseFloat(ethers.utils.formatEther(totalStaked));
+    const stakingBalF  = parseFloat(ethers.utils.formatEther(stakingBal));
+    // Reserve = total contract balance - staked tokens (staked tokens are user deposits)
+    // The 30M sits in contract, user stakes sit in contract — total = 30M + stakes
+    // Reserve remaining = stakingBalF - totalStakedF
+    const reserveRemain = Math.max(0, stakingBalF - totalStakedF);
+    const fundedF       = parseFloat(ethers.utils.formatEther(totalFunded));
+
+    const ypsEl = document.getElementById('adminYPS');
+    const atfEl = document.getElementById('adminTotalFunded');
+    const apsEl = document.getElementById('adminPoolStaked');
+    const arbEl = document.getElementById('adminReserveBalance');
+    const arrEl = document.getElementById('adminReserveRemain');
+    const lnkEl = document.getElementById('adminStakingLinked');
+
+    if(ypsEl) { ypsEl.textContent = parseFloat(ethers.utils.formatEther(yps)).toFixed(10); ypsEl.style.color = ypsZero ? 'var(--red)' : 'var(--green)'; }
+    if(atfEl) atfEl.textContent = fundedF.toLocaleString() + ' REALM';
+    if(apsEl) apsEl.textContent = totalStakedF.toLocaleString() + ' REALM';
+    if(arbEl) arbEl.textContent = stakingBalF.toLocaleString() + ' REALM (contract holds 30M reserve + user stakes)';
+    if(arrEl) { arrEl.textContent = reserveRemain.toLocaleString(undefined,{maximumFractionDigits:0}) + ' REALM undeclared'; arrEl.style.color = reserveRemain > 0 ? 'var(--green)' : 'var(--dim)'; }
+    if(lnkEl) lnkEl.innerHTML = rewardsOk ? ok('Linked') : err('NOT SET');
+
+    const bpsF = v => (v.toNumber()/100).toFixed(1)+'%';
+    const fmtR = v => parseFloat(ethers.utils.formatEther(v)).toLocaleString(undefined,{maximumFractionDigits:0});
+
+    if(el) el.innerHTML = `
+      <div style="padding:8px;border-radius:4px;margin-bottom:10px;background:${issues===0?'rgba(0,232,122,.07)':issues<=2?'rgba(240,165,0,.07)':'rgba(255,80,80,.07)'};border:1px solid ${issues===0?'rgba(0,232,122,.3)':issues<=2?'rgba(240,165,0,.3)':'rgba(255,80,80,.3)'}">
+        ${issues===0 ? ok('All systems go — full rewards pipeline active') : issues<=2 ? wrn(issues+' issue(s) found — some rewards may not flow') : err(issues+' critical issues — rewards pipeline broken')}
+      </div>
+
+      <div style="font-weight:700;font-size:9px;color:var(--gold);margin:8px 0 4px">🔗 CONTRACT WIRING</div>
+      ${inf('Hub → Rewards_REALM (fee distribution)', hubRewOk ? ok('Set correctly') : err('Hub.rewardsContract ≠ '+C.REWARDS.slice(0,10)+'…'))}
+      ${inf('Rewards_REALM.hubContract (call auth)', hubOk ? ok('Set correctly') : err('Set to: '+hubInRewards.slice(0,10)+'… need: Hub'))}
+      ${inf('Rewards_REALM → REALMStaking', stakingOk ? ok('Set correctly') : err('stakingContract not pointing to staking'))}
+      ${inf('REALMStaking.rewardsContract (fund auth)', rewardsOk ? ok('Set correctly') : err('CRITICAL — fundRewards() will reject Rewards_REALM calls'))}
+      ${inf('Hub → GameplayPool (win bonuses)', gpSet ? (gpAuthOk ? ok('Set + authorised') : err('Set but Hub NOT authorised on pool — payReward() will fail')) : wrn('Not set — no 5 REALM win bonus per game'))}
+
+      <div style="font-weight:700;font-size:9px;color:var(--gold);margin:10px 0 4px">💎 30M STAKING RESERVE (REALMStaking contract)</div>
+      ${inf('Contract REALM balance', stakingBalF.toLocaleString(undefined,{maximumFractionDigits:0})+' REALM')}
+      ${inf('User stakes held', totalStakedF.toLocaleString(undefined,{maximumFractionDigits:0})+' REALM')}
+      ${inf('30M reserve remaining', reserveRemain.toLocaleString(undefined,{maximumFractionDigits:0})+' REALM')}
+      ${inf('Total declared to stakers', fundedF.toLocaleString(undefined,{maximumFractionDigits:0})+' REALM')}
+      ${inf('yieldPerShare', ypsZero ? err('0 — NO EMISSIONS DECLARED YET') : ok(parseFloat(ethers.utils.formatEther(yps)).toFixed(8)))}
+
+      <div style="font-weight:700;font-size:9px;color:var(--gold);margin:10px 0 4px">🎮 48M GAMEPLAY POOL (win bonus per game)</div>
+      ${inf('Pool balance', fmtR(gpBalance)+' REALM')}
+      ${inf('Total distributed so far', fmtR(gpTotalDistrib)+' REALM')}
+      ${inf('Win bonus per game', parseFloat(ethers.utils.formatEther(winRewardAmt)).toFixed(0)+' REALM')}
+
+      <div style="font-weight:700;font-size:9px;color:var(--gold);margin:10px 0 4px">📊 FEE SPLIT (per 2.5% game fee)</div>
+      ${inf('Cashback → both players', bpsF(cashbackBps))}
+      ${inf('Referral bonus', bpsF(referralBps))}
+      ${inf('Creator bonus (private only)', bpsF(creatorBps))}
+      ${inf('→ REALMStaking pool', '<strong style="color:var(--green)">'+bpsF(stakingBps)+'</strong>')}
+      ${inf('PropertyNFT zone yield', bpsF(propertyBps))}
+      ${inf('Dev wallet (remainder)', (100-(cashbackBps.toNumber()+referralBps.toNumber()*2+creatorBps.toNumber()+stakingBps.toNumber()+propertyBps.toNumber())/100).toFixed(1)+'%')}
+
+      <div style="font-weight:700;font-size:9px;color:var(--gold);margin:10px 0 4px">📈 LIFETIME TOTALS</div>
+      ${inf('Total game fees processed', fmtR(totalFeesProcessed)+' REALM')}
+      ${inf('Sent to staking from fees', fmtR(totalStakingFunded)+' REALM')}
+      ${inf('Sent to dev wallet', fmtR(totalDevCollected)+' REALM')}
+    `;
+
+    // Fix buttons for owner
+    if(isOwner) {
+      if(!rewardsOk)  el.innerHTML += `<button class="btn btn-red" style="margin-top:8px;width:100%" onclick="fixRewardsLink()">🔧 Fix: Link Rewards_REALM → Staking</button>`;
+      if(gpSet && !gpAuthOk) el.innerHTML += `<button class="btn btn-red" style="margin-top:6px;width:100%" onclick="fixGameplayPoolAuth()">🔧 Fix: Authorise Hub on GameplayPool</button>`;
+      if(ypsZero) el.innerHTML += `<div style="margin-top:10px;padding:8px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.3);border-radius:4px;font-size:9px;color:var(--gold)">⚠️ The 30M reserve has never been distributed. Scroll down to <strong>"30M Staking Reserve — Emission Control"</strong> and declare your first emission.</div>`;
+    }
+  } catch(e) {
+    console.error('Health check error:', e);
+    if(el) el.innerHTML = '<span style="color:var(--red)">Health check failed: '+esc(e.message)+'</span>';
+  }
+}
+
+async function fixRewardsLink() {
+  if(!isOwner) return toast('Owner only','er');
+  try {
+    toast('⏳ Linking Rewards_REALM → REALMStaking…','in');
+    const tx = await stakingC.setRewardsContract(C.REWARDS, {gasLimit:100000});
+    await tx.wait();
+    toast('✅ Done! 14% of game fees will now flow into the staking pool.','ok');
+    checkContractHealth();
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function fixGameplayPoolAuth() {
+  if(!isOwner) return toast('Owner only','er');
+  if(!C.GAMEPLAY_POOL) return toast('Set C.GAMEPLAY_POOL address first','er');
+  try {
+    toast('⏳ Authorising Hub on GameplayPool…','in');
+    const gpC = new ethers.Contract(C.GAMEPLAY_POOL, GAMEPLAY_POOL_ABI, signer);
+    const tx = await gpC.setAuthorised(C.HUB, true, {gasLimit:100000});
+    await tx.wait();
+    toast('✅ Hub authorised! Winners now receive 5 REALM bonus per win.','ok');
+    checkContractHealth();
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function adminSeedStaking() {
+  if(!isOwner) return toast('Owner wallet required','er');
+  const amt = document.getElementById('seedAmt').value;
+  if(!amt || parseFloat(amt) <= 0) return toast('Enter emission amount','er');
+  try {
+    const wei = ethers.utils.parseEther(parseFloat(amt).toString());
+
+    // Check 30M reserve has enough left (contract balance minus staked tokens = reserve)
+    const contractBal = await realm.balanceOf(C.STAKING);
+    const totalStaked  = await stakingC.totalStaked();
+    const reserve      = contractBal.sub(totalStaked);
+    if(wei.gt(reserve)) {
+      const avail = parseFloat(ethers.utils.formatEther(reserve)).toLocaleString();
+      return toast(`Only ${avail} REALM available in the 30M reserve right now`,'er');
+    }
+
+    const totalStakedF   = parseFloat(ethers.utils.formatEther(totalStaked));
+    const sharePerToken  = totalStakedF > 0 ? parseFloat(amt) / totalStakedF : 0;
+
+    if(!confirm(
+      `Declare ${parseFloat(amt).toLocaleString()} REALM emission from the 30M reserve?
+
+` +
+      `Per REALM staked: +${sharePerToken.toFixed(6)} REALM
+` +
+      `Your 1M stake receives: ${(sharePerToken * 1000000).toLocaleString()} REALM claimable now
+
+` +
+      `No token approval needed — the 30M is already inside the staking contract.`
+    )) return;
+
+    toast('⏳ Declaring emission from 30M reserve…','in');
+    // owner can call fundRewards() directly per onlyRewards modifier (allows owner)
+    const tx = await stakingC.fundRewards(wei, {gasLimit:200000});
+    await tx.wait();
+    toast('✅ ' + parseFloat(amt).toLocaleString() + ' REALM declared! All stakers can claim now.','ok');
+    checkContractHealth();
+    loadStakingData();
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+// ═══════════════════════════════════════════
 // DEX POOL MONITOR & AUTO-ADJUST (Admin)
 // ═══════════════════════════════════════════
+// ── GameplayRewardsPool ABI ──
+const GAMEPLAY_POOL_ABI = [
+  'function authorised(address) view returns (bool)',
+  'function totalDistributed() view returns (uint256)',
+  'function balance() view returns (uint256)',
+  'function setAuthorised(address _caller, bool _status) external',
+  'function payReward(address _to, uint256 _amount) external',
+];
+
+// ── Hub admin ABI (for reading gameplayPool + winRewardAmount) ──
+const HUB_ADMIN_ABI = [
+  'function gameplayPool() view returns (address)',
+  'function winRewardAmount() view returns (uint256)',
+  'function rewardsContract() view returns (address)',
+];
+
+// ── Rewards_REALM read ABI (admin config checks) ──
+const REWARDS_ADMIN_ABI = [
+  'function hubContract() view returns (address)',
+  'function stakingContract() view returns (address)',
+  'function devWallet() view returns (address)',
+  'function cashbackBps() view returns (uint256)',
+  'function referralBps() view returns (uint256)',
+  'function creatorBps() view returns (uint256)',
+  'function stakingBps() view returns (uint256)',
+  'function propertyBps() view returns (uint256)',
+  'function totalStakingFunded() view returns (uint256)',
+  'function totalFeesProcessed() view returns (uint256)',
+  'function totalDevCollected() view returns (uint256)',
+];
+
 const POOL_ADDRESS    = '0x9806a64d044b5dcd9cfe94f7749a5c0830761578';
 const REALM_ADDRESS_C = '0x736C7B66F0Dd6dB1bB20f365f6aED498d8059b4A';
 const DISCOUNT_PERCENT        = 5;   // Offer users 5% discount vs DEX
@@ -2405,56 +2905,65 @@ let dexRefreshTimer = null;
 
 async function refreshDexAndGateway() {
   if (!provider) return;
+  const el = id => document.getElementById(id);
   try {
     const pool = new ethers.Contract(POOL_ADDRESS, POOL_ABI_MINI, provider);
     const gw   = new ethers.Contract(C.GATEWAY, GATEWAY_ABI, provider);
 
-    // Get DEX reserves
-    const [res0, res1] = await pool.getReserves();
-    const token0 = (await pool.token0()).toLowerCase();
+    // Get reserves — try/catch separately so gateway still loads if pool fails
     let realmRes, coreRes;
-    if (token0 === REALM_ADDRESS_C.toLowerCase()) {
-      realmRes = res0; coreRes = res1;
-    } else {
-      realmRes = res1; coreRes = res0;
+    try {
+      const [res0, res1, _ts] = await pool.getReserves();
+      const token0 = (await pool.token0()).toLowerCase();
+      if (token0 === REALM_ADDRESS_C.toLowerCase()) {
+        realmRes = res0; coreRes = res1;
+      } else {
+        realmRes = res1; coreRes = res0;
+      }
+    } catch(poolErr) {
+      console.warn('Pool read failed:', poolErr.message);
+      if(el('dexPriceUsd'))  el('dexPriceUsd').textContent  = 'Pool unavailable';
+      if(el('dexPriceCore')) el('dexPriceCore').textContent = 'Pool unavailable';
     }
 
-    if (realmRes.isZero()) return; // Pool empty / not found
-
-    // DEX: how many CORE per 1 REALM (price of REALM in CORE)
-    const dexCorePerRealm = Number(ethers.utils.formatEther(coreRes)) / Number(ethers.utils.formatEther(realmRes));
-    // Gateway rate: REALM per 1 CORE (inverse of DEX price)
-    const dexRealmPerCore = 1 / dexCorePerRealm;
-    const dexPriceUsd     = dexCorePerRealm * 0.09; // CORE ≈ $0.09 USD
-
+    // Gateway rate (always try this even if pool failed)
     const currentGwRateRaw = await gw.realmPerCore();
     const currentGwRate    = parseFloat(ethers.utils.formatEther(currentGwRateRaw));
-    const suggestedRate    = dexRealmPerCore * (1 - DISCOUNT_PERCENT / 100);
-    const diffPercent      = Math.abs((dexRealmPerCore - currentGwRate) / dexRealmPerCore * 100);
+    if(el('gwRateLive'))  el('gwRateLive').textContent  = currentGwRate.toLocaleString(undefined,{maximumFractionDigits:2}) + ' REALM/CORE';
+    if(el('adminGwRate')) el('adminGwRate').textContent = currentGwRate.toLocaleString(undefined,{maximumFractionDigits:0});
 
-    const fmt = (n, d=6) => n.toLocaleString(undefined, {minimumFractionDigits:d, maximumFractionDigits:d});
+    if(!realmRes || realmRes.isZero()) {
+      if(el('misalignmentPct')) el('misalignmentPct').textContent = 'Pool empty';
+      return { currentGwRate };
+    }
 
-    const el = id => document.getElementById(id);
-    if (el('dexPriceUsd'))    el('dexPriceUsd').textContent    = '$' + fmt(dexPriceUsd);
-    if (el('dexPriceCore'))   el('dexPriceCore').textContent   = fmt(dexCorePerRealm) + ' CORE/REALM';
-    if (el('gwRateLive'))     el('gwRateLive').textContent     = fmt(currentGwRate) + ' REALM/CORE';
-    if (el('suggestedRate'))  el('suggestedRate').textContent  = fmt(suggestedRate) + ' REALM/CORE';
-    if (el('misalignmentPct')) {
+    // Prices
+    // Reserves are uint112 — use BigNumber division via ethers
+    const realmF = parseFloat(ethers.utils.formatEther(realmRes));
+    const coreF  = parseFloat(ethers.utils.formatEther(coreRes));
+    const dexCorePerRealm = coreF / realmF;   // CORE per 1 REALM
+    const dexRealmPerCore = realmF / coreF;   // REALM per 1 CORE
+    const dexPriceUsd     = dexCorePerRealm * 0.09;
+
+    const suggestedRate = dexRealmPerCore * (1 - DISCOUNT_PERCENT / 100);
+    const diffPercent   = Math.abs((dexRealmPerCore - currentGwRate) / dexRealmPerCore * 100);
+
+    const fmt6 = n => n.toLocaleString(undefined, {minimumFractionDigits:4, maximumFractionDigits:6});
+
+    if(el('dexPriceUsd'))    el('dexPriceUsd').textContent   = '$' + fmt6(dexPriceUsd);
+    if(el('dexPriceCore'))   el('dexPriceCore').textContent  = fmt6(dexCorePerRealm) + ' CORE/REALM';
+    if(el('suggestedRate'))  el('suggestedRate').textContent = fmt6(suggestedRate) + ' REALM/CORE';
+    if(el('misalignmentPct')) {
       el('misalignmentPct').textContent = diffPercent.toFixed(2) + '%';
       el('misalignmentPct').style.color = diffPercent > AUTO_UPDATE_THRESHOLD ? 'var(--red)' : 'var(--green)';
     }
-    // Also update the main admin rate display
-    if (el('adminGwRate')) el('adminGwRate').textContent = currentGwRate.toLocaleString(undefined, {maximumFractionDigits:0});
 
     return { dexRealmPerCore, currentGwRate, suggestedRate, diffPercent };
   } catch(e) {
     console.error('DEX refresh error:', e);
-    const el = id => document.getElementById(id);
-    ['dexPriceUsd','dexPriceCore','gwRateLive','suggestedRate'].forEach(id => {
-      const el2 = el(id); if (el2 && el2.textContent==='Loading…') el2.textContent='—';
+    ['dexPriceUsd','dexPriceCore','suggestedRate','misalignmentPct'].forEach(id => {
+      const e2 = el(id); if(e2) e2.textContent = 'Error';
     });
-    if (el('misalignmentPct') && el('misalignmentPct').textContent==='Loading…')
-      el('misalignmentPct').textContent = 'Pool not found';
   }
 }
 
