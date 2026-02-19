@@ -820,6 +820,25 @@ label input[type=checkbox]{width:auto;margin:0}
       <button class="btn" onclick="adminSetRate()">Update Gateway Rate</button>
     </div>
     <div class="card">
+      <h3>⚡ Live DEX Price & Auto-Adjust</h3>
+      <div class="ir"><span class="il">DEX Price (USD)</span><span class="iv g" id="dexPriceUsd">Loading…</span></div>
+      <div class="ir"><span class="il">DEX Price (CORE per REALM)</span><span class="iv" id="dexPriceCore">Loading…</span></div>
+      <div class="ir"><span class="il">Current Gateway Rate</span><span class="iv o" id="gwRateLive">Loading…</span></div>
+      <div class="ir"><span class="il">Suggested Rate (5% off DEX)</span><span class="iv" id="suggestedRate">Loading…</span></div>
+      <div class="ir"><span class="il">Misalignment vs DEX</span><span class="iv" id="misalignmentPct">Loading…</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+        <button class="btn btn-green" onclick="triggerAutoUpdate()">Auto-Update Now</button>
+        <button class="btn-ghost" onclick="refreshDexAndGateway()">🔄 Refresh DEX</button>
+      </div>
+      <p style="font-size:9px;color:var(--dim);margin-top:8px">Auto-refreshes every 60s. Only updates on-chain if &gt;10% misaligned.</p>
+    </div>
+    <div class="card">
+      <h3>✏️ Manual Rate Override</h3>
+      <span class="fl">Set Custom Rate (REALM per 1 CORE)</span>
+      <input type="number" id="manualRate" step="0.1" min="0.1" placeholder="e.g. 9.5">
+      <button class="btn btn-blue" onclick="manualSetRate()" style="margin-top:6px">Force Update Rate</button>
+    </div>
+    <div class="card">
       <h3>🚨 Emergency Controls</h3>
       <div class="ibox re" style="margin-bottom:12px"><strong>⚠️ Danger Zone</strong> — These affect live contracts and real funds.</div>
       <div style="display:grid;gap:6px">
@@ -907,9 +926,9 @@ const C = {
 };
 
 const CORE_CHAIN = {
-  chainId:'0x99', // 153 dec
+  chainId:'0x99', // 153 decimal — Core Blockchain Mainnet
   chainName:'Core Blockchain Mainnet',
-  rpcUrls:['https://rpc.coredao.org'],
+  rpcUrls:['https://rpc.coredao.org','https://rpc-core.icecreamswap.com'],
   nativeCurrency:{name:'CORE',symbol:'CORE',decimals:18},
   blockExplorerUrls:['https://scan.coredao.org']
 };
@@ -1052,6 +1071,7 @@ function goView(id, el) {
   if (id==='discovery') loadDiscovery();
   if (id==='social') { loadMyRooms(); if (currentSocialRoomId) loadSocialMsgs(); }
   if (id==='admin' && isConnected) { checkOwner(); loadAdminData(); }
+  if (id!=='admin' && dexRefreshTimer) { clearInterval(dexRefreshTimer); dexRefreshTimer=null; }
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
@@ -1070,8 +1090,31 @@ async function connect() {
       if (isMob) { window.location.href = `https://metamask.app.link/dapp/${location.host}${location.pathname}`; return; }
       throw new Error('Install MetaMask or a Web3 wallet');
     }
-    try { await eth.request({method:'wallet_switchEthereumChain',params:[{chainId:CORE_CHAIN.chainId}]}); }
-    catch(e) { if(e.code===4902) await eth.request({method:'wallet_addEthereumChain',params:[CORE_CHAIN]}); else throw e; }
+    // Switch to Core Mainnet — handle all MetaMask/mobile wallet edge cases
+    try {
+      await eth.request({method:'wallet_switchEthereumChain',params:[{chainId:CORE_CHAIN.chainId}]});
+    } catch(switchErr) {
+      if (switchErr.code === 4902) {
+        // Chain not in wallet yet — add it
+        try {
+          await eth.request({method:'wallet_addEthereumChain',params:[CORE_CHAIN]});
+        } catch(addErr) {
+          // MetaMask sometimes errors with "same RPC endpoint" if chain exists under different name
+          // This is safe to ignore — chain is already registered, just switch to it
+          const errMsg = (addErr.message||'').toLowerCase();
+          const isSafeError = errMsg.includes('already') || errMsg.includes('same rpc') || errMsg.includes('exists');
+          if (!isSafeError) throw addErr;
+          // Chain exists — attempt switch again
+          try { await eth.request({method:'wallet_switchEthereumChain',params:[{chainId:CORE_CHAIN.chainId}]}); } catch(e2){}
+        }
+      } else if (switchErr.code === 4001) {
+        throw switchErr; // User explicitly rejected — surface to user
+      } else {
+        // Some wallets throw on switch even when successful — check current chain
+        const errMsg = (switchErr.message||'').toLowerCase();
+        if (!errMsg.includes('already') && !errMsg.includes('same rpc') && !errMsg.includes('exists')) throw switchErr;
+      }
+    }
 
     provider = new ethers.providers.Web3Provider(eth);
     await provider.send('eth_requestAccounts',[]);
@@ -2308,6 +2351,10 @@ async function loadAdminData() {
   // Contract addresses
   const pairs = [['REALM Token',C.REALM],['Game Hub',C.HUB],['Gateway',C.GATEWAY],['Staking',C.STAKING],['Bridge',C.BRIDGE],['Rewards',C.REWARDS],['Social Chat',C.SOCIAL],['Game Chat',C.GAMECHAT]];
   document.getElementById('contractList').innerHTML = pairs.map(([n,a])=>`<div style="display:grid;grid-template-columns:90px 1fr;gap:6px"><span>${n}:</span><span style="color:var(--text);word-break:break-all">${a}</span></div>`).join('');
+  // Start DEX monitor
+  refreshDexAndGateway();
+  if (dexRefreshTimer) clearInterval(dexRefreshTimer);
+  dexRefreshTimer = setInterval(refreshDexAndGateway, DEX_REFRESH_MS);
 }
 
 async function adminSetRate() {
@@ -2336,6 +2383,112 @@ async function adminWithdraw() {
     toast('⏳ Withdrawing…','in');
     const tx = await gateway.withdrawReserve(to, ethers.utils.parseEther(amt), {gasLimit:200000});
     await tx.wait(); toast('✅ Withdrawn!','ok'); loadAdminData();
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+// ═══════════════════════════════════════════
+// DEX POOL MONITOR & AUTO-ADJUST (Admin)
+// ═══════════════════════════════════════════
+const POOL_ADDRESS    = '0x9806a64d044b5dcd9cfe94f7749a5c0830761578';
+const REALM_ADDRESS_C = '0x736C7B66F0Dd6dB1bB20f365f6aED498d8059b4A';
+const DISCOUNT_PERCENT        = 5;   // Offer users 5% discount vs DEX
+const AUTO_UPDATE_THRESHOLD   = 10;  // Only auto-update if >10% misaligned
+const DEX_REFRESH_MS          = 60000;
+
+const POOL_ABI_MINI = [
+  'function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32)',
+  'function token0() view returns (address)',
+  'function token1() view returns (address)'
+];
+
+let dexRefreshTimer = null;
+
+async function refreshDexAndGateway() {
+  if (!provider) return;
+  try {
+    const pool = new ethers.Contract(POOL_ADDRESS, POOL_ABI_MINI, provider);
+    const gw   = new ethers.Contract(C.GATEWAY, GATEWAY_ABI, provider);
+
+    // Get DEX reserves
+    const [res0, res1] = await pool.getReserves();
+    const token0 = (await pool.token0()).toLowerCase();
+    let realmRes, coreRes;
+    if (token0 === REALM_ADDRESS_C.toLowerCase()) {
+      realmRes = res0; coreRes = res1;
+    } else {
+      realmRes = res1; coreRes = res0;
+    }
+
+    if (realmRes.isZero()) return; // Pool empty / not found
+
+    // DEX: how many CORE per 1 REALM (price of REALM in CORE)
+    const dexCorePerRealm = Number(ethers.utils.formatEther(coreRes)) / Number(ethers.utils.formatEther(realmRes));
+    // Gateway rate: REALM per 1 CORE (inverse of DEX price)
+    const dexRealmPerCore = 1 / dexCorePerRealm;
+    const dexPriceUsd     = dexCorePerRealm * 0.09; // CORE ≈ $0.09 USD
+
+    const currentGwRateRaw = await gw.realmPerCore();
+    const currentGwRate    = parseFloat(ethers.utils.formatEther(currentGwRateRaw));
+    const suggestedRate    = dexRealmPerCore * (1 - DISCOUNT_PERCENT / 100);
+    const diffPercent      = Math.abs((dexRealmPerCore - currentGwRate) / dexRealmPerCore * 100);
+
+    const fmt = (n, d=6) => n.toLocaleString(undefined, {minimumFractionDigits:d, maximumFractionDigits:d});
+
+    const el = id => document.getElementById(id);
+    if (el('dexPriceUsd'))    el('dexPriceUsd').textContent    = '$' + fmt(dexPriceUsd);
+    if (el('dexPriceCore'))   el('dexPriceCore').textContent   = fmt(dexCorePerRealm) + ' CORE/REALM';
+    if (el('gwRateLive'))     el('gwRateLive').textContent     = fmt(currentGwRate) + ' REALM/CORE';
+    if (el('suggestedRate'))  el('suggestedRate').textContent  = fmt(suggestedRate) + ' REALM/CORE';
+    if (el('misalignmentPct')) {
+      el('misalignmentPct').textContent = diffPercent.toFixed(2) + '%';
+      el('misalignmentPct').style.color = diffPercent > AUTO_UPDATE_THRESHOLD ? 'var(--red)' : 'var(--green)';
+    }
+    // Also update the main admin rate display
+    if (el('adminGwRate')) el('adminGwRate').textContent = currentGwRate.toLocaleString(undefined, {maximumFractionDigits:0});
+
+    return { dexRealmPerCore, currentGwRate, suggestedRate, diffPercent };
+  } catch(e) {
+    console.error('DEX refresh error:', e);
+    const el = id => document.getElementById(id);
+    ['dexPriceUsd','dexPriceCore','gwRateLive','suggestedRate'].forEach(id => {
+      const el2 = el(id); if (el2 && el2.textContent==='Loading…') el2.textContent='—';
+    });
+    if (el('misalignmentPct') && el('misalignmentPct').textContent==='Loading…')
+      el('misalignmentPct').textContent = 'Pool not found';
+  }
+}
+
+async function triggerAutoUpdate() {
+  if (!isOwner) return toast('Connect owner wallet first','er');
+  try {
+    const data = await refreshDexAndGateway();
+    if (!data) return toast('Could not fetch DEX data','er');
+    const { suggestedRate, diffPercent } = data;
+    if (diffPercent <= AUTO_UPDATE_THRESHOLD) {
+      return toast(`Gateway is within ${diffPercent.toFixed(1)}% of DEX — no update needed`,'in');
+    }
+    const newRateWei = ethers.utils.parseEther(suggestedRate.toFixed(18));
+    if (!confirm(`Update Gateway to ${suggestedRate.toFixed(4)} REALM/CORE (${DISCOUNT_PERCENT}% below DEX)?`)) return;
+    toast('⏳ Updating Gateway rate…','in');
+    const tx = await gateway.setRate(newRateWei, {gasLimit:150000});
+    await tx.wait();
+    toast('✅ Gateway rate updated!','ok');
+    refreshDexAndGateway(); loadGateway();
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function manualSetRate() {
+  if (!isOwner) return toast('Connect owner wallet first','er');
+  const input = document.getElementById('manualRate').value;
+  if (!input || parseFloat(input) <= 0) return toast('Enter valid rate','er');
+  try {
+    const newRateWei = ethers.utils.parseEther(parseFloat(input).toString());
+    if (!confirm(`Force Gateway rate to ${input} REALM/CORE?`)) return;
+    toast('⏳ Setting rate…','in');
+    const tx = await gateway.setRate(newRateWei, {gasLimit:150000});
+    await tx.wait();
+    toast('✅ Rate set to '+input+' REALM/CORE!','ok');
+    refreshDexAndGateway(); loadGateway();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
 
