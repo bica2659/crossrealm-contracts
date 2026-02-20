@@ -159,7 +159,7 @@ label input[type=checkbox]{width:auto;margin:0}
 .play-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px;min-height:0}
 .play-left::-webkit-scrollbar{width:3px}
 .play-left::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
-.play-right{overflow:hidden;padding:12px 12px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);min-height:0;gap:6px}
+.play-right{overflow:hidden;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);min-height:0;min-width:0;gap:8px}
 
 /* ── BOARD ── */
 .board-wrap{
@@ -167,26 +167,22 @@ label input[type=checkbox]{width:auto;margin:0}
   border:2px solid var(--gold);border-radius:6px;
   box-shadow:0 0 40px rgba(240,165,0,.12),0 0 80px rgba(240,165,0,.05);
   overflow:hidden;flex-shrink:0;
+  align-self:center; /* center in flex column without needing width:100% tricks */
   /*
-   board-wrap IS the sized square. It never overflows its container.
-   Width:  fill play-right minus padding (24px total), cap at 520px
-   Height: never exceed viewport minus topbar(52) + infobar(64) + buttons(52) + gaps(36) = 204px
-   The smaller wins → perfect square board that always fits.
+   Size = the smaller of: available width in play-right (100% - 24px padding)
+                          available height (100vh minus all chrome above/below)
+                          max cap of 520px
+   play-right is overflow:hidden so the board can never push past its container.
   */
-  width: min(
-    calc(100% - 24px),
-    calc(100vh - 204px),
-    520px
-  );
+  width: min(calc(100% - 24px), calc(100vh - 210px), 520px);
   aspect-ratio: 1 / 1;
 }
 .board-grid{
-  /* Fills the board-wrap exactly — sizing is done on board-wrap, not here */
   display:grid;
   grid-template-columns:repeat(8,1fr);
   width:100%;
   height:100%;
-  min-width:0;
+  min-width:0;min-height:0;
 }
 .sq{
   display:flex;align-items:center;justify-content:center;
@@ -349,10 +345,10 @@ label input[type=checkbox]{width:auto;margin:0}
   /* mob-panel must fill full width of its flex-column parent */
   .mob-panel{display:none;width:100%}
   .mob-panel.active{display:flex;flex-direction:column;align-items:center;width:100%}
-  /* Board on mobile: fill width minus padding, cap at viewport height minus chrome */
+  /* Board on mobile: fill width minus margins, cap at viewport height minus chrome */
   .board-wrap{
-    width:min(calc(100vw - 24px), calc(100vh - 220px), 480px) !important;
-    margin:0 auto;
+    width:min(calc(100vw - 20px), calc(100vh - 220px), 480px) !important;
+    align-self:center;margin:0 auto;
   }
   .board-grid{width:100%;height:100%}
   .mob-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
@@ -1751,24 +1747,33 @@ async function loadGame(id) {
   // Save current game state before switching away
   if(currentGameId && currentGameId !== id) saveGameState();
 
-  // Try restoring from cache for instant re-load (AI games / fast switch)
-  if(currentGameId !== id && restoreGameState(id)) {
+  // For P2P games: ALWAYS fetch fresh from chain so we see opponent's latest moves
+  // For AI games: restore from cache for instant switch (moves are local only)
+  const cached = gameCache.get(id);
+  if(currentGameId !== id && cached && cached.isAIGame) {
+    // Instant cache restore for AI games only
     currentGameId = id;
+    currentGame    = cached.currentGame;
+    isAIGame       = true;
+    isMyTurn       = cached.isMyTurn;
+    lastState      = cached.lastState;
+    gameEngine     = cached.gameEngine ? new Chess(cached.gameEngine.fen()) : null;
+    checkersBoard  = cached.checkersBoard ? [...cached.checkersBoard] : null;
+    ckSelected = null; moveFrom = null;
+
+    const grid = document.getElementById('boardGrid');
     document.getElementById('boardContainer').style.display = 'none';
-    // Re-render from cached state
     if(gameEngine) {
-      const grid = document.getElementById('boardGrid');
       if(grid) grid.style.gridTemplateColumns = 'repeat(8,1fr)';
       renderChessBoard();
     } else if(checkersBoard) {
       renderCheckersBoard();
     }
-    // Restore infobar
     const g = currentGame;
     if(g) {
       document.getElementById('gameInfoBar').innerHTML =
-        `Game #${id} · ${g.gameType.toUpperCase()} · ${g.isAI?'🤖 AI':'👥 P2P'} · ${ethers.utils.formatEther(g.stake)} REALM<br>
-         <span class="${isMyTurn?'turn-you':'turn-opp'}">${isMyTurn?'🟢 YOUR TURN':'⏳ Opponent\'s turn…'}</span>`;
+        `Game #${id} · ${g.gameType.toUpperCase()} · 🤖 AI · ${ethers.utils.formatEther(g.stake)} REALM<br>
+         <span class="${isMyTurn?'turn-you':'turn-opp'}">${isMyTurn?'🟢 YOUR TURN':'⏳ AI thinking…'}</span>`;
     }
     document.getElementById('boardContainer').style.display = 'block';
     document.getElementById('forfeitBtn').disabled   = false;
@@ -1778,7 +1783,6 @@ async function loadGame(id) {
     loadGameChatMsgs();
     chatPollTimer = setInterval(loadGameChatMsgs, 10000);
     goView('play', document.getElementById('nav-play'));
-    // Switch mobile to board tab
     if(isMobile()) mobSwitch('board');
     return;
   }
@@ -1797,9 +1801,12 @@ async function loadGame(id) {
 
     document.getElementById('boardContainer').style.display = 'none';
 
-    if(g.gameType==='chess')     await initChess(id, g, state);
+    if(g.gameType==='chess')         await initChess(id, g, state);
     else if(g.gameType==='checkers') await initCheckers(id, g, state);
-    else { toast('8-Ball & Penalty coming soon!','in'); return; }
+    else {
+      toast('8-Ball & Penalty coming soon!','in');
+      return; // finally still runs
+    }
 
     document.getElementById('forfeitBtn').disabled   = false;
     document.getElementById('shareBtn').disabled     = false;
@@ -1817,8 +1824,12 @@ async function loadGame(id) {
 
     // Switch mobile to board tab automatically
     if(isMobile()) mobSwitch('board');
-  } catch(e){ toast('❌ Error: '+(e.reason||e.message),'er'); }
-  finally { loadingGame = false; }
+  } catch(e){
+    console.error('loadGame error:', e);
+    toast('❌ Error loading game: '+(e.reason||e.message),'er');
+  } finally {
+    loadingGame = false; // ALWAYS reset — prevents permanent lock
+  }
 }
 
 function buildStateKey(g) {
@@ -1831,11 +1842,19 @@ async function pollGameState() {
   try {
     const g = await hub.games(currentGameId);
     const key = buildStateKey(g);
-    if(lastState && key!==lastState) {
+    if(!lastState) {
+      // First poll after loading — just record the baseline
       lastState = key;
+      return;
+    }
+    if(key !== lastState) {
+      // State changed — opponent made a move (or game status changed)
+      // Invalidate cache so we fetch fresh from chain, not stale local state
+      gameCache.delete(currentGameId);
       gameEngine = null; checkersBoard = null;
+      lastState = key;
       await loadGame(currentGameId);
-    } else if(!lastState) { lastState = key; }
+    }
   } catch(e){}
 }
 
@@ -1988,7 +2007,9 @@ async function submitChessMove(from, to) {
     if(mated)  { toast('♟️ Checkmate! Move confirmed — funds release after challenge window.','ok'); declareWin(currentGameId); }
     else if(drawn) toast('🤝 Draw confirmed!','in');
     else toast('✅ Move confirmed!','ok');
-    clearBoardHighlights(); lastState=null;
+    clearBoardHighlights();
+    // Set lastState to current so poll detects OPPONENT's next move (not our own)
+    lastState = null; // will be refreshed by loadGame below
     await new Promise(r=>setTimeout(r,1500));
     await loadGame(currentGameId);
   } catch(e) {
