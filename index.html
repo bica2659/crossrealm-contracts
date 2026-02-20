@@ -492,7 +492,7 @@ label input[type=checkbox]{width:auto;margin:0}
           <div class="chat-rmeta" id="chatRoomMeta">Public room · Connect wallet to chat</div>
         </div>
         <div class="spacer"></div>
-        <button class="btn-ghost btn-sm" onclick="loadSocialRoomMessages()" style="margin-left:8px">↻</button>
+        <button class="btn-ghost btn-sm" onclick="loadSocialMsgs()" style="margin-left:8px">↻</button>
       </div>
       <div class="msgs-area" id="messagesArea">
         <div class="sysmsg-wrap"><div class="sysmsg">♟️ Chess Lobby</div></div>
@@ -965,7 +965,7 @@ label input[type=checkbox]{width:auto;margin:0}
         <div><span class="fl">Cliff (months from now)</span><input type="number" id="vestCliff" placeholder="12" value="12" min="1"></div>
         <div><span class="fl">End (months from now)</span><input type="number" id="vestEnd" placeholder="48" value="48" min="13"></div>
       </div>
-      <button class="btn btn-green" onclick="createVestingSchedule()" style="margin-top:4px">Create Schedule</button>
+      <button class="btn btn-green" onclick="adminCreateVestingSchedule()" style="margin-top:4px">Create Schedule</button>
       <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
       <h4 style="font-size:10px;color:var(--red);margin-bottom:8px">🔴 Revoke Schedule</h4>
       <input type="text" id="revokeAddr" placeholder="Beneficiary address to revoke 0x…" style="font-size:9px">
@@ -1065,6 +1065,39 @@ label input[type=checkbox]{width:auto;margin:0}
 </div>
 
 <!-- MODALS -->
+<div class="overlay" id="proposalModal">
+  <div class="modal" style="width:460px;max-width:calc(100vw - 32px)">
+    <div class="modal-title">📋 New Governance Proposal</div>
+    <div class="ibox bl" style="font-size:9px;margin-bottom:12px">You need <strong>10,000+ REALM locked</strong> to submit proposals. Voting lasts 3 days.</div>
+    <span class="fl">Proposal Type</span>
+    <select id="propType" onchange="togglePropFields()">
+      <option value="0">0 — Parameter Change</option>
+      <option value="1">1 — Treasury Spend</option>
+      <option value="2">2 — Whitelist Verifier</option>
+      <option value="3">3 — Upgrade Contract</option>
+      <option value="4">4 — Zone Creation</option>
+      <option value="5">5 — Bridge Config</option>
+      <option value="6">6 — Mint Legendary</option>
+    </select>
+    <span class="fl">Title</span>
+    <input type="text" id="propTitle" placeholder="Short descriptive title" maxlength="100">
+    <span class="fl">Description</span>
+    <textarea id="propDesc" placeholder="Full proposal description and rationale…" rows="3"></textarea>
+    <span class="fl">Target Contract (optional)</span>
+    <input type="text" id="propTarget" placeholder="0x… contract address (leave blank if N/A)">
+    <div id="propTreasuryFields" style="display:none">
+      <span class="fl">REALM Amount (for treasury spend)</span>
+      <input type="number" id="propValue" placeholder="e.g. 50000" min="0">
+      <span class="fl">Recipient Address</span>
+      <input type="text" id="propRecipient" placeholder="0x… recipient">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal('proposalModal')">Cancel</button>
+      <button class="btn" style="flex:2" onclick="submitProposal()">Submit Proposal</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="challengeModal">
   <div class="modal">
     <div class="modal-title">⚔️ Challenge <span id="mChalName">Player</span></div>
@@ -1185,6 +1218,84 @@ const REWARDS_ABI = [
   'function creatorBalance(address) view returns (uint256)',
   'function claimAll()',
   'function pendingRewards(address) view returns (uint256 cashback, uint256 referral, uint256 creator, uint256 total)',
+];
+
+// ── Hub full guardian/dispute ABI ──
+const HUB_DISPUTE_ABI = [
+  'function guardian() view returns (address)',
+  'function disputeCount() view returns (uint256)',
+  'function pendingDisputes(uint256) view returns (uint256 gameId, uint256 moveIdx, address challenger, address moveMaker, uint256 deposit, uint256 raisedAt, uint8 status)',
+  'function resolveDisputeManually(uint256 _disputeId, bool _moveValid) external',
+  'function expireUnresolvedDispute(uint256 _disputeId) external',
+  'function setGuardian(address _g) external',
+];
+
+// ── GameplayRewardsPool ABI ──
+const GAMEPLAY_POOL_ABI = [
+  'function authorised(address) view returns (bool)',
+  'function totalDistributed() view returns (uint256)',
+  'function balance() view returns (uint256)',
+  'function setAuthorised(address _caller, bool _status) external',
+  'function payReward(address _to, uint256 _amount) external',
+];
+
+// ── GovernanceDAO ABI ──
+const DAO_ABI = [
+  'function initialized() view returns (bool)',
+  'function proposalCount() view returns (uint256)',
+  'function totalLocked() view returns (uint256)',
+  'function lockedBalance(address) view returns (uint256)',
+  'function lockExpiry(address) view returns (uint256)',
+  'function votingPower(address) view returns (uint256)',
+  'function quorumRequired() view returns (uint256)',
+  'function isGuardian(address) view returns (bool)',
+  'function treasury() view returns (address)',
+  'function gameHub() view returns (address)',
+  'function rewardsContract() view returns (address)',
+  'function getProposal(uint256 _id) view returns (address proposer, string title, uint8 kind, uint256 forVotes, uint256 againstVotes, uint256 abstainVotes, uint8 state_, uint256 voteEnd)',
+  'function getState(uint256 _id) view returns (uint8)',
+  'function lockREALM(uint256 _amount, uint256 _lockUntil)',
+  'function unlockREALM(uint256 _amount)',
+  'function castVote(uint256 _proposalId, uint8 _support)',
+  'function queue(uint256 _proposalId)',
+  'function execute(uint256 _proposalId)',
+  'function cancel(uint256 _proposalId)',
+  'function finalizeInitialization()',
+  'function propose(uint8 _type, string _title, string _description, address _target, bytes _callData, uint256 _value, address _recipient) returns (uint256)',
+  'function addGuardian(address _g)',
+  'function setContractAddress(string _name, address _addr)',
+];
+
+// ── VestingManager ABI ──
+const VESTING_ABI = [
+  'function schedules(address) view returns (uint256 total, uint256 start, uint256 cliff, uint256 end, uint256 released, bool revoked)',
+  'function releasableAmount(address _beneficiary) view returns (uint256)',
+  'function totalAllocated() view returns (uint256)',
+  'function release()',
+  'function createVestingSchedule(address _beneficiary, uint256 _amount, uint256 _start, uint256 _cliff, uint256 _end)',
+  'function revoke(address _beneficiary)',
+];
+
+// ── Hub admin ABI (gameplayPool + winRewardAmount) ──
+const HUB_ADMIN_ABI = [
+  'function gameplayPool() view returns (address)',
+  'function winRewardAmount() view returns (uint256)',
+  'function rewardsContract() view returns (address)',
+];
+
+// ── Rewards_REALM admin read ABI ──
+const REWARDS_ADMIN_ABI = [
+  'function hubContract() view returns (address)',
+  'function stakingContract() view returns (address)',
+  'function devWallet() view returns (address)',
+  'function cashbackBps() view returns (uint256)',
+  'function referralBps() view returns (uint256)',
+  'function creatorBps() view returns (uint256)',
+  'function stakingBps() view returns (uint256)',
+  'function propertyBps() view returns (uint256)',
+  'function totalStakingFunded() view returns (uint256)',
+  'function totalFeesProcessed() view returns (uint256)',
+  'function totalDevCollected() view returns (uint256)',
 ];
 
 const STAKING_ABI = [
@@ -2460,7 +2571,7 @@ function selLock(lock, el) {
   stakeLock=lock;
   document.querySelectorAll('.lock-opt').forEach(o=>o.classList.remove('sel'));
   el.classList.add('sel');
-  document.getElementById('sAPY').textContent = lock?'~15.4%':'~14%';
+  // APY display (element removed from DOM)
 }
 
 async function loadStakingData() {
@@ -2544,7 +2655,7 @@ async function doUnstake() {
   try {
     const info = await stakingC.stakes(userAddr);
     if(info.amount.isZero()) return toast('Nothing staked','er');
-    const lu = info.lockedUntil.toNumber();
+    const lu = info.lockUntil ? info.lockUntil.toNumber() : (info[2] ? info[2].toNumber() : 0);
     if(lu>Date.now()/1000) return toast(`Locked for ${Math.ceil((lu-Date.now()/1000)/86400)} more days`,'er');
     toast('⏳ Withdrawing…','in');
     const tx = await stakingC.unstake(info.amount, {gasLimit:350000});
@@ -2783,7 +2894,7 @@ async function loadAdminData() {
   // Load dispute queue
   loadDisputeQueue();
   // Load vesting data
-  loadVestingData();
+  adminLoadVestingData();
   // Start DEX monitor
   refreshDexAndGateway();
   if (dexRefreshTimer) clearInterval(dexRefreshTimer);
@@ -3156,7 +3267,7 @@ async function expireDispute() {
 // ════════════════════════════════════════════
 // VESTING MANAGER
 // ════════════════════════════════════════════
-async function loadVestingData() {
+async function adminLoadVestingData() {
   if(!provider) return;
   try {
     const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, provider);
@@ -3189,7 +3300,7 @@ async function loadVestingData() {
   }
 }
 
-async function createVestingSchedule() {
+async function adminCreateVestingSchedule() {
   if(!isOwner) return toast('Owner only','er');
   const addr  = document.getElementById('vestAddr').value.trim();
   const amt   = parseFloat(document.getElementById('vestAmt').value);
@@ -3215,7 +3326,7 @@ Tokens must already be in the VestingManager contract.`)) return;
     const tx = await vestC.createVestingSchedule(addr, wei, now, cliffT, endT, {gasLimit:300000});
     await tx.wait();
     toast('✅ Schedule created for '+addr.slice(0,12)+'…','ok');
-    loadVestingData();
+    adminLoadVestingData();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
 
@@ -3232,7 +3343,7 @@ Unvested REALM returns to owner wallet. Vested-but-unreleased tokens go to benef
     const tx = await vestC.revoke(addr, {gasLimit:200000});
     await tx.wait();
     toast('✅ Schedule revoked. Unvested REALM returned to owner.','ok');
-    loadVestingData();
+    adminLoadVestingData();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
 
@@ -3276,98 +3387,6 @@ async function adminSeedStaking() {
     loadStakingData();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
-
-// ═══════════════════════════════════════════
-// DEX POOL MONITOR & AUTO-ADJUST (Admin)
-// ═══════════════════════════════════════════
-// ── VestingManager ABI ──
-const VESTING_ABI = [
-  'function totalAllocated() view returns (uint256)',
-  'function MAX_ALLOCATION() view returns (uint256)',
-  'function schedules(address) view returns (uint256 total, uint256 start, uint256 cliff, uint256 end, uint256 released, bool revoked)',
-  'function releasableAmount(address) view returns (uint256)',
-  'function createVestingSchedule(address,uint256,uint256,uint256,uint256) external',
-  'function revoke(address) external',
-  'event ScheduleCreated(address indexed beneficiary, uint256 amount, uint256 cliff, uint256 end)',
-];
-
-// ── Hub full guardian/dispute ABI ──
-const HUB_DISPUTE_ABI = [
-  'function guardian() view returns (address)',
-  'function disputeCount() view returns (uint256)',
-  'function pendingDisputes(uint256) view returns (uint256 gameId, uint256 moveIdx, address challenger, address moveMaker, uint256 deposit, uint256 raisedAt, uint8 status)',
-  'function resolveDisputeManually(uint256 _disputeId, bool _moveValid) external',
-  'function expireUnresolvedDispute(uint256 _disputeId) external',
-  'function setGuardian(address _g) external',
-];
-
-// ── GameplayRewardsPool ABI ──
-const GAMEPLAY_POOL_ABI = [
-  'function authorised(address) view returns (bool)',
-  'function totalDistributed() view returns (uint256)',
-  'function balance() view returns (uint256)',
-  'function setAuthorised(address _caller, bool _status) external',
-  'function payReward(address _to, uint256 _amount) external',
-];
-
-// ── GovernanceDAO ABI ─────────────────────────────────────
-const DAO_ABI = [
-  'function initialized() view returns (bool)',
-  'function proposalCount() view returns (uint256)',
-  'function totalLocked() view returns (uint256)',
-  'function lockedBalance(address) view returns (uint256)',
-  'function lockExpiry(address) view returns (uint256)',
-  'function votingPower(address) view returns (uint256)',
-  'function quorumRequired() view returns (uint256)',
-  'function isGuardian(address) view returns (bool)',
-  'function treasury() view returns (address)',
-  'function gameHub() view returns (address)',
-  'function rewardsContract() view returns (address)',
-  'function getProposal(uint256 _id) view returns (address proposer, string title, uint8 kind, uint256 forVotes, uint256 againstVotes, uint256 abstainVotes, uint8 state_, uint256 voteEnd)',
-  'function getState(uint256 _id) view returns (uint8)',
-  'function lockREALM(uint256 _amount, uint256 _lockUntil)',
-  'function unlockREALM(uint256 _amount)',
-  'function castVote(uint256 _proposalId, uint8 _support)',
-  'function queue(uint256 _proposalId)',
-  'function execute(uint256 _proposalId)',
-  'function cancel(uint256 _proposalId)',
-  'function finalizeInitialization()',
-  'function propose(uint8 _type, string _title, string _description, address _target, bytes _callData, uint256 _value, address _recipient) returns (uint256)',
-  'function addGuardian(address _g)',
-  'function setContractAddress(string _name, address _addr)',
-];
-
-// ── VestingManager ABI ────────────────────────────────────
-const VESTING_ABI = [
-  'function schedules(address) view returns (uint256 total, uint256 start, uint256 cliff, uint256 end, uint256 released, bool revoked)',
-  'function releasableAmount(address _beneficiary) view returns (uint256)',
-  'function totalAllocated() view returns (uint256)',
-  'function release()',
-  'function createVestingSchedule(address _beneficiary, uint256 _amount, uint256 _start, uint256 _cliff, uint256 _end)',
-  'function revoke(address _beneficiary)',
-];
-
-// ── Hub admin ABI (for reading gameplayPool + winRewardAmount) ──
-const HUB_ADMIN_ABI = [
-  'function gameplayPool() view returns (address)',
-  'function winRewardAmount() view returns (uint256)',
-  'function rewardsContract() view returns (address)',
-];
-
-// ── Rewards_REALM read ABI (admin config checks) ──
-const REWARDS_ADMIN_ABI = [
-  'function hubContract() view returns (address)',
-  'function stakingContract() view returns (address)',
-  'function devWallet() view returns (address)',
-  'function cashbackBps() view returns (uint256)',
-  'function referralBps() view returns (uint256)',
-  'function creatorBps() view returns (uint256)',
-  'function stakingBps() view returns (uint256)',
-  'function propertyBps() view returns (uint256)',
-  'function totalStakingFunded() view returns (uint256)',
-  'function totalFeesProcessed() view returns (uint256)',
-  'function totalDevCollected() view returns (uint256)',
-];
 
 const POOL_ADDRESS    = '0x9806a64d044b5dcd9cfe94f7749a5c0830761578';
 const REALM_ADDRESS_C = '0x736C7B66F0Dd6dB1bB20f365f6aED498d8059b4A';
