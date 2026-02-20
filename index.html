@@ -152,24 +152,30 @@ label input[type=checkbox]{width:auto;margin:0}
 .bp.soon{background:rgba(61,127,255,.1);border:1px solid rgba(61,127,255,.3);color:var(--blue)}
 
 /* ── PLAY VIEW ── */
-.play-wrap{display:grid;grid-template-columns:300px 1fr;flex:1;min-height:0}
-.play-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px}
+.play-wrap{display:grid;grid-template-columns:300px 1fr;grid-template-rows:1fr;flex:1;min-height:0;overflow:hidden}
+.play-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px;min-height:0}
 .play-left::-webkit-scrollbar{width:3px}
 .play-left::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
-.play-right{overflow-y:auto;padding:20px;display:flex;flex-direction:column;align-items:center;background:var(--bg)}
+.play-right{overflow-y:auto;overflow-x:hidden;padding:16px 12px;display:flex;flex-direction:column;align-items:center;background:var(--bg);min-height:0}
 
 /* Board */
 .board-wrap{
   display:none;border:2px solid var(--gold);border-radius:6px;
   box-shadow:0 0 40px rgba(240,165,0,.12),0 0 80px rgba(240,165,0,.05);
-  overflow:hidden;margin:12px auto;
-  max-width:calc(100vw - 336px);
-  width:fit-content;
+  overflow:hidden;margin:8px auto;flex-shrink:0;
 }
 .board-grid{
   display:grid;grid-template-columns:repeat(8,1fr);
-  width:clamp(280px,min(500px,calc(100vw - 360px)),500px);
-  aspect-ratio:1/1;
+  /* Constrained by BOTH available width and available height so it never clips.
+     Width:  100vw - 300px sidebar - 40px padding - 4px border = 100vw - 344px
+     Height: 100vh - 52px topbar - ~220px controls/margins    = 100vh - 272px */
+  width: min(
+    calc(100vw - 344px),
+    calc(100vh - 272px),
+    500px
+  );
+  min-width: 260px;
+  aspect-ratio: 1 / 1;
 }
 .sq{
   display:flex;align-items:center;justify-content:center;
@@ -326,10 +332,10 @@ label input[type=checkbox]{width:auto;margin:0}
   .main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
   .view{min-height:100%;overflow-y:auto}
   .view-body{padding:12px}
-  .play-wrap{display:flex;flex-direction:column}
-  .play-left{border-right:none;border-bottom:2px solid var(--border);max-height:38vh;padding:12px;overflow-y:auto}
-  .play-right{padding:12px 8px;align-items:center;min-height:0;flex:1}
-  .board-grid{width:min(380px,calc(100vw - 24px));min-width:0}
+  .play-wrap{display:flex;flex-direction:column;overflow:hidden}
+  .play-left{border-right:none;border-bottom:2px solid var(--border);max-height:34vh;padding:10px;overflow-y:auto;flex-shrink:0}
+  .play-right{padding:10px 8px;align-items:center;min-height:0;flex:1;overflow-y:auto}
+  .board-grid{width:min(calc(100vw - 24px),calc(60vh - 160px),460px);min-width:240px}
   .g2,.g3,.chain-grid{grid-template-columns:1fr}
   input,select,textarea{font-size:16px!important}
   .social-wrap{display:flex;flex-direction:column}
@@ -391,6 +397,7 @@ label input[type=checkbox]{width:auto;margin:0}
   <div class="nav-sect" id="adminNav" style="display:none">
     <span class="sect-label">Dev</span>
     <div class="nav-item" id="nav-admin" onclick="goView('admin',this)"><span class="ic">⚙️</span>Admin</div>
+    <div class="nav-item" id="nav-dao" onclick="goView('dao',this)"><span class="ic">🏛️</span>DAO</div>
   </div>
 </nav>
 
@@ -909,13 +916,151 @@ label input[type=checkbox]{width:auto;margin:0}
       <div class="ir" style="margin-top:14px"><span class="il">Gateway Status</span><span class="iv" id="gwStatus">—</span></div>
     </div>
     <div class="card">
+      <h3>📅 Staking Emission Schedule</h3>
+      <p style="font-size:9px;color:var(--dim);margin-bottom:10px;line-height:1.7">
+        The 30M reserve needs periodic emission declarations. You pick the cadence — the contract has no built-in timer.
+        Common schedules below are calculated for your current pool size.
+      </p>
+      <div class="g2" style="margin-bottom:12px">
+        <div class="stat" style="background:var(--bg4)"><div class="sl">Reserve Remaining</div><div class="sv" id="schedReserve" style="font-size:16px">—</div><div class="sl">REALM</div></div>
+        <div class="stat" style="background:var(--bg4)"><div class="sl">Total Staked</div><div class="sv" id="schedStaked" style="font-size:16px">—</div><div class="sl">REALM</div></div>
+      </div>
+      <div id="schedTable" style="font-size:9px;line-height:2.2;color:var(--dim)">Loading…</div>
+      <button class="btn-ghost" onclick="loadEmissionSchedule()" style="margin-top:8px">🔄 Recalculate</button>
+    </div>
+
+    <div class="card">
+      <h3>⚖️ Dispute Queue (Guardian)</h3>
+      <p style="font-size:9px;color:var(--dim);margin-bottom:10px;line-height:1.6">
+        When a game move is challenged but no verifier is set, it enters a pending dispute queue. As guardian (or owner), you have <strong>48 hours</strong> to resolve it manually before it auto-expires as valid.
+      </p>
+      <div class="ir"><span class="il">Total disputes raised</span><span class="iv" id="disputeTotal">—</span></div>
+      <div class="ir"><span class="il">Guardian address</span><span class="iv" id="guardianAddr" style="font-size:9px">—</span></div>
+      <div id="pendingDisputeList" style="font-size:9px;color:var(--dim);margin-top:8px">Loading…</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px">
+        <input type="number" id="disputeId" placeholder="Dispute ID" min="1" step="1">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;align-content:start">
+          <button class="btn btn-green" onclick="resolveDispute(true)">✅ Valid</button>
+          <button class="btn btn-red" onclick="resolveDispute(false)">❌ Invalid</button>
+        </div>
+      </div>
+      <button class="btn-ghost" style="margin-top:6px;width:100%" onclick="expireDispute()">⏱ Expire Stale Dispute (after 48h)</button>
+    </div>
+
+    <div class="card">
+      <h3>🏆 Vesting Manager</h3>
+      <p style="font-size:9px;color:var(--dim);margin-bottom:10px;line-height:1.7">
+        12M REALM is held in VestingManager for team allocation. Vesting is <strong>NOT automatic</strong> — each beneficiary calls <code>release()</code> themselves once past the cliff to pull their vested tokens. You (as owner) create schedules and can revoke them. No schedule = no vesting = tokens stay in contract.
+      </p>
+      <div class="ir"><span class="il">Contract balance</span><span class="iv" id="vestBal">—</span></div>
+      <div class="ir"><span class="il">Total allocated in schedules</span><span class="iv" id="vestAlloc">—</span></div>
+      <div id="vestSchedules" style="font-size:9px;color:var(--dim);margin-top:8px">Loading…</div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+      <h4 style="font-size:10px;color:var(--gold);margin-bottom:8px">➕ Create Vesting Schedule</h4>
+      <div class="g2">
+        <div><span class="fl">Beneficiary Address</span><input type="text" id="vestAddr" placeholder="0x…" style="font-size:9px"></div>
+        <div><span class="fl">Amount (REALM)</span><input type="number" id="vestAmt" placeholder="e.g. 1000000"></div>
+      </div>
+      <div class="g2">
+        <div><span class="fl">Cliff (months from now)</span><input type="number" id="vestCliff" placeholder="12" value="12" min="1"></div>
+        <div><span class="fl">End (months from now)</span><input type="number" id="vestEnd" placeholder="48" value="48" min="13"></div>
+      </div>
+      <button class="btn btn-green" onclick="createVestingSchedule()" style="margin-top:4px">Create Schedule</button>
+      <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+      <h4 style="font-size:10px;color:var(--red);margin-bottom:8px">🔴 Revoke Schedule</h4>
+      <input type="text" id="revokeAddr" placeholder="Beneficiary address to revoke 0x…" style="font-size:9px">
+      <button class="btn btn-red" onclick="revokeVesting()" style="margin-top:4px">Revoke & Recover Unvested REALM</button>
+    </div>
+
+    <div class="card">
       <h3>📋 Contract Addresses</h3>
       <div id="contractList" style="font-size:9px;line-height:2;color:var(--dim)"></div>
-      <button class="btn-ghost btn-sm" onclick="copyAddresses()" style="margin-top:10px">📋 Copy All</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px">
+        <button class="btn-ghost btn-sm" onclick="copyAddresses()">📋 Copy All</button>
+        <a class="btn-ghost btn-sm" style="text-align:center;text-decoration:none" href="https://scan.coredao.org" target="_blank">🔍 Block Explorer</a>
+      </div>
     </div>
   </div>
 </div>
 
+
+<!-- ═══════════ VIEW: DAO & GOVERNANCE ═══════════ -->
+<div id="view-dao" class="view">
+  <div class="vhead"><div class="vtitle">Governance <em>DAO</em></div><div class="vsub">On-chain voting · proposals · treasury · vesting</div></div>
+  <div class="view-body">
+
+    <div class="g2" style="margin-bottom:16px">
+      <div class="card">
+        <h3>🏛️ DAO Status</h3>
+        <div class="ir"><span class="il">Governance live</span><span class="iv" id="daoInitialized">—</span></div>
+        <div class="ir"><span class="il">Total REALM Locked</span><span class="iv g" id="daoTotalLocked">—</span></div>
+        <div class="ir"><span class="il">Quorum Required</span><span class="iv o" id="daoQuorum">—</span></div>
+        <div class="ir"><span class="il">Total Proposals</span><span class="iv" id="daoProposalCount">—</span></div>
+        <div class="ir"><span class="il">Your Voting Power</span><span class="iv g" id="daoMyPower">—</span></div>
+        <div class="ir"><span class="il">Your Lock Expiry</span><span class="iv" id="daoMyExpiry">—</span></div>
+        <button class="btn-ghost" onclick="loadDAOData()" style="margin-top:8px">🔄 Refresh</button>
+      </div>
+      <div class="card">
+        <h3>🔒 Lock REALM to Vote</h3>
+        <div class="ibox" style="font-size:9px;margin-bottom:10px">Lock REALM to gain voting power. Min <strong>10,000 REALM locked</strong> to submit proposals. You can unlock anytime after your lock date expires.</div>
+        <span class="fl">Amount (REALM)</span>
+        <input type="number" id="daoLockAmt" placeholder="e.g. 10000" min="1">
+        <span class="fl">Lock until (optional — leave blank for no expiry)</span>
+        <input type="date" id="daoLockDate">
+        <button class="btn" onclick="daoLockREALM()" style="margin-bottom:6px">Lock REALM</button>
+        <button class="btn-ghost" onclick="daoUnlockREALM()">Unlock All REALM</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0">📋 Active &amp; Recent Proposals</h3>
+        <button class="btn btn-sm" onclick="document.getElementById('proposalModal').classList.add('open')">+ New Proposal</button>
+      </div>
+      <div id="daoProposalList" style="color:var(--dim);font-size:10px;text-align:center;padding:20px">Connect wallet and click Refresh above</div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3>⏳ Team Vesting — 12M REALM</h3>
+      <div class="ibox bl" style="font-size:9px;line-height:1.8;margin-bottom:12px">
+        <strong>Vesting is NOT automatic.</strong> The VestingManager holds 12M REALM for the team with a <strong>1-year cliff + linear vest to 4 years</strong>. Two things must happen first:<br>
+        1️⃣ <strong>Owner must call <code>createVestingSchedule(beneficiary, amount, start, cliff, end)</code></strong> for each team wallet — this has NOT been done automatically at deploy.<br>
+        2️⃣ Each beneficiary must then call <code>release()</code> themselves to withdraw what has vested — the contract never pushes tokens automatically.<br><br>
+        Until schedules are created, all 12M sits idle in the VestingManager. Go to your block explorer and call <code>createVestingSchedule()</code> for each team member now.
+      </div>
+      <div class="ir"><span class="il">Contract balance</span><span class="iv g" id="vestingBal">—</span></div>
+      <div class="ir"><span class="il">Total allocated to schedules</span><span class="iv o" id="vestingAllocated">—</span></div>
+      <div class="ir"><span class="il">Your schedule</span><span class="iv" id="vestingMySchedule">—</span></div>
+      <div class="ir"><span class="il">You can claim now</span><span class="iv g" id="vestingClaimable">—</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+        <button class="btn-ghost" onclick="loadVestingData()">🔄 Load My Schedule</button>
+        <button class="btn btn-green" id="vestingClaimBtn" style="display:none" onclick="claimVesting()">Claim Vested Tokens</button>
+      </div>
+
+      <div id="daoAdminVesting" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+        <h4 style="font-size:11px;color:var(--gold);margin-bottom:10px">⚙️ Create Vesting Schedule (Owner Only)</h4>
+        <span class="fl">Beneficiary Address</span><input type="text" id="vestBeneficiary" placeholder="0x...">
+        <span class="fl">Amount (REALM)</span><input type="number" id="vestAmount" placeholder="e.g. 2000000">
+        <div class="g2">
+          <div><span class="fl">Start Date</span><input type="date" id="vestStart"></div>
+          <div><span class="fl">Cliff Date (1yr after start)</span><input type="date" id="vestCliff"></div>
+        </div>
+        <span class="fl">End Date (4yrs after start)</span><input type="date" id="vestEnd">
+        <button class="btn" onclick="createVestingSchedule()" style="margin-top:8px">Create Schedule</button>
+      </div>
+    </div>
+
+    <div id="daoAdminCard" class="card" style="display:none">
+      <h3>⚙️ DAO Admin (Owner Only)</h3>
+      <div class="ibox re" style="font-size:9px;margin-bottom:10px">
+        Once <strong>finalizeInitialization()</strong> is called, the owner loses the ability to set contract addresses directly — all future changes require a community vote + 2-day timelock.
+      </div>
+      <div class="ir"><span class="il">Initialization Status</span><span class="iv" id="daoInitPhase">—</span></div>
+      <button class="btn btn-red" onclick="daoFinalize()" style="margin-top:10px;width:100%">🔒 Finalize DAO (irreversible)</button>
+    </div>
+
+  </div>
+</div>
 </main>
 </div>
 
@@ -972,20 +1117,33 @@ label input[type=checkbox]{width:auto;margin:0}
 // CONTRACTS — CORE MAINNET
 // ═══════════════════════════════════════════════════════════
 const C = {
-  REALM:      '0x736C7B66F0Dd6dB1bB20f365f6aED498d8059b4A',
-  HUB:        '0x070BB4a8Fa33A39497634e9e8413098C7AcB1a23',
-  REWARDS:    '0x888F0Daa4A92463bC4B0c39CcB47Bb9f8d8232BB',
-  STAKING:    '0x23b0A480aAEF4596926b303deDe130e555A02428',
-  GATEWAY:    '0xAE539875D0068d0cFD04670657b898452357A53b',
-  BRIDGE:     '0x4f66afBDEAE71F87F37a3415970564A8632f87c9',
-  SOCIAL:     '0x1823F31E905C7B27be6067a7Bc0E6B81cDBB959F',
-  GAMECHAT:   '0xF5092178D8c9eacd5d8f13F3BC60A8d66839baf7',
-  CRNFT:      '0x3E07C5b214BA6A887a15889d848d7E8772F4B66C',
-  CHESS_V:    '0xF36997EF2156d46Ef8f4a5438De7E2fdD56Cc660',
-  CHECKERS_V: '0xA9a9aAEcFb787d9F77033054d3037d1c48511F36',
-  // GameplayRewardsPool: 48M REALM for win bonuses (5 REALM per win)
-  // ⚠️ Replace with your deployed GameplayRewardsPool address
-  GAMEPLAY_POOL: '', // TODO: add deployed address
+  // ── Token & core game ──────────────────────────────────────
+  REALM:         '0x736C7B66F0Dd6dB1bB20f365f6aED498d8059b4A',
+  HUB:           '0x070BB4a8Fa33A39497634e9e8413098C7AcB1a23', // UUPS proxy
+  REWARDS:       '0x888F0Daa4A92463bC4B0c39CcB47Bb9f8d8232BB', // UUPS proxy
+  STAKING:       '0x23b0A480aAEF4596926b303deDe130e555A02428',
+  GATEWAY:       '0xAE539875D0068d0cFD04670657b898452357A53b',
+  BRIDGE:        '0x4f66afBDEAE71F87F37a3415970564A8632f87c9',
+  // ── Reward pools ─────────────────────────────────────────
+  GAMEPLAY_POOL: '0x6CcFa834083E60fF7666209fB2b8A8c3bd79E120', // 48M play-to-earn
+  // ── Social ───────────────────────────────────────────────
+  SOCIAL:        '0x1823F31E905C7B27be6067a7Bc0E6B81cDBB959F',
+  GAMECHAT:      '0xF5092178D8c9eacd5d8f13F3BC60A8d66839baf7',
+  // ── NFTs ─────────────────────────────────────────────────
+  CRNFT:         '0x3E07C5b214BA6A887a15889d848d7E8772F4B66C',
+  PROPERTY_NFT:  '0x2F25a0d122d50e77fD7461599c55780461d417aB',
+  // ── Verifiers ────────────────────────────────────────────
+  CHESS_V:       '0xF36997EF2156d46Ef8f4a5438De7E2fdD56Cc660',
+  CHECKERS_V:    '0xA9a9aAEcFb787d9F77033054d3037d1c48511F36',
+  // ── Governance & vesting ─────────────────────────────────
+  DAO:           '0x15A0a88E7c06f71894cA555A02006DE79F885292',
+  VESTING:       '0x1D26C54e9C82c83bB42Ba86457fCd7dE9E3957d6', // 12M team, cliff+linear
+  // ── Marketplace & tournaments ─────────────────────────────
+  TOURNAMENT:    '0x7D22F0AdB85AcC8F4EC1e43903B3E7Eb7dB468a3',
+  MARKETPLACE:   '0xd11bD7EB625C4C6c7755f6517d0039a74E164eF0',
+  // Implementation addresses (for block explorer verification links)
+  HUB_IMPL:      '0x48dBC2AdE86Fb7cB67De0D87144f64E056C6C021',
+  REWARDS_IMPL:  '0x1E5271B214f3B529419DB69FA0a98bA8de4Dd959',
 };
 
 const CORE_CHAIN = {
@@ -1138,6 +1296,7 @@ function goView(id, el) {
   if (id==='discovery') loadDiscovery();
   if (id==='social') { loadMyRooms(); if (currentSocialRoomId) loadSocialMsgs(); }
   if (id==='admin' && isConnected) { checkOwner(); loadAdminData(); }
+  if (id==='dao'   && isConnected) { loadDAOData(); loadVestingData(); }
   if (id!=='admin' && dexRefreshTimer) { clearInterval(dexRefreshTimer); dexRefreshTimer=null; }
 }
 
@@ -2595,10 +2754,36 @@ async function loadAdminData() {
     } catch(e){}
   } catch(e){}
   // Contract addresses
-  const pairs = [['REALM Token',C.REALM],['Game Hub',C.HUB],['Gateway',C.GATEWAY],['Staking',C.STAKING],['Bridge',C.BRIDGE],['Rewards',C.REWARDS],['Social Chat',C.SOCIAL],['Game Chat',C.GAMECHAT]];
+  const pairs = [
+    ['REALM Token',       C.REALM],
+    ['Game Hub (proxy)',  C.HUB],
+    ['Rewards (proxy)',   C.REWARDS],
+    ['REALMStaking',      C.STAKING],
+    ['TokenGateway',      C.GATEWAY],
+    ['CrossChainBridge',  C.BRIDGE],
+    ['GameplayPool (48M)',C.GAMEPLAY_POOL],
+    ['GovernanceDAO',     C.DAO],
+    ['VestingManager',    C.VESTING],
+    ['SocialChat',        C.SOCIAL],
+    ['GameChat',          C.GAMECHAT],
+    ['CrossRealmNFT',     C.CRNFT],
+    ['PropertyNFT',       C.PROPERTY_NFT],
+    ['Tournament',        C.TOURNAMENT],
+    ['Marketplace',       C.MARKETPLACE],
+    ['Chess Verifier',    C.CHESS_V],
+    ['Checkers Verifier', C.CHECKERS_V],
+    ['Hub impl (verify)',   C.HUB_IMPL],
+    ['Rewards impl (verify)',C.REWARDS_IMPL],
+  ];
   document.getElementById('contractList').innerHTML = pairs.map(([n,a])=>`<div style="display:grid;grid-template-columns:90px 1fr;gap:6px"><span>${n}:</span><span style="color:var(--text);word-break:break-all">${a}</span></div>`).join('');
   // Check contract wiring health
   checkContractHealth();
+  // Load emission schedule calculator
+  loadEmissionSchedule();
+  // Load dispute queue
+  loadDisputeQueue();
+  // Load vesting data
+  loadVestingData();
   // Start DEX monitor
   refreshDexAndGateway();
   if (dexRefreshTimer) clearInterval(dexRefreshTimer);
@@ -2814,6 +2999,243 @@ async function fixGameplayPoolAuth() {
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
 
+// ════════════════════════════════════════════
+// EMISSION SCHEDULE CALCULATOR
+// ════════════════════════════════════════════
+async function loadEmissionSchedule() {
+  if(!provider) return;
+  try {
+    const [stakingBal, totalStaked, totalFunded] = await Promise.all([
+      realm.balanceOf(C.STAKING),
+      stakingC.totalStaked(),
+      stakingC.totalRewardsFunded(),
+    ]);
+    const reserve    = parseFloat(ethers.utils.formatEther(stakingBal)) - parseFloat(ethers.utils.formatEther(totalStaked));
+    const staked     = parseFloat(ethers.utils.formatEther(totalStaked));
+    const funded     = parseFloat(ethers.utils.formatEther(totalFunded));
+
+    const srEl = document.getElementById('schedReserve');
+    const ssEl = document.getElementById('schedStaked');
+    if(srEl) srEl.textContent = reserve.toLocaleString(undefined,{maximumFractionDigits:0});
+    if(ssEl) ssEl.textContent = staked.toLocaleString(undefined,{maximumFractionDigits:0});
+
+    // Calculate APY for each schedule cadence
+    // APY = (annual emission / staked) * 100
+    const schedules = [
+      { label: 'Daily (365 emissions/year)',   emitPerPeriod: reserve/365,   periods: 365,  period: 'day'   },
+      { label: 'Weekly (52 emissions/year)',    emitPerPeriod: reserve/52,    periods: 52,   period: 'week'  },
+      { label: 'Monthly (12 emissions/year)',   emitPerPeriod: reserve/12,    periods: 12,   period: 'month' },
+      { label: 'Quarterly (4 emissions/year)',  emitPerPeriod: reserve/4,     periods: 4,    period: 'quarter'},
+    ];
+
+    const fmtR = v => v.toLocaleString(undefined,{maximumFractionDigits:0});
+    const fmtA = v => staked > 0 ? (v/staked*100*schedules[0].periods/schedules[0].periods).toFixed(1) : '—';
+
+    const el = document.getElementById('schedTable');
+    if(!el) return;
+
+    if(reserve <= 0) {
+      el.innerHTML = '<span style="color:var(--red)">⚠️ No reserve remaining in staking contract</span>';
+      return;
+    }
+
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:auto auto auto auto;gap:4px 12px;align-items:center">
+        <strong style="color:var(--gold)">Cadence</strong>
+        <strong style="color:var(--gold)">Per emission</strong>
+        <strong style="color:var(--gold)">APY (${staked>0?fmtR(staked)+' staked':'no stakers yet'})</strong>
+        <strong style="color:var(--gold)">Duration</strong>
+        ${schedules.map(s => {
+          const annualEmit = s.emitPerPeriod * s.periods;
+          const apy = staked > 0 ? (annualEmit/staked*100).toFixed(1)+'%' : '∞% (no stakers)';
+          return `
+            <span>${s.label}</span>
+            <span style="color:var(--text)">${fmtR(s.emitPerPeriod)} REALM</span>
+            <span style="color:var(--green)">${apy}</span>
+            <span>Until reserve empty</span>
+          `;
+        }).join('')}
+      </div>
+      <div style="margin-top:10px;padding:8px;background:rgba(0,232,122,.06);border:1px solid rgba(0,232,122,.2);border-radius:4px;font-size:9px;color:var(--dim);line-height:1.7">
+        <strong style="color:var(--green)">Recommendation:</strong> Monthly (${fmtR(reserve/12)} REALM/month) is the most community-friendly cadence — predictable payouts, easy to calendar, and gives stakers monthly visibility into earnings. As more users stake, the per-staker APY decreases naturally. The 14% fee stream boosts this on top automatically once games are active.<br><br>
+        <strong>Total funded so far:</strong> ${fmtR(funded)} REALM | <strong>Reserve remaining:</strong> ${fmtR(reserve)} REALM | <strong>Funded pct:</strong> ${(funded/(funded+reserve)*100).toFixed(1)}% of 30M distributed
+      </div>
+    `;
+  } catch(e) {
+    const el = document.getElementById('schedTable');
+    if(el) el.innerHTML = '<span style="color:var(--red)">'+esc(e.message)+'</span>';
+  }
+}
+
+// ════════════════════════════════════════════
+// DISPUTE QUEUE (GUARDIAN)
+// ════════════════════════════════════════════
+async function loadDisputeQueue() {
+  if(!provider) return;
+  try {
+    const hubD = new ethers.Contract(C.HUB, HUB_DISPUTE_ABI, provider);
+    const [disputeCount, guardian] = await Promise.all([
+      hubD.disputeCount(),
+      hubD.guardian(),
+    ]);
+    const total = disputeCount.toNumber();
+
+    const dtEl = document.getElementById('disputeTotal');
+    const gaEl = document.getElementById('guardianAddr');
+    if(dtEl) dtEl.textContent = total;
+    if(gaEl) gaEl.textContent = guardian === ethers.constants.AddressZero ? '❌ Not set!' : guardian.slice(0,14)+'…';
+
+    const listEl = document.getElementById('pendingDisputeList');
+    if(!listEl) return;
+    if(total === 0) { listEl.textContent = 'No disputes raised yet.'; return; }
+
+    // Check last 10 disputes for PENDING ones
+    const start = Math.max(1, total - 9);
+    const pending = [];
+    for(let i = start; i <= total; i++) {
+      try {
+        const d = await hubD.pendingDisputes(i);
+        if(d.status === 1) { // DisputeStatus.PENDING = 1
+          const age = Math.floor((Date.now()/1000 - d.raisedAt.toNumber()) / 3600);
+          const expires = Math.max(0, 48 - age);
+          pending.push({id:i, gameId:d.gameId.toNumber(), moveIdx:d.moveIdx.toNumber(), challenger:d.challenger, moveMaker:d.moveMaker, age, expires});
+        }
+      } catch(e){}
+    }
+
+    if(pending.length === 0) {
+      listEl.innerHTML = '<span style="color:var(--green)">✅ No pending disputes in last 10. Total raised: '+total+'</span>';
+    } else {
+      listEl.innerHTML = pending.map(d => `
+        <div style="padding:8px;border:1px solid ${d.expires<6?'var(--red)':'var(--border)'};border-radius:4px;margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between">
+            <strong>Dispute #${d.id} — Game #${d.gameId} Move #${d.moveIdx}</strong>
+            <span style="color:${d.expires<6?'var(--red)':'var(--gold)'}">⏱ ${d.expires}h left</span>
+          </div>
+          <div style="color:var(--dim);margin-top:4px">Challenger: ${d.challenger.slice(0,12)}… | Move maker: ${d.moveMaker.slice(0,12)}…</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px">
+            <button class="btn btn-green btn-sm" onclick="document.getElementById('disputeId').value=${d.id};resolveDispute(true)">✅ Move Valid</button>
+            <button class="btn btn-red btn-sm" onclick="document.getElementById('disputeId').value=${d.id};resolveDispute(false)">❌ Move Invalid</button>
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch(e) {
+    const el = document.getElementById('pendingDisputeList');
+    if(el) el.innerHTML = '<span style="color:var(--red)">'+esc(e.message)+'</span>';
+  }
+}
+
+async function resolveDispute(valid) {
+  if(!isOwner) return toast('Guardian or owner required','er');
+  const id = parseInt(document.getElementById('disputeId').value);
+  if(!id || id < 1) return toast('Enter dispute ID','er');
+  try {
+    const hubD = new ethers.Contract(C.HUB, HUB_DISPUTE_ABI, signer);
+    toast('⏳ Resolving dispute #'+id+'…','in');
+    const tx = await hubD.resolveDisputeManually(id, valid, {gasLimit:300000});
+    await tx.wait();
+    toast('✅ Dispute #'+id+' resolved — move marked '+(valid?'VALID':'INVALID'),'ok');
+    loadDisputeQueue();
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function expireDispute() {
+  const id = parseInt(document.getElementById('disputeId').value);
+  if(!id || id < 1) return toast('Enter dispute ID','er');
+  try {
+    const hubD = new ethers.Contract(C.HUB, HUB_DISPUTE_ABI, signer);
+    toast('⏳ Expiring dispute #'+id+' (must be 48h+ old)…','in');
+    const tx = await hubD.expireUnresolvedDispute(id, {gasLimit:300000});
+    await tx.wait();
+    toast('✅ Dispute #'+id+' expired — move auto-marked VALID','ok');
+    loadDisputeQueue();
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+// ════════════════════════════════════════════
+// VESTING MANAGER
+// ════════════════════════════════════════════
+async function loadVestingData() {
+  if(!provider) return;
+  try {
+    const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, provider);
+    const [vestBal, allocated] = await Promise.all([
+      realm.balanceOf(C.VESTING),
+      vestC.totalAllocated(),
+    ]);
+    const bEl = document.getElementById('vestBal');
+    const aEl = document.getElementById('vestAlloc');
+    if(bEl) bEl.textContent = parseFloat(ethers.utils.formatEther(vestBal)).toLocaleString(undefined,{maximumFractionDigits:0})+' REALM';
+    if(aEl) aEl.textContent = parseFloat(ethers.utils.formatEther(allocated)).toLocaleString(undefined,{maximumFractionDigits:0})+' REALM in schedules';
+
+    const listEl = document.getElementById('vestSchedules');
+    if(listEl) {
+      const unallocated = parseFloat(ethers.utils.formatEther(vestBal)) - parseFloat(ethers.utils.formatEther(allocated));
+      listEl.innerHTML = `
+        <div style="padding:8px;background:rgba(240,165,0,.06);border:1px solid rgba(240,165,0,.2);border-radius:4px;font-size:9px;line-height:1.8">
+          <strong style="color:var(--gold)">How vesting works:</strong><br>
+          1️⃣ You call <code>createVestingSchedule(beneficiary, amount, start, cliff, end)</code> for each team member<br>
+          2️⃣ After the cliff date, they call <code>release()</code> on the contract to pull their linearly-vested tokens<br>
+          3️⃣ You can <code>revoke(address)</code> at any time to recover unvested tokens<br>
+          4️⃣ The contract holds all 12M — tokens only move when <code>release()</code> is called<br><br>
+          <strong style="color:var(--text)">Unallocated in contract:</strong> <span style="color:${unallocated>0?'var(--gold)':'var(--green)'}"> ${unallocated.toLocaleString(undefined,{maximumFractionDigits:0})} REALM</span> (need a schedule or they stay locked forever)
+        </div>
+      `;
+    }
+  } catch(e) {
+    const el = document.getElementById('vestSchedules');
+    if(el) el.innerHTML = '<span style="color:var(--red)">'+esc(e.message)+'</span>';
+  }
+}
+
+async function createVestingSchedule() {
+  if(!isOwner) return toast('Owner only','er');
+  const addr  = document.getElementById('vestAddr').value.trim();
+  const amt   = parseFloat(document.getElementById('vestAmt').value);
+  const cliff = parseInt(document.getElementById('vestCliff').value);
+  const end   = parseInt(document.getElementById('vestEnd').value);
+  if(!ethers.utils.isAddress(addr)) return toast('Invalid address','er');
+  if(!amt || amt <= 0) return toast('Enter amount','er');
+  if(cliff >= end) return toast('End must be after cliff','er');
+
+  const now    = Math.floor(Date.now()/1000);
+  const cliffT = now + cliff * 30 * 86400;
+  const endT   = now + end   * 30 * 86400;
+  const wei    = ethers.utils.parseEther(amt.toString());
+
+  if(!confirm(`Create vesting for ${addr}:
+${amt.toLocaleString()} REALM
+Cliff: ${cliff} months | End: ${end} months
+
+Tokens must already be in the VestingManager contract.`)) return;
+  try {
+    const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, signer);
+    toast('⏳ Creating schedule…','in');
+    const tx = await vestC.createVestingSchedule(addr, wei, now, cliffT, endT, {gasLimit:300000});
+    await tx.wait();
+    toast('✅ Schedule created for '+addr.slice(0,12)+'…','ok');
+    loadVestingData();
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function revokeVesting() {
+  if(!isOwner) return toast('Owner only','er');
+  const addr = document.getElementById('revokeAddr').value.trim();
+  if(!ethers.utils.isAddress(addr)) return toast('Invalid address','er');
+  if(!confirm('Revoke vesting for '+addr+'?
+
+Unvested REALM returns to owner wallet. Vested-but-unreleased tokens go to beneficiary.')) return;
+  try {
+    const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, signer);
+    toast('⏳ Revoking schedule…','in');
+    const tx = await vestC.revoke(addr, {gasLimit:200000});
+    await tx.wait();
+    toast('✅ Schedule revoked. Unvested REALM returned to owner.','ok');
+    loadVestingData();
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
 async function adminSeedStaking() {
   if(!isOwner) return toast('Owner wallet required','er');
   const amt = document.getElementById('seedAmt').value;
@@ -2858,6 +3280,27 @@ async function adminSeedStaking() {
 // ═══════════════════════════════════════════
 // DEX POOL MONITOR & AUTO-ADJUST (Admin)
 // ═══════════════════════════════════════════
+// ── VestingManager ABI ──
+const VESTING_ABI = [
+  'function totalAllocated() view returns (uint256)',
+  'function MAX_ALLOCATION() view returns (uint256)',
+  'function schedules(address) view returns (uint256 total, uint256 start, uint256 cliff, uint256 end, uint256 released, bool revoked)',
+  'function releasableAmount(address) view returns (uint256)',
+  'function createVestingSchedule(address,uint256,uint256,uint256,uint256) external',
+  'function revoke(address) external',
+  'event ScheduleCreated(address indexed beneficiary, uint256 amount, uint256 cliff, uint256 end)',
+];
+
+// ── Hub full guardian/dispute ABI ──
+const HUB_DISPUTE_ABI = [
+  'function guardian() view returns (address)',
+  'function disputeCount() view returns (uint256)',
+  'function pendingDisputes(uint256) view returns (uint256 gameId, uint256 moveIdx, address challenger, address moveMaker, uint256 deposit, uint256 raisedAt, uint8 status)',
+  'function resolveDisputeManually(uint256 _disputeId, bool _moveValid) external',
+  'function expireUnresolvedDispute(uint256 _disputeId) external',
+  'function setGuardian(address _g) external',
+];
+
 // ── GameplayRewardsPool ABI ──
 const GAMEPLAY_POOL_ABI = [
   'function authorised(address) view returns (bool)',
@@ -2865,6 +3308,43 @@ const GAMEPLAY_POOL_ABI = [
   'function balance() view returns (uint256)',
   'function setAuthorised(address _caller, bool _status) external',
   'function payReward(address _to, uint256 _amount) external',
+];
+
+// ── GovernanceDAO ABI ─────────────────────────────────────
+const DAO_ABI = [
+  'function initialized() view returns (bool)',
+  'function proposalCount() view returns (uint256)',
+  'function totalLocked() view returns (uint256)',
+  'function lockedBalance(address) view returns (uint256)',
+  'function lockExpiry(address) view returns (uint256)',
+  'function votingPower(address) view returns (uint256)',
+  'function quorumRequired() view returns (uint256)',
+  'function isGuardian(address) view returns (bool)',
+  'function treasury() view returns (address)',
+  'function gameHub() view returns (address)',
+  'function rewardsContract() view returns (address)',
+  'function getProposal(uint256 _id) view returns (address proposer, string title, uint8 kind, uint256 forVotes, uint256 againstVotes, uint256 abstainVotes, uint8 state_, uint256 voteEnd)',
+  'function getState(uint256 _id) view returns (uint8)',
+  'function lockREALM(uint256 _amount, uint256 _lockUntil)',
+  'function unlockREALM(uint256 _amount)',
+  'function castVote(uint256 _proposalId, uint8 _support)',
+  'function queue(uint256 _proposalId)',
+  'function execute(uint256 _proposalId)',
+  'function cancel(uint256 _proposalId)',
+  'function finalizeInitialization()',
+  'function propose(uint8 _type, string _title, string _description, address _target, bytes _callData, uint256 _value, address _recipient) returns (uint256)',
+  'function addGuardian(address _g)',
+  'function setContractAddress(string _name, address _addr)',
+];
+
+// ── VestingManager ABI ────────────────────────────────────
+const VESTING_ABI = [
+  'function schedules(address) view returns (uint256 total, uint256 start, uint256 cliff, uint256 end, uint256 released, bool revoked)',
+  'function releasableAmount(address _beneficiary) view returns (uint256)',
+  'function totalAllocated() view returns (uint256)',
+  'function release()',
+  'function createVestingSchedule(address _beneficiary, uint256 _amount, uint256 _start, uint256 _cliff, uint256 _end)',
+  'function revoke(address _beneficiary)',
 ];
 
 // ── Hub admin ABI (for reading gameplayPool + winRewardAmount) ──
@@ -3060,6 +3540,283 @@ console.log(`
 ║  🚧 Marketplace (Phase 2)            ║
 ╚═══════════════════════════════════════╝
 `);
+// ═══════════════════════════════════════════════════════
+// GOVERNANCE DAO
+// ═══════════════════════════════════════════════════════
+const PROP_TYPES   = ['Parameter Change','Treasury Spend','Whitelist Verifier','Upgrade Contract','Zone Creation','Bridge Config','Mint Legendary'];
+const PROP_STATES  = ['Active','Queued','Executed','Defeated','Expired','Cancelled'];
+const STATE_COLORS = ['var(--green)','var(--gold)','var(--blue)','var(--red)','var(--dim)','var(--dim)'];
+
+function daoContract(useSigner) {
+  const p = useSigner && signer ? signer : provider;
+  return new ethers.Contract(C.DAO, DAO_ABI, p);
+}
+
+async function loadDAOData() {
+  if (!provider || !userAddr) return;
+  const dao = daoContract(false);
+  try {
+    const [initialized, totalLocked, quorum, count, myPower, myExpiry] = await Promise.all([
+      dao.initialized(),
+      dao.totalLocked(),
+      dao.quorumRequired(),
+      dao.proposalCount(),
+      dao.votingPower(userAddr),
+      dao.lockExpiry(userAddr),
+    ]);
+    const g = id => document.getElementById(id);
+    g('daoInitialized').innerHTML = initialized
+      ? '<span style="color:var(--green)">✅ Live — community controls protocol</span>'
+      : '<span style="color:var(--gold)">⚠️ Init phase — owner still controls directly</span>';
+    g('daoTotalLocked').textContent = fmt(totalLocked) + ' REALM';
+    g('daoQuorum').textContent      = fmt(quorum) + ' REALM';
+    g('daoProposalCount').textContent = count.toNumber();
+    g('daoMyPower').textContent     = fmt(myPower) + ' REALM';
+    const exp = myExpiry.toNumber();
+    g('daoMyExpiry').textContent = exp === 0
+      ? 'No expiry — can unlock anytime'
+      : exp > Date.now()/1000
+        ? new Date(exp*1000).toLocaleDateString() + ' (locked)'
+        : 'Expired — ready to unlock';
+
+    if (isOwner) {
+      const adminCard = g('daoAdminCard');
+      if (adminCard) { adminCard.style.display = ''; }
+      const ph = g('daoInitPhase');
+      if (ph) ph.innerHTML = initialized
+        ? '<span style="color:var(--green)">Finalized ✅</span>'
+        : '<span style="color:var(--gold)">Active — owner can set addresses</span>';
+      const vav = g('daoAdminVesting');
+      if (vav) vav.style.display = '';
+    }
+
+    await loadProposals(dao, count.toNumber());
+  } catch(e) { console.error('DAO load:', e); }
+}
+
+async function loadProposals(dao, count) {
+  const el = document.getElementById('daoProposalList');
+  if (!el) return;
+  if (count === 0) {
+    el.innerHTML = '<p style="color:var(--dim);padding:16px;text-align:center">No proposals yet. Lock 10,000+ REALM to create the first one.</p>';
+    return;
+  }
+  el.innerHTML = '<span style="color:var(--dim)">Loading…</span>';
+  let out = '';
+  const from = Math.max(1, count - 9);
+  for (let i = count; i >= from; i--) {
+    try {
+      const [proposer, title, kind, forV, againstV, abstainV, stateN, voteEnd] = await dao.getProposal(i);
+      const sn = Number(stateN);
+      const sc = STATE_COLORS[sn] || 'var(--dim)';
+      const forF  = fmt(forV);
+      const agnF  = fmt(againstV);
+      const absF  = fmt(abstainV);
+      const ends  = new Date(voteEnd.toNumber()*1000).toLocaleDateString();
+      const isActive = sn === 0;
+      out += `<div style="border:1px solid var(--border);border-radius:5px;padding:12px;margin-bottom:10px;background:var(--bg3)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="font-weight:700;font-size:10px">#${i} · ${esc(title)}</span>
+          <span style="font-size:9px;color:${sc};font-weight:700">${(PROP_STATES[sn]||'?').toUpperCase()}</span>
+        </div>
+        <div style="font-size:9px;color:var(--dim);margin-bottom:8px">${PROP_TYPES[Number(kind)]||'?'} · ${proposer.slice(0,10)}… · Voting ends ${ends}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:8px;font-size:9px;text-align:center">
+          <div style="padding:4px;background:rgba(0,232,122,.1);border-radius:3px">✅ For<br><strong style="color:var(--green)">${forF}</strong></div>
+          <div style="padding:4px;background:rgba(255,80,80,.1);border-radius:3px">❌ Against<br><strong style="color:var(--red)">${agnF}</strong></div>
+          <div style="padding:4px;background:var(--bg4);border-radius:3px">⬜ Abstain<br><strong>${absF}</strong></div>
+        </div>
+        ${isActive ? `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <button class="btn btn-sm" style="background:var(--green);color:#000" onclick="castVote(${i},1)">Vote For</button>
+          <button class="btn btn-sm btn-red" onclick="castVote(${i},2)">Against</button>
+          <button class="btn-ghost btn-sm" onclick="castVote(${i},3)">Abstain</button>
+        </div>` : ''}
+        ${sn===1 ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
+          <button class="btn-ghost btn-sm" onclick="queueProposal(${i})">Queue</button>
+          <button class="btn btn-sm" onclick="executeProposal(${i})">Execute</button>
+        </div>` : ''}
+      </div>`;
+    } catch(e2) { console.warn('Proposal', i, e2.message); }
+  }
+  el.innerHTML = out || '<p style="color:var(--dim);text-align:center">No proposals loaded</p>';
+}
+
+function fmt(bn) {
+  return parseFloat(ethers.utils.formatEther(bn)).toLocaleString(undefined,{maximumFractionDigits:0});
+}
+
+async function daoLockREALM() {
+  if (!signer) return toast('Connect wallet','er');
+  const amt = document.getElementById('daoLockAmt').value;
+  if (!amt || parseFloat(amt) <= 0) return toast('Enter amount','er');
+  const dateVal = document.getElementById('daoLockDate').value;
+  const until = dateVal ? Math.floor(new Date(dateVal).getTime()/1000) : 0;
+  try {
+    const wei = ethers.utils.parseEther(parseFloat(amt).toString());
+    await approve(C.DAO, wei);
+    toast('⏳ Locking REALM…','in');
+    const tx = await daoContract(true).lockREALM(wei, until, {gasLimit:200000});
+    await tx.wait();
+    toast('✅ Locked! You now have voting power.','ok');
+    loadDAOData();
+  } catch(e) { toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function daoUnlockREALM() {
+  if (!signer) return toast('Connect wallet','er');
+  try {
+    const locked = await daoContract(false).lockedBalance(userAddr);
+    if (locked.isZero()) return toast('Nothing locked','er');
+    toast('⏳ Unlocking…','in');
+    const tx = await daoContract(true).unlockREALM(locked, {gasLimit:150000});
+    await tx.wait();
+    toast('✅ REALM unlocked!','ok');
+    loadDAOData();
+  } catch(e) { toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function castVote(id, support) {
+  if (!signer) return toast('Connect wallet','er');
+  const labels = {1:'For ✅',2:'Against ❌',3:'Abstain'};
+  try {
+    toast('⏳ Casting vote: '+labels[support]+'…','in');
+    const tx = await daoContract(true).castVote(id, support, {gasLimit:150000});
+    await tx.wait();
+    toast('✅ Vote cast!','ok');
+    loadDAOData();
+  } catch(e) { toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function queueProposal(id) {
+  if (!signer) return toast('Connect wallet','er');
+  try {
+    toast('⏳ Queuing…','in');
+    const tx = await daoContract(true).queue(id, {gasLimit:150000});
+    await tx.wait();
+    toast('✅ Queued! 2-day timelock started.','ok');
+    loadDAOData();
+  } catch(e) { toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function executeProposal(id) {
+  if (!signer) return toast('Connect wallet','er');
+  try {
+    toast('⏳ Executing proposal…','in');
+    const tx = await daoContract(true).execute(id, {gasLimit:400000});
+    await tx.wait();
+    toast('✅ Executed!','ok');
+    loadDAOData();
+  } catch(e) { toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+function togglePropFields() {
+  const isTreasury = document.getElementById('propType').value === '1';
+  document.getElementById('propTreasuryFields').style.display = isTreasury ? '' : 'none';
+}
+
+async function submitProposal() {
+  if (!signer) return toast('Connect wallet','er');
+  const title  = document.getElementById('propTitle').value.trim();
+  const desc   = document.getElementById('propDesc').value.trim();
+  const type   = parseInt(document.getElementById('propType').value);
+  const target = document.getElementById('propTarget').value.trim() || ethers.constants.AddressZero;
+  const value  = document.getElementById('propValue') ? (document.getElementById('propValue').value||'0') : '0';
+  const recip  = document.getElementById('propRecipient') ? (document.getElementById('propRecipient').value.trim()||ethers.constants.AddressZero) : ethers.constants.AddressZero;
+  if (!title) return toast('Title required','er');
+  try {
+    toast('⏳ Submitting proposal…','in');
+    const tx = await daoContract(true).propose(
+      type, title, desc, target, '0x',
+      ethers.utils.parseEther(parseFloat(value||0).toString()),
+      recip, {gasLimit:500000}
+    );
+    await tx.wait();
+    toast('✅ Proposal submitted! Voting starts now.','ok');
+    document.getElementById('proposalModal').classList.remove('open');
+    loadDAOData();
+  } catch(e) { toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function daoFinalize() {
+  if (!signer || !isOwner) return toast('Owner only','er');
+  if (!confirm('This permanently hands control to the community. You will no longer be able to set contract addresses directly. This cannot be undone. Continue?')) return;
+  try {
+    toast('⏳ Finalizing governance…','in');
+    const tx = await daoContract(true).finalizeInitialization({gasLimit:100000});
+    await tx.wait();
+    toast('✅ DAO is now fully live. Community governs the protocol.','ok');
+    loadDAOData();
+  } catch(e) { toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+// ═══════════════════════════════════════════════════════
+// VESTING
+// ═══════════════════════════════════════════════════════
+async function loadVestingData() {
+  if (!provider || !userAddr) return;
+  const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, provider);
+  try {
+    const [s, claimable, totalAlloc, bal] = await Promise.all([
+      vestC.schedules(userAddr),
+      vestC.releasableAmount(userAddr),
+      vestC.totalAllocated(),
+      realm.balanceOf(C.VESTING),
+    ]);
+    document.getElementById('vestingBal').textContent       = fmt(bal) + ' REALM';
+    document.getElementById('vestingAllocated').textContent = fmt(totalAlloc) + ' REALM';
+    const hasSchedule = s.total && !s.total.isZero();
+    if (hasSchedule) {
+      const cliffDate = new Date(s.cliff.toNumber()*1000).toLocaleDateString();
+      const endDate   = new Date(s.end.toNumber()*1000).toLocaleDateString();
+      const released  = fmt(s.released);
+      const total     = fmt(s.total);
+      const revoked   = s.revoked;
+      document.getElementById('vestingMySchedule').textContent =
+        revoked ? 'Revoked ❌' :
+        `${total} REALM · cliff ${cliffDate} → end ${endDate} · released ${released}`;
+      const claimF = parseFloat(ethers.utils.formatEther(claimable));
+      document.getElementById('vestingClaimable').textContent = claimF.toFixed(2) + ' REALM';
+      if (claimF > 0 && !revoked) {
+        document.getElementById('vestingClaimBtn').style.display = '';
+      }
+    } else {
+      document.getElementById('vestingMySchedule').textContent = 'No schedule — owner must create one for you';
+      document.getElementById('vestingClaimable').textContent  = '0 REALM';
+    }
+  } catch(e) { console.error('Vesting load:', e); }
+}
+
+async function claimVesting() {
+  if (!signer) return toast('Connect wallet','er');
+  try {
+    const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, signer);
+    toast('⏳ Claiming vested REALM…','in');
+    const tx = await vestC.release({gasLimit:200000});
+    await tx.wait();
+    toast('✅ Vested tokens claimed!','ok');
+    loadVestingData();
+  } catch(e) { toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function createVestingSchedule() {
+  if (!signer || !isOwner) return toast('Owner only','er');
+  const ben   = document.getElementById('vestBeneficiary').value.trim();
+  const amt   = document.getElementById('vestAmount').value;
+  const start = document.getElementById('vestStart').value;
+  const cliff = document.getElementById('vestCliff').value;
+  const end   = document.getElementById('vestEnd').value;
+  if (!ben || !amt || !start || !cliff || !end) return toast('All fields required','er');
+  try {
+    const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, signer);
+    const wei   = ethers.utils.parseEther(parseFloat(amt).toString());
+    const ts    = d => Math.floor(new Date(d).getTime()/1000);
+    toast('⏳ Creating schedule…','in');
+    const tx = await vestC.createVestingSchedule(ben, wei, ts(start), ts(cliff), ts(end), {gasLimit:200000});
+    await tx.wait();
+    toast('✅ Vesting schedule created for '+ben.slice(0,10)+'…','ok');
+    loadVestingData();
+  } catch(e) { toast('❌ '+(e.reason||e.message),'er'); }
+}
+
 </script>
 </body>
 </html>
