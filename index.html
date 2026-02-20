@@ -3334,9 +3334,7 @@ async function revokeVesting() {
   if(!isOwner) return toast('Owner only','er');
   const addr = document.getElementById('revokeAddr').value.trim();
   if(!ethers.utils.isAddress(addr)) return toast('Invalid address','er');
-  if(!confirm('Revoke vesting for '+addr+'?
-
-Unvested REALM returns to owner wallet. Vested-but-unreleased tokens go to beneficiary.')) return;
+  if(!confirm('Revoke vesting for '+addr+'? Unvested REALM returns to owner wallet. Vested-but-unreleased tokens go to beneficiary.')) return;
   try {
     const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, signer);
     toast('⏳ Revoking schedule…','in');
@@ -3366,17 +3364,7 @@ async function adminSeedStaking() {
     const totalStakedF   = parseFloat(ethers.utils.formatEther(totalStaked));
     const sharePerToken  = totalStakedF > 0 ? parseFloat(amt) / totalStakedF : 0;
 
-    if(!confirm(
-      `Declare ${parseFloat(amt).toLocaleString()} REALM emission from the 30M reserve?
-
-` +
-      `Per REALM staked: +${sharePerToken.toFixed(6)} REALM
-` +
-      `Your 1M stake receives: ${(sharePerToken * 1000000).toLocaleString()} REALM claimable now
-
-` +
-      `No token approval needed — the 30M is already inside the staking contract.`
-    )) return;
+    if(!confirm(`Declare ${parseFloat(amt).toLocaleString()} REALM emission from the 30M reserve? Per REALM staked: +${sharePerToken.toFixed(6)} REALM. No token approval needed — the 30M is already inside the staking contract.`)) return;
 
     toast('⏳ Declaring emission from 30M reserve…','in');
     // owner can call fundRewards() directly per onlyRewards modifier (allows owner)
