@@ -161,26 +161,32 @@ label input[type=checkbox]{width:auto;margin:0}
 .play-left::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 .play-right{overflow:hidden;padding:12px 12px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);min-height:0;gap:6px}
 
-/* Board */
+/* ── BOARD ── */
 .board-wrap{
-  display:none;border:2px solid var(--gold);border-radius:6px;
+  display:none;
+  border:2px solid var(--gold);border-radius:6px;
   box-shadow:0 0 40px rgba(240,165,0,.12),0 0 80px rgba(240,165,0,.05);
   overflow:hidden;flex-shrink:0;
-}
-.board-grid{
-  display:grid;grid-template-columns:repeat(8,1fr);
   /*
-   Available width  = 100vw - 300px (play-left) - 1px border - 24px padding = 100vw - 325px
-   Available height = 100vh - 52px (topbar) - 60px (infobar) - 52px (buttons row) - 28px (padding+gap) = 100vh - 192px
-   Cap at 520px so it never overflows on large screens
+   board-wrap IS the sized square. It never overflows its container.
+   Width:  fill play-right minus padding (24px total), cap at 520px
+   Height: never exceed viewport minus topbar(52) + infobar(64) + buttons(52) + gaps(36) = 204px
+   The smaller wins → perfect square board that always fits.
   */
   width: min(
-    calc(100vw - 325px),
-    calc(100vh - 192px),
+    calc(100% - 24px),
+    calc(100vh - 204px),
     520px
   );
-  min-width: 240px;
   aspect-ratio: 1 / 1;
+}
+.board-grid{
+  /* Fills the board-wrap exactly — sizing is done on board-wrap, not here */
+  display:grid;
+  grid-template-columns:repeat(8,1fr);
+  width:100%;
+  height:100%;
+  min-width:0;
 }
 .sq{
   display:flex;align-items:center;justify-content:center;
@@ -340,8 +346,15 @@ label input[type=checkbox]{width:auto;margin:0}
   .play-wrap{display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
   .play-left{border-right:none;border-bottom:none;max-height:none;padding:10px;overflow-y:visible;flex-shrink:0}
   .play-right{padding:8px 6px;align-items:center;overflow:visible;justify-content:flex-start;gap:4px;flex-shrink:0}
-  .board-grid{width:min(calc(100vw - 24px),calc(55vh - 120px),400px);min-width:200px}
-  /* Mobile tab switcher for play panels */
+  /* mob-panel must fill full width of its flex-column parent */
+  .mob-panel{display:none;width:100%}
+  .mob-panel.active{display:flex;flex-direction:column;align-items:center;width:100%}
+  /* Board on mobile: fill width minus padding, cap at viewport height minus chrome */
+  .board-wrap{
+    width:min(calc(100vw - 24px), calc(100vh - 220px), 480px) !important;
+    margin:0 auto;
+  }
+  .board-grid{width:100%;height:100%}
   .mob-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
   .mob-tab{flex:1;padding:10px 4px;text-align:center;font-size:10px;font-weight:700;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;letter-spacing:.5px;text-transform:uppercase}
   .mob-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
@@ -1936,10 +1949,11 @@ async function submitChessMove(from, to) {
     toast('Invalid move!','er'); moveFrom=null; clearBoardHighlights(); return;
   }
   const moveStr = from+to;
-  let newFen = gameEngine.fen();
   const mated  = gameEngine.in_checkmate();
   const drawn  = gameEngine.in_stalemate()||gameEngine.in_draw();
-  if(mated) newFen+='#'; else if(drawn) newFen+=' DRAW';
+  // Use clean FEN — do NOT append '#' or ' DRAW', contract stores it as opaque state string
+  // Corrupted FEN causes contract to revert on state validation
+  const newFen = gameEngine.fen();
 
   renderChessBoard(); moveFrom=null;
 
@@ -1967,12 +1981,12 @@ async function submitChessMove(from, to) {
     }
   }
 
-  toast('⏳ Submitting…','in');
+  toast('⏳ Submitting move…','in');
   try {
-    const tx = await hub.makeMove(currentGameId, moveStr, newFen, {gasLimit:600000});
+    const tx = await hub.makeMove(currentGameId, moveStr, newFen, {gasLimit:800000});
     await tx.wait();
-    if(mated)  { toast('♟️ Checkmate! Declaring win…','ok'); setTimeout(()=>declareWin(currentGameId),1000); }
-    else if(drawn) toast('Draw!','in');
+    if(mated)  { toast('♟️ Checkmate! Move confirmed — funds release after challenge window.','ok'); declareWin(currentGameId); }
+    else if(drawn) toast('🤝 Draw confirmed!','in');
     else toast('✅ Move confirmed!','ok');
     clearBoardHighlights(); lastState=null;
     await new Promise(r=>setTimeout(r,1500));
@@ -1981,9 +1995,13 @@ async function submitChessMove(from, to) {
     gameEngine.undo(); renderChessBoard(); clearBoardHighlights();
     const reason = (e.reason||e.message||'').toLowerCase();
     if(reason.includes('challenge') || reason.includes('challengeable')) {
-      toast('⏳ Previous move still in challenge window — wait a moment and retry','in');
+      toast('⏳ Previous move still in challenge window — wait and retry','in');
+    } else if(reason.includes('not your turn') || reason.includes('sender')) {
+      toast('❌ Not your turn on-chain — reload the game','er');
     } else {
-      toast('❌ '+(e.reason||e.message),'er');
+      // Show the raw revert reason so user can report it
+      const msg = e.reason || e.data?.message || e.message || 'Unknown error';
+      toast('❌ Tx failed: '+msg.slice(0,120),'er');
     }
   }
 }
@@ -1998,30 +2016,30 @@ function startChallengeTimer(secs) {
 }
 
 async function endAIGame(gameId) {
-  // For AI game: declareWinner(gameId, userAddr) — works because player2=0 and creator can call
-  try {
-    toast('⏳ Recording win on-chain…','in');
-    const tx = await hub.declareWinner(gameId, userAddr, {gasLimit:400000});
-    await tx.wait();
-    toast('🏆 Win recorded! Stats updated.','ok');
-    currentGameId=null; lastState=null;
-    loadOpenGames(); loadMyGames();
-  } catch(e){
-    // declareWinner may fail if stake=0 causes contract issues — that's ok, game was local
-    toast('Game complete! (Stats tracked locally)','ok');
-    currentGameId=null; lastState=null;
-    loadOpenGames(); loadMyGames();
-  }
+  // OptimisticGameHub has no declareWinner function.
+  // AI games are local — stats update happens via the challenge window flow.
+  // Just clean up local state and refresh game lists.
+  toast('🏆 Game over! Stats will update after challenge window.','ok');
+  gameCache.delete(gameId);
+  currentGameId=null; lastState=null;
+  document.getElementById('boardContainer').style.display='none';
+  document.getElementById('gameInfoBar').innerHTML='Game complete!';
+  await delay(1500);
+  loadOpenGames(); loadMyGames();
 }
 
+// After a terminal move (checkmate / all pieces captured), the game is already won.
+// OptimisticGameHub has NO declareWinner — the contract auto-resolves via the challenge window.
+// After the challenge window passes unchallenged, funds are released.
+// We just reload the game state and show a toast. The opponent can use forfeitGame to speed up.
 async function declareWin(gameId) {
-  try {
-    const tx = await hub.declareWinner(gameId, userAddr, {gasLimit:400000});
-    await tx.wait();
-    toast('🏆 Win declared and payout received!','ok');
-    currentGameId=null; lastState=null;
-    loadOpenGames(); loadMyGames();
-  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+  toast('🏆 Winning move submitted! Funds release after challenge window.','ok');
+  currentGameId = null; lastState = null;
+  gameCache.delete(gameId);
+  await delay(2000);
+  loadOpenGames(); loadMyGames();
+  document.getElementById('boardContainer').style.display = 'none';
+  document.getElementById('gameInfoBar').innerHTML = 'Game complete — waiting for challenge window.';
 }
 
 async function doChessAI() {
@@ -2353,10 +2371,11 @@ async function submitCheckersMove(mv, fr, fc, tr, tc) {
 
   toast('⏳ Submitting…','in');
   try {
-    const tx = await hub.makeMove(currentGameId, moveStr, newState, {gasLimit:600000});
+    const tx = await hub.makeMove(currentGameId, moveStr, newState, {gasLimit:800000});
     await tx.wait();
     if(!whiteLeft || !blackLeft) {
-      toast('🏆 Declaring win…','ok'); setTimeout(()=>declareWin(currentGameId),1000);
+      toast('🏆 Winning move confirmed! Funds release after challenge window.','ok');
+      declareWin(currentGameId);
     } else {
       toast('✅ Move confirmed!','ok');
     }
@@ -2367,8 +2386,11 @@ async function submitCheckersMove(mv, fr, fc, tr, tc) {
     const reason = (e.reason||e.message||'').toLowerCase();
     if(reason.includes('challenge')||reason.includes('challengeable')) {
       toast('⏳ Challenge window active — retry in a moment','in');
+    } else if(reason.includes('not your turn')||reason.includes('sender')) {
+      toast('❌ Not your turn on-chain — reload the game','er');
     } else {
-      toast('❌ '+(e.reason||e.message),'er');
+      const msg = e.reason || e.data?.message || e.message || 'Unknown error';
+      toast('❌ Tx failed: '+msg.slice(0,120),'er');
     }
     lastState=null; setTimeout(()=>loadGame(currentGameId),1500);
   }
