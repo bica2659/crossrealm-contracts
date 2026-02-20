@@ -151,7 +151,10 @@ label input[type=checkbox]{width:auto;margin:0}
 .bp.open{background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.3);color:var(--gold)}
 .bp.soon{background:rgba(61,127,255,.1);border:1px solid rgba(61,127,255,.3);color:var(--blue)}
 
-/* ── PLAY VIEW ── */
+/* Mobile tab UI — hidden on desktop */
+.mob-tabs{display:none}
+.mob-panel{display:block} /* on desktop all panels are visible normally */
+
 .play-wrap{display:grid;grid-template-columns:300px 1fr;grid-template-rows:1fr;flex:1;min-height:0;overflow:hidden}
 .play-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px;min-height:0}
 .play-left::-webkit-scrollbar{width:3px}
@@ -334,10 +337,16 @@ label input[type=checkbox]{width:auto;margin:0}
   .main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
   .view{min-height:100%;overflow-y:auto}
   .view-body{padding:12px}
-  .play-wrap{display:flex;flex-direction:column;overflow:hidden}
-  .play-left{border-right:none;border-bottom:2px solid var(--border);max-height:34vh;padding:10px;overflow-y:auto;flex-shrink:0}
-  .play-right{padding:8px 6px;align-items:center;overflow:hidden;justify-content:center;gap:4px}
-  .board-grid{width:min(calc(100vw - 24px),calc(55vh - 140px),420px);min-width:220px}
+  .play-wrap{display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .play-left{border-right:none;border-bottom:none;max-height:none;padding:10px;overflow-y:visible;flex-shrink:0}
+  .play-right{padding:8px 6px;align-items:center;overflow:visible;justify-content:flex-start;gap:4px;flex-shrink:0}
+  .board-grid{width:min(calc(100vw - 24px),calc(55vh - 120px),400px);min-width:200px}
+  /* Mobile tab switcher for play panels */
+  .mob-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+  .mob-tab{flex:1;padding:10px 4px;text-align:center;font-size:10px;font-weight:700;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;letter-spacing:.5px;text-transform:uppercase}
+  .mob-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+  .mob-panel{display:none}
+  .mob-panel.active{display:block}
   .g2,.g3,.chain-grid{grid-template-columns:1fr}
   input,select,textarea{font-size:16px!important}
   .social-wrap{display:flex;flex-direction:column}
@@ -409,7 +418,13 @@ label input[type=checkbox]{width:auto;margin:0}
 <!-- ═══ VIEW: PLAY ═══ -->
 <div id="view-play" class="view active">
   <div class="play-wrap">
-    <div class="play-left">
+    <!-- Mobile tab switcher (hidden on desktop via CSS) -->
+    <div class="mob-tabs" id="mobTabs">
+      <div class="mob-tab active" id="mobTabGame" onclick="mobSwitch('game')">🎮 Game</div>
+      <div class="mob-tab" id="mobTabBoard" onclick="mobSwitch('board')">♟️ Board</div>
+      <div class="mob-tab" id="mobTabChat" onclick="mobSwitch('chat')">💬 Chat</div>
+    </div>
+    <div class="play-left mob-panel active" id="mobPanelGame">
       <div class="card">
         <h3>➕ Create Game</h3>
         <span class="fl">Game Type</span>
@@ -443,14 +458,14 @@ label input[type=checkbox]{width:auto;margin:0}
         <h3>⚔️ My Active Games</h3>
         <div class="gscroll" id="myGames"><p style="color:var(--dim);font-size:10px;text-align:center;padding:16px">No active games</p></div>
       </div>
-      <div class="card">
+      <div class="card" id="gameChatCard">
         <h3>💬 Game Chat</h3>
         <div id="gameChatBox" style="max-height:180px;overflow-y:auto;background:var(--bg3);border-radius:5px;padding:10px;margin-bottom:8px;font-size:10px;color:var(--dim);text-align:center">Load a game to chat</div>
         <textarea id="gameChatInput" placeholder="Message... (500 chars max)" rows="2" style="margin-bottom:6px"></textarea>
         <button class="btn btn-green" id="gameChatSendBtn" onclick="sendGameChat()" disabled>Send Message</button>
       </div>
     </div>
-    <div class="play-right">
+    <div class="play-right mob-panel" id="mobPanelBoard">
       <div id="aiThinking" class="ai-thinking">🤖 AI calculating move…</div>
       <div id="boardContainer" class="board-wrap">
         <div id="boardGrid" class="board-grid"></div>
@@ -460,6 +475,12 @@ label input[type=checkbox]{width:auto;margin:0}
         <button class="btn btn-red" id="forfeitBtn" onclick="forfeit()" disabled>Forfeit</button>
         <button class="btn-ghost" id="shareBtn" onclick="shareGame()" disabled>🔗 Share Link</button>
       </div>
+    </div>
+    <!-- Mobile-only chat panel (desktop uses the card inside play-left) -->
+    <div class="mob-panel" id="mobPanelChat" style="padding:10px">
+      <div style="max-height:calc(100vh - 200px);overflow-y:auto;background:var(--bg3);border-radius:5px;padding:10px;margin-bottom:8px;font-size:10px;color:var(--dim);text-align:center" id="gameChatBoxMob">Load a game to chat</div>
+      <textarea id="gameChatInputMob" placeholder="Message... (500 chars max)" rows="2" style="margin-bottom:6px"></textarea>
+      <button class="btn btn-green" id="gameChatSendBtnMob" onclick="sendGameChatMob()" disabled>Send Message</button>
     </div>
   </div>
 </div>
@@ -1382,6 +1403,65 @@ let currentSocialRoomId = null; // numeric room ID
 let currentSocialRoomName = 'Chess Lobby';
 let socialPollTimer = null;
 
+// ── PER-GAME STATE CACHE ──
+// Saves local board state when switching between games so progress isn't lost
+const gameCache = new Map(); // gameId → {gameEngine, checkersBoard, isMyTurn, isAIGame, currentGame, lastState}
+
+function saveGameState() {
+  if(!currentGameId) return;
+  gameCache.set(currentGameId, {
+    gameEngine: gameEngine ? new Chess(gameEngine.fen()) : null,
+    checkersBoard: checkersBoard ? [...checkersBoard] : null,
+    isMyTurn, isAIGame, currentGame,
+    lastState, ckSelected: null, moveFrom: null,
+  });
+}
+
+function restoreGameState(id) {
+  const cached = gameCache.get(id);
+  if(!cached) return false;
+  currentGameId  = id;
+  currentGame    = cached.currentGame;
+  isAIGame       = cached.isAIGame;
+  isMyTurn       = cached.isMyTurn;
+  lastState      = cached.lastState;
+  gameEngine     = cached.gameEngine;
+  checkersBoard  = cached.checkersBoard ? [...cached.checkersBoard] : null;
+  ckSelected = null; moveFrom = null;
+  return true;
+}
+
+// ── MOBILE TAB SWITCHER ──
+function isMobile() { return window.innerWidth <= 768; }
+
+function mobSwitch(tab) {
+  if(!isMobile()) return;
+  document.querySelectorAll('.mob-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.mob-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('mobTab'+tab.charAt(0).toUpperCase()+tab.slice(1))?.classList.add('active');
+  const panelMap = {game:'mobPanelGame', board:'mobPanelBoard', chat:'mobPanelChat'};
+  document.getElementById(panelMap[tab])?.classList.add('active');
+}
+
+// Sync mobile chat box mirrors the desktop one
+function syncMobChat() {
+  const desk = document.getElementById('gameChatBox');
+  const mob  = document.getElementById('gameChatBoxMob');
+  if(desk && mob) mob.innerHTML = desk.innerHTML;
+  const btnDesk = document.getElementById('gameChatSendBtn');
+  const btnMob  = document.getElementById('gameChatSendBtnMob');
+  if(btnDesk && btnMob) btnMob.disabled = btnDesk.disabled;
+}
+
+async function sendGameChatMob() {
+  const inp = document.getElementById('gameChatInputMob');
+  if(!inp) return;
+  document.getElementById('gameChatInput').value = inp.value;
+  inp.value = '';
+  await sendGameChat();
+  syncMobChat();
+}
+
 // Chess piece Unicode map
 const PIECES = {K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
 const PIE_VAL = {p:100,n:320,b:330,r:500,q:900,k:20000};
@@ -1578,7 +1658,7 @@ async function createGame() {
     toast('✅ Game created!','ok');
     await loadOpenGames(); await loadMyGames();
     const cnt = await hub.gameCount();
-    if(isAI) setTimeout(()=>loadGame(cnt.toNumber()), 1500);
+    if(isAI) setTimeout(()=>{ loadGame(cnt.toNumber()); if(isMobile()) mobSwitch('board'); }, 1500);
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
 
@@ -1654,6 +1734,42 @@ async function joinGame(id) {
 
 async function loadGame(id) {
   if(!hub||loadingGame) return;
+
+  // Save current game state before switching away
+  if(currentGameId && currentGameId !== id) saveGameState();
+
+  // Try restoring from cache for instant re-load (AI games / fast switch)
+  if(currentGameId !== id && restoreGameState(id)) {
+    currentGameId = id;
+    document.getElementById('boardContainer').style.display = 'none';
+    // Re-render from cached state
+    if(gameEngine) {
+      const grid = document.getElementById('boardGrid');
+      if(grid) grid.style.gridTemplateColumns = 'repeat(8,1fr)';
+      renderChessBoard();
+    } else if(checkersBoard) {
+      renderCheckersBoard();
+    }
+    // Restore infobar
+    const g = currentGame;
+    if(g) {
+      document.getElementById('gameInfoBar').innerHTML =
+        `Game #${id} · ${g.gameType.toUpperCase()} · ${g.isAI?'🤖 AI':'👥 P2P'} · ${ethers.utils.formatEther(g.stake)} REALM<br>
+         <span class="${isMyTurn?'turn-you':'turn-opp'}">${isMyTurn?'🟢 YOUR TURN':'⏳ Opponent\'s turn…'}</span>`;
+    }
+    document.getElementById('boardContainer').style.display = 'block';
+    document.getElementById('forfeitBtn').disabled   = false;
+    document.getElementById('shareBtn').disabled     = false;
+    document.getElementById('gameChatSendBtn').disabled = false;
+    if(chatPollTimer) clearInterval(chatPollTimer);
+    loadGameChatMsgs();
+    chatPollTimer = setInterval(loadGameChatMsgs, 10000);
+    goView('play', document.getElementById('nav-play'));
+    // Switch mobile to board tab
+    if(isMobile()) mobSwitch('board');
+    return;
+  }
+
   loadingGame = true;
   try {
     currentGameId = id;
@@ -1682,6 +1798,12 @@ async function loadGame(id) {
 
     goView('play', document.getElementById('nav-play'));
     lastState = buildStateKey(g);
+
+    // Cache this game state
+    saveGameState();
+
+    // Switch mobile to board tab automatically
+    if(isMobile()) mobSwitch('board');
   } catch(e){ toast('❌ Error: '+(e.reason||e.message),'er'); }
   finally { loadingGame = false; }
 }
@@ -1921,6 +2043,7 @@ async function doChessAI() {
     // Update info bar
     document.getElementById('gameInfoBar').innerHTML =
       `Game #${currentGameId} · CHESS · 🤖 AI Practice<br><span class="turn-you">🟢 YOUR TURN</span>`;
+    saveGameState(); // cache updated state
   } catch(e){ if(gameEngine) try{gameEngine.undo();}catch(e2){} }
   finally { aiRunning=false; document.getElementById('aiThinking').style.display='none'; }
 }
@@ -2306,6 +2429,7 @@ async function doCheckersAI() {
     isMyTurn = true;
     document.getElementById('gameInfoBar').innerHTML =
       `Game #${currentGameId} · CHECKERS 10×10 · 🤖 AI Practice<br><span class="turn-you">🟢 YOUR TURN</span>`;
+    saveGameState(); // cache updated state
   } catch(e){ console.error('Checkers AI error',e); }
   finally { aiRunning=false; document.getElementById('aiThinking').style.display='none'; }
 }
@@ -2318,7 +2442,11 @@ async function loadGameChatMsgs() {
   try {
     const cnt = await gameChat.getMessageCount(currentGameId);
     const n = cnt.toNumber();
-    if(n===0) { document.getElementById('gameChatBox').innerHTML='<p style="color:var(--dim);font-size:10px;text-align:center">No messages yet</p>'; return; }
+    if(n===0) { 
+      const empty = '<p style="color:var(--dim);font-size:10px;text-align:center">No messages yet</p>';
+      document.getElementById('gameChatBox').innerHTML=empty;
+      syncMobChat(); return; 
+    }
     const start = Math.max(0, n-20);
     const [senders,contents,timestamps] = await gameChat.getMessages(currentGameId, start, n-start);
     const box = document.getElementById('gameChatBox');
@@ -2332,6 +2460,7 @@ async function loadGameChatMsgs() {
       </div>`;
     }
     box.innerHTML=html; box.scrollTop=box.scrollHeight;
+    syncMobChat();
   } catch(e){}
 }
 
