@@ -2059,19 +2059,6 @@ async function submitChessMove(from, to) {
   }
 
   // ── P2P game: submit on-chain ──────────────────────────────────────────
-  // Check challenge window hasn't blocked our move
-  if(currentGame) {
-    const elapsed = Math.floor(Date.now()/1000) - currentGame.lastMoveTime.toNumber();
-    const window  = currentGame.challengeWindow.toNumber();
-    if(elapsed < window) {
-      const wait = window - elapsed;
-      gameEngine.undo(); renderChessBoard(); clearBoardHighlights();
-      toast(`⏳ Wait ${wait}s for challenge window to close before moving`,'in');
-      startChallengeTimer(wait);
-      return;
-    }
-  }
-
   toast('⏳ Submitting move…','in');
   try {
     const tx = await hub.makeMove(currentGameId, moveStr, newFen, {gasLimit:800000});
@@ -2498,7 +2485,7 @@ async function submitCheckersMove(mv, fr, fc, tr, tc) {
   const piece = checkersBoard[fromIdx];
   checkersBoard[toIdx]   = piece;
   checkersBoard[fromIdx] = 0;
-  if(mv.jump && mv.mid>=0) checkersBoard[mv.mid]=0;
+  if(mv.jump && mv.mid>=0) { mv.capturedPiece=checkersBoard[mv.mid]; checkersBoard[mv.mid]=0; }
   // King promotion
   if(tr===0 && (piece===1)) checkersBoard[toIdx]=3; // white king at top row
   if(tr===9 && (piece===2)) checkersBoard[toIdx]=4; // black king at bottom row
@@ -2545,21 +2532,6 @@ async function submitCheckersMove(mv, fr, fc, tr, tc) {
     return;
   }
 
-  // P2P challenge window check
-  if(currentGame) {
-    const elapsed = Math.floor(Date.now()/1000) - currentGame.lastMoveTime.toNumber();
-    const cw = currentGame.challengeWindow.toNumber();
-    if(elapsed < cw) {
-      // Undo
-      checkersBoard[fromIdx] = piece; checkersBoard[toIdx] = 0;
-      if(mv.jump && mv.mid>=0) checkersBoard[mv.mid] = (amCreator?2:1);
-      renderCheckersBoard();
-      toast(`⏳ Wait ${cw-elapsed}s for challenge window before moving`,'in');
-      startChallengeTimer(cw-elapsed);
-      return;
-    }
-  }
-
   toast('⏳ Submitting…','in');
   try {
     const tx = await hub.makeMove(currentGameId, moveStr, newState, {gasLimit:800000});
@@ -2574,16 +2546,23 @@ async function submitCheckersMove(mv, fr, fc, tr, tc) {
     await delay(1500);
     await loadGame(currentGameId);
   } catch(e) {
+    // Undo local board state since tx failed
+    checkersBoard[fromIdx] = piece;
+    checkersBoard[toIdx]   = 0;
+    if(mv.jump && mv.mid>=0) checkersBoard[mv.mid] = mv.capturedPiece || (piece<=2 ? (piece===1?2:1) : (piece===3?4:3));
+    renderCheckersBoard();
+    isMyTurn = true;
     const reason = (e.reason||e.message||'').toLowerCase();
-    if(reason.includes('challenge')||reason.includes('challengeable')) {
-      toast('⏳ Challenge window active — retry in a moment','in');
+    if(reason.includes('challenge')||reason.includes('window')) {
+      toast('⏳ Challenge window still active — wait a moment and try again','in');
     } else if(reason.includes('not your turn')||reason.includes('sender')) {
-      toast('❌ Not your turn on-chain — reload the game','er');
+      toast('❌ Not your turn on-chain','er');
     } else {
       const msg = e.reason || e.data?.message || e.message || 'Unknown error';
-      toast('❌ Tx failed: '+msg.slice(0,120),'er');
+      console.error('checkers move error:', e);
+      toast('❌ '+msg.slice(0,120),'er');
     }
-    lastState=null; setTimeout(()=>loadGame(currentGameId),1500);
+    lastState=null;
   }
 }
 
