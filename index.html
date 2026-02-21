@@ -107,10 +107,10 @@ label input[type=checkbox]{width:auto;margin:0}
 .fl{font-size:8px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;display:block;margin-bottom:5px}
 
 /* ── BUTTONS ── */
-.btn{background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#000;font-family:inherit;font-size:11px;font-weight:700;padding:8px 14px;cursor:pointer;letter-spacing:1px;border-radius:4px;transition:all .2s;width:100%;text-transform:uppercase}
+.btn{background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#000;font-family:inherit;font-size:11px;font-weight:700;padding:7px 10px;cursor:pointer;letter-spacing:1px;border-radius:4px;transition:all .2s;width:100%;text-transform:uppercase}
 .btn:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(240,165,0,.3)}
 .btn:disabled{background:var(--border2);color:var(--dim);cursor:not-allowed;transform:none;box-shadow:none}
-.btn-ghost{background:none;border:1px solid var(--border2);color:var(--text);font-family:inherit;font-size:11px;font-weight:700;padding:10px 18px;cursor:pointer;letter-spacing:1px;border-radius:4px;transition:all .15s;width:100%;text-transform:uppercase}
+.btn-ghost{background:none;border:1px solid var(--border2);color:var(--text);font-family:inherit;font-size:11px;font-weight:700;padding:7px 10px;cursor:pointer;letter-spacing:1px;border-radius:4px;transition:all .15s;width:100%;text-transform:uppercase}
 .btn-ghost:hover{border-color:var(--gold);color:var(--gold)}
 .btn-green{background:linear-gradient(135deg,var(--green),var(--green2));color:#000}
 .btn-red{background:linear-gradient(135deg,#ff3355,#cc0033);color:#fff}
@@ -159,7 +159,7 @@ label input[type=checkbox]{width:auto;margin:0}
 .play-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px;min-height:0}
 .play-left::-webkit-scrollbar{width:3px}
 .play-left::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
-.play-right{overflow:hidden;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;background:var(--bg);min-height:0;min-width:0;gap:6px}
+.play-right{overflow-y:auto;overflow-x:hidden;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;background:var(--bg);min-height:0;min-width:0;gap:6px;height:calc(100vh - 52px);box-sizing:border-box}
 
 /* ── BOARD ── */
 .board-wrap{
@@ -178,7 +178,7 @@ label input[type=checkbox]{width:auto;margin:0}
    Layout (top→bottom): pad(12)+buttons(44)+gap(8)+infobar(50)+gap(8)+BOARD+pad(12) = 134px overhead
    Plus chrome safety 70px = 204px. Width = 100vw-524px. Hard cap 520px.
   */
-  width: min(calc(100vw - 524px), calc(100vh - 260px), 500px);
+  width: min(calc(100vw - 524px), calc(100vh - 276px), 500px);
   aspect-ratio: 1 / 1;
 }
 .board-grid{
@@ -376,6 +376,11 @@ label input[type=checkbox]{width:auto;margin:0}
   .nav-item{min-width:48px;padding:5px 7px;font-size:7px}
   .play-left{max-height:36vh}
 }
+
+/* Thin scrollbar for play-right */
+.play-right::-webkit-scrollbar{width:4px}
+.play-right::-webkit-scrollbar-track{background:transparent}
+.play-right::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 </style>
 </head>
 <body>
@@ -484,10 +489,11 @@ label input[type=checkbox]{width:auto;margin:0}
       <div id="boardContainer" class="board-wrap">
         <div id="boardGrid" class="board-grid"></div>
       </div>
-      <!-- Forfeit/Share BELOW board -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;max-width:500px;flex-shrink:0">
+      <!-- Forfeit / Share / Challenge BELOW board -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;width:100%;max-width:520px;flex-shrink:0">
         <button class="btn btn-red" id="forfeitBtn" onclick="forfeit()" disabled>FORFEIT</button>
-        <button class="btn-ghost" id="shareBtn" onclick="shareGame()" disabled>🔗 SHARE LINK</button>
+        <button class="btn-ghost" id="shareBtn" onclick="shareGame()" disabled>🔗 SHARE</button>
+        <button class="btn-ghost" id="challengeBtn" onclick="challengeAbandonment()" disabled title="Claim win if opponent hasn't moved in time">⚡ CHALLENGE</button>
       </div>
     </div>
     <!-- Mobile-only chat panel (desktop uses the card inside play-left) -->
@@ -1787,8 +1793,10 @@ async function loadGame(id) {
          <span class="${isMyTurn?'turn-you':'turn-opp'}">${isMyTurn?'🟢 YOUR TURN':'⏳ AI thinking…'}</span>`;
     }
     document.getElementById('boardContainer').style.display = 'block';
-    document.getElementById('forfeitBtn').disabled   = false;
-    document.getElementById('shareBtn').disabled     = false;
+    document.getElementById('forfeitBtn').disabled    = false;
+    document.getElementById('shareBtn').disabled      = false;
+    document.getElementById('challengeBtn').disabled  = isAIGame; // no challenge for AI
+    document.getElementById("challengeBtn").title     = isAIGame ? "Not available for AI games" : "Claim win if opponent hasn't moved in time";
     document.getElementById('gameChatSendBtn').disabled = false;
     if(chatPollTimer) clearInterval(chatPollTimer);
     loadGameChatMsgs();
@@ -1819,8 +1827,10 @@ async function loadGame(id) {
       return; // finally still runs
     }
 
-    document.getElementById('forfeitBtn').disabled   = false;
-    document.getElementById('shareBtn').disabled     = false;
+    document.getElementById('forfeitBtn').disabled    = false;
+    document.getElementById('shareBtn').disabled      = false;
+    document.getElementById('challengeBtn').disabled  = isAIGame; // no challenge for AI
+    document.getElementById("challengeBtn").title     = isAIGame ? "Not available for AI games" : "Claim win if opponent hasn't moved in time";
     document.getElementById('gameChatSendBtn').disabled = false;
 
     if(chatPollTimer) clearInterval(chatPollTimer);
@@ -2072,6 +2082,41 @@ async function declareWin(gameId) {
   loadOpenGames(); loadMyGames();
   document.getElementById('boardContainer').style.display = 'none';
   document.getElementById('gameInfoBar').innerHTML = 'Game complete — waiting for challenge window.';
+}
+
+// Challenge = claimAbandonment when opponent hasn't moved within the abandon window
+async function challengeAbandonment() {
+  if(!hub||!currentGameId) return toast('No game loaded','er');
+  if(isAIGame) return toast('No challenge needed for AI games','in');
+  try {
+    const g = await hub.games(currentGameId);
+    if(!g.active) return toast('Game is no longer active','er');
+    // Check how long since last move
+    const elapsed = Math.floor(Date.now()/1000) - g.lastMoveTime.toNumber();
+    const cw = g.challengeWindow.toNumber();
+    // claimAbandonment requires elapsed > abandonWindow (usually 24h = 86400s)
+    // but we can try and let the contract revert if too early
+    toast('⏳ Claiming abandonment…','in');
+    const tx = await hub.claimAbandonment(currentGameId, {gasLimit:500000});
+    await tx.wait();
+    toast('🏆 Abandonment claimed! You win.','ok');
+    currentGameId=null; lastState=null;
+    gameCache.delete(currentGameId);
+    document.getElementById('boardContainer').style.display='none';
+    document.getElementById('gameInfoBar').textContent='Game ended — opponent abandoned';
+    document.getElementById('challengeBtn').disabled=true;
+    document.getElementById('forfeitBtn').disabled=true;
+    document.getElementById('shareBtn').disabled=true;
+    await delay(1500);
+    loadOpenGames(); loadMyGames();
+  } catch(e) {
+    const msg = (e.reason||e.message||'').toLowerCase();
+    if(msg.includes('too early')||msg.includes('not expired')||msg.includes('window')) {
+      toast('⏳ Opponent still has time to move — challenge too early','in');
+    } else {
+      toast('❌ '+(e.reason||e.message),'er');
+    }
+  }
 }
 
 async function doChessAI() {
@@ -2596,12 +2641,73 @@ async function loadMyRooms() {
 function openRoom(id, name, meta, el) {
   document.querySelectorAll('.room-item').forEach(r=>r.classList.remove('active'));
   if(el) el.classList.add('active');
-  else { const ri=document.getElementById(`room-item-${id}`); if(ri) ri.classList.add('active'); }
+  else { const ri=document.getElementById(`room-item-${id}`); if(ri) ri.classList.add('active');
+         const ri2=document.getElementById(`room-item-p${id}`); if(ri2) ri2.classList.add('active'); }
   currentSocialRoomId   = id;
   currentSocialRoomName = name;
   document.getElementById('chatRoomName').textContent  = name;
   document.getElementById('chatRoomMeta').textContent  = meta;
   loadSocialMsgs();
+  // Auto-join public room silently so user can message without extra steps
+  if(isConnected && social) {
+    social.isMemberOf(id, userAddr).then(isMember => {
+      if(!isMember) {
+        // Check if public room — if so, join silently
+        social.rooms(id).then(r => {
+          if(r.isPublic) {
+            social.profiles(userAddr).then(prof => {
+              if(!prof.exists) {
+                // Show join prompt with profile info
+                showJoinPrompt(id, name, true);
+                return;
+              }
+              // Auto-join silently
+              social.joinRoom(id, {gasLimit:300000}).then(tx => tx.wait()).then(() => {
+                loadMyRooms();
+                document.getElementById('socialChatInput').placeholder = 'Type a message…';
+              }).catch(()=>{});
+            }).catch(()=>{});
+          } else {
+            showJoinPrompt(id, name, false);
+          }
+        }).catch(()=>{});
+      } else {
+        document.getElementById('socialChatInput').placeholder = 'Type a message…';
+      }
+    }).catch(()=>{});
+  }
+}
+
+async function manualJoinRoom(roomId) {
+  if(!social) return toast('Connect wallet first','er');
+  try {
+    const prof = await social.profiles(userAddr);
+    if(!prof.exists) return toast('Set a profile in Discovery tab first','er');
+    toast('⏳ Joining room…','in');
+    const tx = await social.joinRoom(roomId, {gasLimit:300000});
+    await tx.wait();
+    toast('✅ Joined! You can now send messages.','ok');
+    const jp = document.getElementById('joinRoomPrompt');
+    if(jp) jp.remove();
+    loadMyRooms();
+    document.getElementById('socialChatInput').placeholder = 'Type a message…';
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+function showJoinPrompt(roomId, roomName, isPublic) {
+  // Show a join button in the messages area
+  const area = document.getElementById('messagesArea');
+  if(!area) return;
+  const existing = document.getElementById('joinRoomPrompt');
+  if(existing) return; // already showing
+  const prompt = document.createElement('div');
+  prompt.id = 'joinRoomPrompt';
+  prompt.style.cssText = 'text-align:center;padding:20px;';
+  prompt.innerHTML = `<div style="color:var(--dim);font-size:11px;margin-bottom:10px">
+    ${isPublic ? 'Setting up your profile to join public rooms…' : `You need an invite to join "${roomName}"`}
+  </div>
+  ${isPublic ? `<button class="btn" style="max-width:200px" onclick="manualJoinRoom(${roomId})">🚪 Join Room</button>` : ''}`;
+  area.appendChild(prompt);
 }
 
 async function loadSocialMsgs() {
@@ -2652,21 +2758,39 @@ async function sendSocialMsg() {
   if(msg.length>500) return toast('Max 500 chars','er');
 
   try {
-    // Check if need to pay entry fee
+    // Auto-join if not already a member (public rooms only)
     const isMember = await social.isMemberOf(currentSocialRoomId, userAddr);
-    if(!isMember) return toast('Join this room first','er');
+    if(!isMember) {
+      const r = await social.rooms(currentSocialRoomId);
+      if(!r.isPublic) return toast('You need an invite to join this private room','er');
+      const prof = await social.profiles(userAddr);
+      if(!prof.exists) return toast('Set a profile in the Discovery tab first, then come back','er');
+      toast('⏳ Joining room…','in');
+      const joinTx = await social.joinRoom(currentSocialRoomId, {gasLimit:300000});
+      await joinTx.wait();
+      toast('✅ Joined! Sending message…','ok');
+      loadMyRooms();
+    }
 
+    // Handle entry fee
     const paid = await social.hasPaidEntry(currentSocialRoomId, userAddr);
     if(!paid) {
       const fee = await social.messageEntryFee();
       if(!fee.isZero()) {
-        toast('⏳ Approving 1 REALM entry fee…','in');
+        toast('⏳ Approving entry fee…','in');
         await approve(C.SOCIAL, fee);
       }
     }
+
     const tx = await social.sendMessage(currentSocialRoomId, msg, {gasLimit:350000});
-    inp.value=''; toast('⏳ Sending on-chain…','in');
-    await tx.wait(); toast('✅ Message sent!','ok'); loadSocialMsgs();
+    inp.value='';
+    toast('⏳ Sending on-chain…','in');
+    await tx.wait();
+    toast('✅ Message sent!','ok');
+    loadSocialMsgs();
+    // Remove join prompt if present
+    const jp = document.getElementById('joinRoomPrompt');
+    if(jp) jp.remove();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
 
