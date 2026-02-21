@@ -169,11 +169,12 @@ label input[type=checkbox]{width:auto;margin:0}
   overflow:hidden;flex-shrink:0;
   align-self:center;
   /*
-   Width  = viewport - sidebar(200) - play-left(300) - padding(24) = 100vw - 524px
-   Height = viewport - topbar(52) - infobar(54) - buttons(52) - gaps+padding(24) - safety(40) = 100vh - 222px
+   Width  = 100vw - sidebar(200) - play-left(300) - padding(24) = 100vw - 524px
+   Height = 100vh - topbar(52) - infobar(54) - buttons(52) - gaps/pad(24) - chrome-safety(68) = 100vh - 250px
    Hard cap 520px. aspect-ratio makes it a perfect square.
+   The chrome-safety of 68px accounts for browser address bar eating into 100vh on some setups.
   */
-  width: min(calc(100vw - 524px), calc(100vh - 222px), 520px);
+  width: min(calc(100vw - 524px), calc(100vh - 250px), 520px);
   aspect-ratio: 1 / 1;
 }
 .board-grid{
@@ -504,14 +505,7 @@ label input[type=checkbox]{width:auto;margin:0}
       <div id="myRoomsList"></div>
       <div style="font-size:8px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin:10px 0 5px">Public Rooms</div>
       <div id="publicRoomsList">
-        <div class="room-item active" id="room-item-1" onclick="openRoom(1,'♟️ Chess Lobby','Public room',this)">
-          <div class="room-icon">♟️</div>
-          <div><div class="room-name">Chess Lobby</div><div class="room-sub">Public · Open</div></div>
-        </div>
-        <div class="room-item" id="room-item-2" onclick="openRoom(2,'⚡ General','Public room',this)">
-          <div class="room-icon">⚡</div>
-          <div><div class="room-name">General</div><div class="room-sub">Public · Open</div></div>
-        </div>
+        <div style="font-size:10px;color:var(--dim);padding:6px">Loading…</div>
       </div>
     </div>
     <div class="chat-col">
@@ -1494,7 +1488,7 @@ function goView(id, el) {
   if (id==='gateway' && isConnected) loadGateway();
   if (id==='bridge' && isConnected) loadBridgeData();
   if (id==='discovery') loadDiscovery();
-  if (id==='social') { loadMyRooms(); if (currentSocialRoomId) loadSocialMsgs(); }
+  if (id==='social') { loadMyRooms(); loadPublicRooms(); if (currentSocialRoomId) loadSocialMsgs(); }
   if (id==='admin' && isConnected) { checkOwner(); loadAdminData(); }
   if (id==='dao'   && isConnected) { loadDAOData(); loadVestingData(); }
   if (id!=='admin' && dexRefreshTimer) { clearInterval(dexRefreshTimer); dexRefreshTimer=null; }
@@ -1610,6 +1604,7 @@ function startPolling() {
   setInterval(()=>{ if(isConnected) updateBal(); }, 8000);
   setInterval(()=>{ if(isConnected&&currentGameId&&!loadingGame) pollGameState(); }, 2000);
   setInterval(()=>{ if(isConnected) { loadOpenGames(); loadMyGames(); }}, 30000);
+  setInterval(()=>{ if(isConnected && document.getElementById('view-social')?.classList.contains('active')) loadPublicRooms(); }, 20000);
   if(socialPollTimer) clearInterval(socialPollTimer);
   socialPollTimer = setInterval(()=>{ if(isConnected&&currentSocialRoomId) loadSocialMsgs(); }, 12000);
 }
@@ -2520,6 +2515,55 @@ async function sendGameChat() {
 // ═══════════════════════════════════════════
 // SOCIAL CHAT — SocialChat contract (room IDs)
 // ═══════════════════════════════════════════
+async function loadPublicRooms() {
+  const el = document.getElementById('publicRoomsList');
+  if(!el) return;
+  if(!social) {
+    el.innerHTML='<div style="font-size:10px;color:var(--dim);padding:6px">Connect wallet to see rooms</div>';
+    return;
+  }
+  try {
+    const cnt = (await social.roomCount()).toNumber();
+    if(cnt === 0) {
+      el.innerHTML='<div style="font-size:10px;color:var(--dim);padding:6px">No public rooms yet</div>';
+      return;
+    }
+    let html = '';
+    // Fetch all rooms (newest first) and filter for public+active
+    for(let i=cnt; i>=1; i--) {
+      try {
+        const r = await social.rooms(i);
+        if(!r.isPublic || !r.active) continue;
+        const icons = ['🌐','♟️','⚡','🎮','💬','🏆','🎯','🎲'];
+        const icon = icons[i % icons.length];
+        html += `<div class="room-item" id="room-item-p${i}" onclick="openRoom(${i},'${esc(r.name)}','Public · ${r.memberCount} members',this)">
+          <div class="room-icon">${icon}</div>
+          <div>
+            <div class="room-name">${esc(r.name)}</div>
+            <div class="room-sub">Public · ${r.memberCount} members</div>
+          </div>
+        </div>`;
+      } catch(e){}
+    }
+    el.innerHTML = html || '<div style="font-size:10px;color:var(--dim);padding:6px">No public rooms yet</div>';
+    // Auto-open first public room if none is selected
+    if(!currentSocialRoomId && cnt > 0) {
+      // find first public room
+      for(let i=1; i<=cnt; i++) {
+        try {
+          const r = await social.rooms(i);
+          if(r.isPublic && r.active) {
+            openRoom(i, r.name, `Public · ${r.memberCount} members`, document.getElementById(`room-item-p${i}`));
+            break;
+          }
+        } catch(e){}
+      }
+    }
+  } catch(e) {
+    el.innerHTML='<div style="font-size:10px;color:var(--dim);padding:6px">Error loading rooms</div>';
+  }
+}
+
 async function loadMyRooms() {
   if(!social||!userAddr) { document.getElementById('myRoomsList').innerHTML='<div style="font-size:10px;color:var(--dim);padding:6px">Connect wallet</div>'; return; }
   try {
@@ -2635,6 +2679,7 @@ async function createRoom() {
     closeModal('createRoomModal');
     toast('✅ Room created!','ok');
     await loadMyRooms();
+    await loadPublicRooms(); // refresh public list so others can see the new room
     // Try to get the new room ID from event
     const cnt = await social.roomCount();
     openRoom(cnt.toNumber(), name, isPublic?'Public':'Private', null);
