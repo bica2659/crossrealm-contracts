@@ -683,6 +683,11 @@ label input[type=checkbox]{width:auto;margin:0}
         <span class="fl">Amount (REALM)</span>
         <input type="number" id="stakeInput" placeholder="Amount to stake" value="1000" min="1">
         <button class="btn" onclick="doStake()" style="margin-bottom:6px">Stake REALM</button>
+        <span class="fl" style="margin-top:8px">Withdraw Amount (REALM)</span>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+          <input type="number" id="unstakeInput" placeholder="Amount to withdraw (blank = all)" min="0" style="flex:1">
+          <button class="btn-ghost" style="white-space:nowrap;padding:8px 10px;font-size:10px" onclick="(async()=>{if(!stakingC||!userAddr)return;const i=await stakingC.stakes(userAddr);document.getElementById('unstakeInput').value=parseFloat(ethers.utils.formatEther(i.amount)).toFixed(2);})()">MAX</button>
+        </div>
         <button class="btn-ghost" onclick="doUnstake()" style="margin-bottom:6px">Withdraw Stake</button>
         <button class="btn btn-green" onclick="doClaimStake()">Claim Rewards</button>
       </div>
@@ -1884,13 +1889,30 @@ async function pollGameState() {
 
 async function forfeit() {
   if(!hub||!currentGameId) return toast('No game loaded','er');
+  if(!confirm('Forfeit this game? You will lose your stake.')) return;
   try {
-    const tx = await hub.forfeitGame(currentGameId, {gasLimit:500000});
+    // Check if challenge window is still active — contract will revert if so
+    const g = await hub.games(currentGameId);
+    if(g.lastMoveTime.toNumber() > 0) {
+      const elapsed = Math.floor(Date.now()/1000) - g.lastMoveTime.toNumber();
+      const cw = g.challengeWindow.toNumber();
+      if(elapsed < cw) {
+        const wait = cw - elapsed;
+        return toast(`⏳ Can't forfeit during challenge window — wait ${wait}s`,'in');
+      }
+    }
     toast('⏳ Forfeiting…','in');
+    const tx = await hub.forfeitGame(currentGameId, {gasLimit:500000});
     await tx.wait();
     toast('✅ Forfeited','ok');
+    const gid = currentGameId;
     currentGameId=null; lastState=null;
+    gameCache.delete(gid);
+    document.getElementById('boardContainer').style.display='none';
     document.getElementById('gameInfoBar').textContent='Game ended — Forfeited';
+    document.getElementById('forfeitBtn').disabled=true;
+    document.getElementById('shareBtn').disabled=true;
+    document.getElementById('challengeBtn').disabled=true;
     loadOpenGames(); loadMyGames();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
@@ -2103,8 +2125,9 @@ async function challengeAbandonment() {
     const tx = await hub.claimAbandonment(currentGameId, {gasLimit:500000});
     await tx.wait();
     toast('🏆 Abandonment claimed! You win.','ok');
+    const gid = currentGameId;
     currentGameId=null; lastState=null;
-    gameCache.delete(currentGameId);
+    gameCache.delete(gid);
     document.getElementById('boardContainer').style.display='none';
     document.getElementById('gameInfoBar').textContent='Game ended — opponent abandoned';
     document.getElementById('challengeBtn').disabled=true;
@@ -3119,10 +3142,26 @@ async function doUnstake() {
     if(info.amount.isZero()) return toast('Nothing staked','er');
     const lu = info.lockUntil ? info.lockUntil.toNumber() : (info[2] ? info[2].toNumber() : 0);
     if(lu>Date.now()/1000) return toast(`Locked for ${Math.ceil((lu-Date.now()/1000)/86400)} more days`,'er');
+
+    // Use the specified amount, fallback to full amount
+    const inputEl = document.getElementById('unstakeInput');
+    const inputAmt = inputEl ? parseFloat(inputEl.value) : 0;
+    const totalStaked = parseFloat(ethers.utils.formatEther(info.amount));
+
+    let withdrawAmt;
+    if(inputAmt > 0 && inputAmt < totalStaked) {
+      withdrawAmt = ethers.utils.parseEther(inputAmt.toString());
+    } else if(inputAmt >= totalStaked || !inputAmt) {
+      withdrawAmt = info.amount; // withdraw all
+    } else {
+      return toast('Invalid amount','er');
+    }
+
     toast('⏳ Withdrawing…','in');
-    const tx = await stakingC.unstake(info.amount, {gasLimit:350000});
+    const tx = await stakingC.unstake(withdrawAmt, {gasLimit:350000});
     await tx.wait();
-    toast('✅ Withdrawn!','ok'); loadStakingData(); updateBal();
+    toast('✅ Withdrawn!','ok');
+    loadStakingData(); updateBal();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
 
