@@ -684,9 +684,9 @@ label input[type=checkbox]{width:auto;margin:0}
         <input type="number" id="stakeInput" placeholder="Amount to stake" value="1000" min="1">
         <button class="btn" onclick="doStake()" style="margin-bottom:6px">Stake REALM</button>
         <span class="fl" style="margin-top:8px">Withdraw Amount (REALM)</span>
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-          <input type="number" id="unstakeInput" placeholder="Amount to withdraw (blank = all)" min="0" style="flex:1">
-          <button class="btn-ghost" style="white-space:nowrap;padding:8px 10px;font-size:10px" onclick="(async()=>{if(!stakingC||!userAddr)return;const i=await stakingC.stakes(userAddr);document.getElementById('unstakeInput').value=parseFloat(ethers.utils.formatEther(i.amount)).toFixed(2);})()">MAX</button>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:6px">
+          <input type="number" id="unstakeInput" placeholder="Leave blank to withdraw all" min="0">
+          <button class="btn-ghost" style="padding:0 14px;font-size:10px;white-space:nowrap" onclick="(async()=>{if(!stakingC||!userAddr)return;const i=await stakingC.stakes(userAddr);document.getElementById('unstakeInput').value=parseFloat(ethers.utils.formatEther(i.amount)).toFixed(2);})()">MAX</button>
         </div>
         <button class="btn-ghost" onclick="doUnstake()" style="margin-bottom:6px">Withdraw Stake</button>
         <button class="btn btn-green" onclick="doClaimStake()">Claim Rewards</button>
@@ -1891,30 +1891,59 @@ async function forfeit() {
   if(!hub||!currentGameId) return toast('No game loaded','er');
   if(!confirm('Forfeit this game? You will lose your stake.')) return;
   try {
-    // Check if challenge window is still active — contract will revert if so
     const g = await hub.games(currentGameId);
-    if(g.lastMoveTime.toNumber() > 0) {
-      const elapsed = Math.floor(Date.now()/1000) - g.lastMoveTime.toNumber();
-      const cw = g.challengeWindow.toNumber();
-      if(elapsed < cw) {
-        const wait = cw - elapsed;
-        return toast(`⏳ Can't forfeit during challenge window — wait ${wait}s`,'in');
-      }
+    if(!g.active) return toast('Game is no longer active','er');
+
+    const noPlayer2 = g.player2 === ethers.constants.AddressZero;
+    const moveCount = await hub.getMoveCount(currentGameId);
+    const moves = moveCount.toNumber();
+    const isCreator = g.creator.toLowerCase() === userAddr.toLowerCase();
+
+    // No player2 yet — creator can cancel with full refund
+    if(noPlayer2 && isCreator) {
+      toast('⏳ Cancelling unjoined game…','in');
+      const tx = await hub.cancelUnjoinedGame(currentGameId, {gasLimit:400000});
+      await tx.wait();
+      toast('✅ Game cancelled — stake refunded','ok');
     }
-    toast('⏳ Forfeiting…','in');
-    const tx = await hub.forfeitGame(currentGameId, {gasLimit:500000});
-    await tx.wait();
-    toast('✅ Forfeited','ok');
+    // Player2 joined but no moves made — use expireGame
+    else if(moves === 0) {
+      toast('⏳ Expiring game (no moves made)…','in');
+      const tx = await hub.expireGame(currentGameId, {gasLimit:400000});
+      await tx.wait();
+      toast('✅ Game expired','ok');
+    }
+    // Mid-game forfeit — check challenge window then forfeitGame
+    else {
+      if(g.lastMoveTime.toNumber() > 0) {
+        const elapsed = Math.floor(Date.now()/1000) - g.lastMoveTime.toNumber();
+        const cw = g.challengeWindow.toNumber();
+        if(elapsed < cw) {
+          const wait = cw - elapsed;
+          return toast(`⏳ Challenge window active — wait ${wait}s before forfeiting`,'in');
+        }
+      }
+      toast('⏳ Forfeiting…','in');
+      const tx = await hub.forfeitGame(currentGameId, {gasLimit:600000});
+      await tx.wait();
+      toast('✅ Forfeited','ok');
+    }
+
     const gid = currentGameId;
-    currentGameId=null; lastState=null;
+    currentGameId = null; lastState = null;
     gameCache.delete(gid);
-    document.getElementById('boardContainer').style.display='none';
-    document.getElementById('gameInfoBar').textContent='Game ended — Forfeited';
-    document.getElementById('forfeitBtn').disabled=true;
-    document.getElementById('shareBtn').disabled=true;
-    document.getElementById('challengeBtn').disabled=true;
+    document.getElementById('boardContainer').style.display = 'none';
+    document.getElementById('gameInfoBar').textContent = 'Game ended';
+    document.getElementById('forfeitBtn').disabled = true;
+    document.getElementById('shareBtn').disabled = true;
+    document.getElementById('challengeBtn').disabled = true;
     loadOpenGames(); loadMyGames();
-  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+  } catch(e) {
+    // Show the actual revert reason clearly
+    const reason = e.reason || e.data?.message || e.message || 'Unknown error';
+    console.error('forfeit error:', e);
+    toast('❌ ' + reason, 'er');
+  }
 }
 
 function shareGame() {
@@ -2116,31 +2145,51 @@ async function challengeAbandonment() {
   try {
     const g = await hub.games(currentGameId);
     if(!g.active) return toast('Game is no longer active','er');
-    // Check how long since last move
-    const elapsed = Math.floor(Date.now()/1000) - g.lastMoveTime.toNumber();
-    const cw = g.challengeWindow.toNumber();
-    // claimAbandonment requires elapsed > abandonWindow (usually 24h = 86400s)
-    // but we can try and let the contract revert if too early
-    toast('⏳ Claiming abandonment…','in');
-    const tx = await hub.claimAbandonment(currentGameId, {gasLimit:500000});
-    await tx.wait();
-    toast('🏆 Abandonment claimed! You win.','ok');
+
+    const noPlayer2 = g.player2 === ethers.constants.AddressZero;
+    if(noPlayer2) return toast('No opponent has joined yet','er');
+
+    const moveCount = await hub.getMoveCount(currentGameId);
+    const moves = moveCount.toNumber();
+
+    // No moves made — use expireGame (opponent joined but never moved)
+    if(moves === 0) {
+      toast('⏳ Expiring game — opponent never moved…','in');
+      const tx = await hub.expireGame(currentGameId, {gasLimit:400000});
+      await tx.wait();
+      toast('✅ Game expired — stake returned','ok');
+    } else {
+      // Moves were made — claim abandonment (opponent stopped responding)
+      const elapsed = Math.floor(Date.now()/1000) - g.lastMoveTime.toNumber();
+      const cw = g.challengeWindow.toNumber();
+      // Show time info to user
+      if(elapsed < 3600) {
+        toast(`⏳ Only ${Math.floor(elapsed/60)}min since last move — opponent may still respond`,'in');
+        if(!confirm(`Opponent last moved ${Math.floor(elapsed/60)} minutes ago. Claim abandonment anyway?`)) return;
+      }
+      toast('⏳ Claiming abandonment…','in');
+      const tx = await hub.claimAbandonment(currentGameId, {gasLimit:600000});
+      await tx.wait();
+      toast('🏆 Abandonment claimed — you win!','ok');
+    }
+
     const gid = currentGameId;
-    currentGameId=null; lastState=null;
+    currentGameId = null; lastState = null;
     gameCache.delete(gid);
-    document.getElementById('boardContainer').style.display='none';
-    document.getElementById('gameInfoBar').textContent='Game ended — opponent abandoned';
-    document.getElementById('challengeBtn').disabled=true;
-    document.getElementById('forfeitBtn').disabled=true;
-    document.getElementById('shareBtn').disabled=true;
-    await delay(1500);
+    document.getElementById('boardContainer').style.display = 'none';
+    document.getElementById('gameInfoBar').textContent = 'Game ended — opponent abandoned';
+    document.getElementById('challengeBtn').disabled = true;
+    document.getElementById('forfeitBtn').disabled = true;
+    document.getElementById('shareBtn').disabled = true;
     loadOpenGames(); loadMyGames();
   } catch(e) {
-    const msg = (e.reason||e.message||'').toLowerCase();
-    if(msg.includes('too early')||msg.includes('not expired')||msg.includes('window')) {
-      toast('⏳ Opponent still has time to move — challenge too early','in');
+    const reason = e.reason || e.data?.message || e.message || 'Unknown error';
+    console.error('challengeAbandonment error:', e);
+    // Give helpful context based on error
+    if(reason.toLowerCase().includes('too early') || reason.toLowerCase().includes('not expired')) {
+      toast('⏳ Opponent still has time — abandonment window not reached yet','in');
     } else {
-      toast('❌ '+(e.reason||e.message),'er');
+      toast('❌ ' + reason, 'er');
     }
   }
 }
