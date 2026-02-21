@@ -159,7 +159,7 @@ label input[type=checkbox]{width:auto;margin:0}
 .play-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px;min-height:0}
 .play-left::-webkit-scrollbar{width:3px}
 .play-left::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
-.play-right{overflow:hidden;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);min-height:0;min-width:0;gap:8px}
+.play-right{overflow:hidden;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;background:var(--bg);min-height:0;min-width:0;gap:8px}
 
 /* ── BOARD ── */
 .board-wrap{
@@ -169,20 +169,17 @@ label input[type=checkbox]{width:auto;margin:0}
   overflow:hidden;flex-shrink:0;
   align-self:center;
   /*
-   Direct vw/vh calculation — no % chain that can collapse:
-   Width available  = 100vw - 200px(sidebar) - 300px(play-left) - 24px(padding) = 100vw - 524px
-   Height available = 100vh - 52px(topbar)  - 154px(infobar+buttons+gaps+padding) = 100vh - 206px
-   Cap at 520px.
-   aspect-ratio ensures the square is correct whatever constraint wins.
+   Width  = viewport - sidebar(200) - play-left(300) - padding(24) = 100vw - 524px
+   Height = viewport - topbar(52) - infobar(54) - buttons(52) - gaps+padding(24) - safety(40) = 100vh - 222px
+   Hard cap 520px. aspect-ratio makes it a perfect square.
   */
-  width: min(calc(100vw - 524px), calc(100vh - 206px), 520px);
+  width: min(calc(100vw - 524px), calc(100vh - 222px), 520px);
   aspect-ratio: 1 / 1;
 }
 .board-grid{
   display:grid;
   grid-template-columns:repeat(8,1fr);
-  width:100%;
-  height:100%;
+  width:100%;height:100%;
   min-width:0;min-height:0;
 }
 .sq{
