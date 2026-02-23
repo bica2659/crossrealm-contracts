@@ -1955,22 +1955,76 @@ function shareGame() {
 async function initChess(id, g, fen) {
   // Clear checkers state so switching back doesn't corrupt handlers
   checkersBoard = null; ckSelected = null;
-  // Reset board grid to 8×8 in case we switched from checkers
   const grid = document.getElementById('boardGrid');
   if(grid) grid.style.gridTemplateColumns = 'repeat(8,1fr)';
 
   try { gameEngine = new Chess(fen); } catch(e){ gameEngine = new Chess(); }
   const amCreator = g.creator.toLowerCase()===userAddr.toLowerCase();
   const turn = gameEngine.fen().split(' ')[1]; // 'w' or 'b'
+  const stakeStr = ethers.utils.formatEther(g.stake);
   isMyTurn = isAIGame
     ? turn==='w'
     : (turn==='w' && amCreator) || (turn==='b' && !amCreator);
 
+  renderChessBoard();
+
+  // ── Game already over? ──────────────────────────────────────────────────
+  // Check 1: game settled on-chain
+  if(!g.active) {
+    document.getElementById('gameInfoBar').innerHTML =
+      `Game #${id} · CHESS · ${stakeStr} REALM · ${g.isAI?'🤖 AI':'👥 P2P'}<br>
+       <span style="color:var(--gold)">🏁 Game over — settled on-chain</span>`;
+    isMyTurn = false;
+    document.getElementById('forfeitBtn').disabled   = true;
+    document.getElementById('challengeBtn').disabled = true;
+    return;
+  }
+
+  // Check 2: position is already game over (checkmate/stalemate/draw)
+  if(gameEngine.game_over()) {
+    const mated  = gameEngine.in_checkmate();
+    const drawn  = gameEngine.in_draw() || gameEngine.in_stalemate();
+    // The side that just MOVED wins — current turn is the loser
+    const weAreCurrentTurn = isMyTurn;
+    const weWon  = mated && !weAreCurrentTurn; // opponent moved → mated us → we lost
+    const weLost = mated && weAreCurrentTurn;
+
+    let msg, color;
+    if(mated && weWon)  { msg='🏆 Opponent checkmated — awaiting settlement'; color='var(--green)'; }
+    else if(mated)      { msg='💀 You were checkmated'; color='var(--red)'; }
+    else if(drawn)      { msg='🤝 Game drawn'; color='var(--gold)'; }
+    else                { msg='🏁 Game over'; color='var(--dim)'; }
+
+    document.getElementById('gameInfoBar').innerHTML =
+      `Game #${id} · CHESS · ${stakeStr} REALM · ${g.isAI?'🤖 AI':'👥 P2P'}<br>
+       <span style="color:${color}">${msg}</span>`;
+    isMyTurn = false;
+    document.getElementById('forfeitBtn').disabled   = true;
+    document.getElementById('challengeBtn').disabled = true;
+
+    // If we won (opponent checkmated), trigger settlement
+    if(mated && weWon && !isAIGame) {
+      toast('🏆 Checkmated position detected — claiming win…','ok');
+      setTimeout(()=>declareWin(id), 1000);
+    }
+    return;
+  }
+
+  // Check 3: it's our turn but we have no legal moves (shouldn't happen after check 2, safety net)
+  if(isMyTurn && gameEngine.moves().length === 0) {
+    document.getElementById('gameInfoBar').innerHTML =
+      `Game #${id} · CHESS · ${stakeStr} REALM · ${g.isAI?'🤖 AI':'👥 P2P'}<br>
+       <span style="color:var(--red)">💀 No legal moves</span>`;
+    isMyTurn = false;
+    document.getElementById('forfeitBtn').disabled   = true;
+    document.getElementById('challengeBtn').disabled = true;
+    return;
+  }
+
   document.getElementById('gameInfoBar').innerHTML =
-    `Game #${id} · CHESS · ${ethers.utils.formatEther(g.stake)} REALM · ${g.isAI?'🤖 AI':'👥 P2P'}<br>
+    `Game #${id} · CHESS · ${stakeStr} REALM · ${g.isAI?'🤖 AI':'👥 P2P'}<br>
      <span class="${isMyTurn?'turn-you':'turn-opp'}">${isMyTurn?'🟢 YOUR TURN':'⏳ Opponent\'s turn…'}</span>`;
 
-  renderChessBoard();
   if(isAIGame && !isMyTurn && !gameEngine.game_over() && !aiRunning)
     setTimeout(doChessAI, 1500);
 }
@@ -2063,12 +2117,23 @@ async function submitChessMove(from, to) {
   try {
     const tx = await hub.makeMove(currentGameId, moveStr, newFen, {gasLimit:800000});
     await tx.wait();
-    if(mated)  { toast('♟️ Checkmate! Move confirmed — funds release after challenge window.','ok'); declareWin(currentGameId); }
-    else if(drawn) toast('🤝 Draw confirmed!','in');
-    else toast('✅ Move confirmed!','ok');
+    if(mated) {
+      toast('♟️ Checkmate! Move confirmed — funds release after challenge window.','ok');
+      isMyTurn = false;
+      document.getElementById('forfeitBtn').disabled   = true;
+      document.getElementById('challengeBtn').disabled = true;
+      document.getElementById('gameInfoBar').innerHTML =
+        `<span style="color:var(--green)">🏆 Checkmate confirmed! Challenge window closing…</span>`;
+      clearBoardHighlights();
+      declareWin(currentGameId);
+      return; // don't reload — game is done
+    } else if(drawn) {
+      toast('🤝 Draw confirmed!','in');
+    } else {
+      toast('✅ Move confirmed!','ok');
+    }
     clearBoardHighlights();
-    // Set lastState to current so poll detects OPPONENT's next move (not our own)
-    lastState = null; // will be refreshed by loadGame below
+    lastState = null;
     await new Promise(r=>setTimeout(r,1500));
     await loadGame(currentGameId);
   } catch(e) {
@@ -2243,11 +2308,70 @@ async function initCheckers(id, g, state) {
   const turn = Number(g.turn); // 0=creator, 1=player2
   isMyTurn = isAIGame ? (turn===0) : (turn===0&&amCreator)||(turn===1&&!amCreator);
 
-  document.getElementById('gameInfoBar').innerHTML =
-    `Game #${id} · CHECKERS 10×10 · ${ethers.utils.formatEther(g.stake)} REALM<br>
-     <span class="${isMyTurn?'turn-you':'turn-opp'}">${isMyTurn?'🟢 YOUR TURN':'⏳ Opponent\'s turn…'}</span>`;
+  const whiteLeft = checkersBoard.filter(p=>p===1||p===3).length;
+  const blackLeft = checkersBoard.filter(p=>p===2||p===4).length;
+  const stakeStr  = ethers.utils.formatEther(g.stake);
 
   renderCheckersBoard();
+
+  // ── Game already over? ──────────────────────────────────────────────────
+  // Check 1: game inactive on-chain
+  if(!g.active) {
+    document.getElementById('gameInfoBar').innerHTML =
+      `Game #${id} · CHECKERS 10×10 · ${stakeStr} REALM<br>
+       <span style="color:var(--gold)">🏁 Game over — settled on-chain</span>`;
+    isMyTurn = false;
+    document.getElementById('forfeitBtn').disabled   = true;
+    document.getElementById('challengeBtn').disabled = true;
+    return;
+  }
+
+  // Check 2: no enemy pieces left — we already won (tx confirmed, poll reloaded)
+  const myPieces   = amCreator ? [1,3] : [2,4];
+  const enemyPieces = amCreator ? [2,4] : [1,3];
+  const myLeft     = checkersBoard.filter(p=>myPieces.includes(p)).length;
+  const enemyLeft  = checkersBoard.filter(p=>enemyPieces.includes(p)).length;
+
+  if(!whiteLeft || !blackLeft) {
+    const weWon = enemyLeft === 0;
+    document.getElementById('gameInfoBar').innerHTML =
+      `Game #${id} · CHECKERS 10×10 · ${stakeStr} REALM<br>
+       <span style="color:${weWon?'var(--green)':'var(--red)'}">
+         ${weWon ? '🏆 You won! Claiming…' : '💀 You lost'}
+       </span>`;
+    isMyTurn = false;
+    document.getElementById('forfeitBtn').disabled   = true;
+    document.getElementById('challengeBtn').disabled = true;
+    if(weWon && !isAIGame) {
+      toast('🏆 No enemy pieces — claiming win…','ok');
+      setTimeout(()=>declareWin(id), 1000);
+    } else if(weWon && isAIGame) {
+      toast('🏆 You won the AI game!','ok');
+      setTimeout(()=>endAIGame(id), 1000);
+    }
+    return;
+  }
+
+  // Check 3: it's our turn but we have no moves (stalemate = we lose)
+  if(isMyTurn) {
+    const isWhiteTurn = myPieces.includes(1);
+    const myMoves = getAllCkMoves(isWhiteTurn);
+    if(myMoves.length === 0) {
+      document.getElementById('gameInfoBar').innerHTML =
+        `Game #${id} · CHECKERS 10×10 · ${stakeStr} REALM<br>
+         <span style="color:var(--red)">💀 No moves available — you lose</span>`;
+      isMyTurn = false;
+      document.getElementById('forfeitBtn').disabled   = true;
+      document.getElementById('challengeBtn').disabled = true;
+      if(!isAIGame) setTimeout(()=>forfeit(), 2000);
+      return;
+    }
+  }
+
+  document.getElementById('gameInfoBar').innerHTML =
+    `Game #${id} · CHECKERS 10×10 · ${stakeStr} REALM<br>
+     <span class="${isMyTurn?'turn-you':'turn-opp'}">${isMyTurn?'🟢 YOUR TURN':'⏳ Opponent\'s turn…'}</span>`;
+
   if(isAIGame && !isMyTurn && g.active && !aiRunning)
     setTimeout(doCheckersAI, 1500);
 }
@@ -2538,7 +2662,13 @@ async function submitCheckersMove(mv, fr, fc, tr, tc) {
     await tx.wait();
     if(!whiteLeft || !blackLeft) {
       toast('🏆 Winning move confirmed! Funds release after challenge window.','ok');
+      isMyTurn = false;
+      document.getElementById('forfeitBtn').disabled   = true;
+      document.getElementById('challengeBtn').disabled = true;
+      document.getElementById('gameInfoBar').innerHTML =
+        `<span style="color:var(--green)">🏆 You won! Challenge window closing…</span>`;
       declareWin(currentGameId);
+      return; // don't reload — game is done
     } else {
       toast('✅ Move confirmed!','ok');
     }
