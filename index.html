@@ -1245,7 +1245,7 @@ const HUB_ABI = [
   'function createGame(string,uint256,bool,bool,address,uint256) returns (uint256)',
   'function joinGame(uint256)',
   'function makeMove(uint256,string,string)',
-  'function forfeitGame(uint256)',
+  'function declareWinner(uint256,address)',
   'function cancelUnjoinedGame(uint256)',
   'function expireGame(uint256)',
   'function claimAbandonment(uint256)',
@@ -1254,6 +1254,7 @@ const HUB_ABI = [
   'function totalWins(address) view returns (uint256)',
   'function winsByGameType(address,string) view returns (uint256)',
   'function getMoveCount(uint256) view returns (uint256)',
+  'function canClaimAbandonment(uint256,address) view returns (bool)',
 ];
 
 const REWARDS_ABI = [
@@ -1493,7 +1494,40 @@ function toast(msg, type='ok') {
   el.className = `toast ${type}`;
   el.textContent = msg;
   document.getElementById('toasts').appendChild(el);
-  setTimeout(()=>el.remove(), 4500);
+  setTimeout(()=>el.remove(), type==='er'?7000:4500);
+}
+
+// Decode ethers v5 revert reasons from any RPC error shape
+function decodeErr(e) {
+  // Try every known shape ethers v5 + Core RPC produce
+  if(e.reason) return e.reason;
+  // e.error.error.data (nested RPC error)
+  try { const d=e.error.error.data; if(typeof d==='string'&&d.startsWith('0x08c379a0')){
+    const hex=d.slice(10); const len=parseInt(hex.slice(64,128),16);
+    return decodeURIComponent(hex.slice(128,128+len*2).replace(/../g,c=>'%'+c));
+  }} catch(_){}
+  // e.error.data
+  try { const d=e.error.data; if(typeof d==='string'&&d.startsWith('0x08c379a0')){
+    const hex=d.slice(10); const len=parseInt(hex.slice(64,128),16);
+    return decodeURIComponent(hex.slice(128,128+len*2).replace(/../g,c=>'%'+c));
+  }} catch(_){}
+  // e.data  
+  try { const d=e.data; if(typeof d==='string'&&d.startsWith('0x08c379a0')){
+    const hex=d.slice(10); const len=parseInt(hex.slice(64,128),16);
+    return decodeURIComponent(hex.slice(128,128+len*2).replace(/../g,c=>'%'+c));
+  }} catch(_){}
+  // e.error.message containing "reverted:"
+  if(e.error?.message) {
+    const m=e.error.message.match(/reverted[^:]*:\s*(.+)/i);
+    if(m) return m[1].trim();
+  }
+  // e.message
+  if(e.message) {
+    const m=e.message.match(/reverted[^:]*:\s*(.+)/i);
+    if(m) return m[1].trim();
+    return e.message;
+  }
+  return 'Unknown error';
 }
 
 // ── NAVIGATION ──
@@ -1674,13 +1708,41 @@ async function createGame() {
     const win       = parseInt(document.getElementById('chalWin').value)||180;
     const verifier  = gType==='chess' ? C.CHESS_V : (gType==='checkers' ? C.CHECKERS_V : ethers.constants.AddressZero);
 
+    if(isAI) {
+      // AI games are purely local — hub.createGame requires stake>0 so we skip it
+      // Generate a local-only negative ID that won't clash with real game IDs
+      const localId = -(Date.now() % 1000000); // negative so loadGame knows it's local
+      toast('🤖 AI game started!','ok');
+      isAIGame = true;
+      currentGameId = localId;
+      // Build a fake game object for local use
+      const fakeGame = {
+        creator: userAddr, player2: ethers.constants.AddressZero,
+        stake: ethers.BigNumber.from(0), creatorFee: ethers.BigNumber.from(0),
+        isPrivate: false, isAI: true, active: true,
+        gameType: gType, currentState: '',
+        turn: 0, verifier: ethers.constants.AddressZero,
+        challengeWindow: ethers.BigNumber.from(180),
+        lastMoveTime: ethers.BigNumber.from(Math.floor(Date.now()/1000))
+      };
+      currentGame = fakeGame;
+      if(gType==='chess') await initChess(localId, fakeGame, '');
+      else await initCheckers(localId, fakeGame, '');
+      document.getElementById('forfeitBtn').disabled = false;
+      document.getElementById('shareBtn').disabled = true;
+      document.getElementById('challengeBtn').disabled = true;
+      if(isMobile()) mobSwitch('board');
+      goView('play', document.getElementById('nav-play'));
+      return;
+    }
+
     toast('⏳ Creating game…','in');
     const tx = await hub.createGame(gType, stake, isPrivate, isAI, verifier, win, {gasLimit:900000});
     const rc = await tx.wait();
     toast('✅ Game created!','ok');
     await loadOpenGames(); await loadMyGames();
     const cnt = await hub.gameCount();
-    if(isAI) setTimeout(()=>{ loadGame(cnt.toNumber()); if(isMobile()) mobSwitch('board'); }, 1500);
+    setTimeout(()=>{ loadGame(cnt.toNumber()); if(isMobile()) mobSwitch('board'); }, 1500);
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
 
@@ -1768,6 +1830,36 @@ async function joinGame(id) {
 
 async function loadGame(id) {
   if(!hub||loadingGame) return;
+
+  // Local AI games have negative IDs — restore from cache only, never hit chain
+  if(id < 0) {
+    const cached = gameCache.get(id);
+    if(cached && cached.isAIGame) {
+      currentGameId = id;
+      currentGame   = cached.currentGame;
+      isAIGame      = true;
+      isMyTurn      = cached.isMyTurn;
+      gameEngine    = cached.gameEngine ? new Chess(cached.gameEngine.fen()) : null;
+      checkersBoard = cached.checkersBoard ? [...cached.checkersBoard] : null;
+      ckSelected = null; moveFrom = null;
+      const grid = document.getElementById('boardGrid');
+      document.getElementById('boardContainer').style.display = 'none';
+      if(gameEngine) { if(grid) grid.style.gridTemplateColumns='repeat(8,1fr)'; renderChessBoard(); }
+      else if(checkersBoard) renderCheckersBoard();
+      document.getElementById('gameInfoBar').innerHTML =
+        `Local AI · ${cached.currentGame?.gameType?.toUpperCase()||'GAME'}<br>
+         <span class="${isMyTurn?'turn-you':'turn-opp'}">${isMyTurn?'🟢 YOUR TURN':'⏳ AI thinking…'}</span>`;
+      document.getElementById('boardContainer').style.display='block';
+      document.getElementById('forfeitBtn').disabled=false;
+      document.getElementById('shareBtn').disabled=true;
+      document.getElementById('challengeBtn').disabled=true;
+      goView('play', document.getElementById('nav-play'));
+      if(isMobile()) mobSwitch('board');
+    } else {
+      toast('AI game not found — create a new one','in');
+    }
+    return;
+  }
 
   // Save current game state before switching away
   if(currentGameId && currentGameId !== id) saveGameState();
@@ -1889,10 +1981,10 @@ async function pollGameState() {
 
 async function forfeit() {
   if(!hub||!currentGameId) return toast('No game loaded','er');
-  if(!confirm('Forfeit this game? You will lose your stake.')) return;
+  if(!confirm('Forfeit this game? Opponent receives your stake.')) return;
 
-  // AI games: just end locally, no contract call needed
-  if(isAIGame) {
+  // AI games (local, negative ID or isAIGame flag) — end locally, no contract call
+  if(isAIGame || (currentGameId && currentGameId < 0)) {
     gameCache.delete(currentGameId);
     currentGameId = null; lastState = null;
     document.getElementById('boardContainer').style.display = 'none';
@@ -1912,49 +2004,37 @@ async function forfeit() {
     const noPlayer2 = g.player2 === ethers.constants.AddressZero;
     const isCreator = g.creator.toLowerCase() === userAddr.toLowerCase();
 
-    let tx, action;
+    let tx;
     if(noPlayer2 && isCreator) {
-      action = 'cancel';
+      // No opponent joined yet — cancel for full refund
       toast('⏳ Cancelling game…','in');
       tx = await hub.cancelUnjoinedGame(currentGameId, {gasLimit:400000});
+      await tx.wait();
+      toast('✅ Game cancelled — stake refunded','ok');
     } else {
-      let moves = 0;
-      try { moves = (await hub.getMoveCount(currentGameId)).toNumber(); } catch(_){}
-      if(moves === 0) {
-        action = 'expire';
-        toast('⏳ Expiring game (no moves made)…','in');
-        tx = await hub.expireGame(currentGameId, {gasLimit:400000});
-      } else {
-        action = 'forfeit';
-        toast('⏳ Forfeiting…','in');
-        tx = await hub.forfeitGame(currentGameId, {gasLimit:600000});
-      }
+      // Mid-game forfeit: loser calls declareWinner with OPPONENT as winner
+      // This immediately pays opponent both stakes minus fees
+      const opponent = isCreator ? g.player2 : g.creator;
+      toast('⏳ Forfeiting — paying opponent…','in');
+      tx = await hub.declareWinner(currentGameId, opponent, {gasLimit:500000});
+      await tx.wait();
+      toast('✅ Forfeited — opponent paid','ok');
     }
-
-    await tx.wait();
-    const msg = action==='cancel' ? '✅ Game cancelled — stake refunded'
-              : action==='expire' ? '✅ Game expired — stakes returned'
-              : '✅ Forfeited — opponent wins stake';
-    toast(msg,'ok');
 
     const gid = currentGameId;
     currentGameId = null; lastState = null;
     gameCache.delete(gid);
     document.getElementById('boardContainer').style.display = 'none';
-    document.getElementById('gameInfoBar').textContent = action==='forfeit'?'You forfeited':'Game cancelled';
+    document.getElementById('gameInfoBar').textContent = 'Game ended';
     document.getElementById('forfeitBtn').disabled = true;
     document.getElementById('shareBtn').disabled = true;
     document.getElementById('challengeBtn').disabled = true;
     loadOpenGames(); loadMyGames();
-    setTimeout(loadStats, 4000);
+    setTimeout(loadStats, 3000);
   } catch(e) {
-    let reason = 'Transaction failed';
-    if(e.reason) reason = e.reason;
-    else if(e.data && e.data.message) reason = e.data.message;
-    else if(e.error && e.error.message) reason = e.error.message;
-    else if(e.message) reason = e.message;
+    const reason = decodeErr(e);
     console.error('forfeit error:', e);
-    toast('FORFEIT ERROR: ' + reason.slice(0,200), 'er');
+    toast('❌ Forfeit: ' + reason, 'er');
   }
 }
 
@@ -2194,60 +2274,38 @@ async function endAIGame(gameId) {
 // After the challenge window passes unchallenged, funds are released.
 // We just reload the game state and show a toast. The opponent can use forfeitGame to speed up.
 async function declareWin(gameId) {
-  // After a winning move (checkmate/all pieces captured), the game is won locally.
-  // On-chain resolution happens one of two ways:
-  //   A) Loser calls forfeitGame() — immediate stake transfer to winner
-  //   B) Winner waits for opponent to time out, then calls claimAbandonment()
-  // There is NO instant auto-settle — the loser must concede or time out.
+  // Winner calls declareWinner(gameId, winnerAddress) — IMMEDIATE payout.
+  // No challenge window needed. Both stakes paid to winner instantly.
   const gid = gameId || currentGameId;
 
   currentGameId = null; lastState = null;
   gameCache.delete(gid);
   document.getElementById('boardContainer').style.display = 'none';
   document.getElementById('forfeitBtn').disabled   = true;
+  document.getElementById('challengeBtn').disabled = true;
 
   try {
-    const g = await hub.games(gid);
-    const cw = g.challengeWindow.toNumber();
-    const stakeEth = parseFloat(ethers.utils.formatEther(g.stake));
-    const winAmount = (stakeEth * 2 * 0.975).toFixed(2); // both stakes minus ~2.5% fee
+    toast('⏳ Claiming your winnings…','in');
+    const tx = await hub.declareWinner(gid, userAddr, {gasLimit:500000});
+    await tx.wait();
 
-    // Keep challenge button active so winner can claim abandonment after timeout
-    document.getElementById('challengeBtn').disabled = false;
+    const g = await hub.games(gid).catch(()=>null);
+    const winAmount = g ? (parseFloat(ethers.utils.formatEther(g.stake))*2).toFixed(2) : '?';
 
     document.getElementById('gameInfoBar').innerHTML =
-      `<span style="color:var(--green)">🏆 You won!</span>
-       <div style="font-size:9px;color:var(--dim);margin-top:4px;line-height:1.6">
-         Stake: <strong style="color:var(--gold)">${winAmount} REALM</strong> releases when opponent forfeits or times out.<br>
-         ⚡ If opponent doesn't respond in ~${Math.ceil(cw/60)} min, click <strong>CHALLENGE</strong> to claim your winnings.
-       </div>`;
-
-    toast('🏆 You won! Waiting for opponent to forfeit or time out…','ok');
-
-    // Auto-attempt claimAbandonment after challenge window passes
-    setTimeout(async () => {
-      try {
-        toast('⏳ Claiming winnings…','in');
-        const tx = await hub.claimAbandonment(gid, {gasLimit:500000});
-        await tx.wait();
-        document.getElementById('gameInfoBar').innerHTML =
-          '<span style="color:var(--green)">🏆 Winnings claimed! Check your REALM balance.</span>';
-        document.getElementById('challengeBtn').disabled = true;
-        toast('💰 Winnings in your wallet!','ok');
-        updateBal(); loadStats(); loadMyGames();
-      } catch(e) {
-        // Might still be too early — challenge button stays active for manual claim
-        console.log('auto-claim attempted:', e.reason||e.message);
-      }
-    }, (cw + 10) * 1000);
-
-    await delay(1000);
+      `<span style="color:var(--green)">🏆 You won! ${winAmount} REALM sent to your wallet.</span>`;
+    toast('💰 ' + winAmount + ' REALM in your wallet!','ok');
+    updateBal();
+    loadStats();
     loadOpenGames(); loadMyGames();
   } catch(e) {
-    document.getElementById('challengeBtn').disabled = false;
+    const reason = decodeErr(e);
+    console.error('declareWin error:', e);
     document.getElementById('gameInfoBar').innerHTML =
-      '<span style="color:var(--green)">🏆 You won! Click CHALLENGE after opponent times out to claim.</span>';
-    toast('🏆 You won!','ok');
+      `<span style="color:var(--green)">🏆 You won!</span>
+       <span style="color:var(--dim);font-size:10px"> · Claim failed: ${reason} — use CHALLENGE button</span>`;
+    toast('⚠️ Claim failed: '+reason,'in');
+    document.getElementById('challengeBtn').disabled = false;
     loadOpenGames(); loadMyGames();
   }
 }
@@ -2259,63 +2317,61 @@ async function challengeAbandonment() {
     if(!g.active) return toast('Game is no longer active','er');
 
     const noPlayer2 = g.player2 === ethers.constants.AddressZero;
-    if(noPlayer2) return toast('No opponent has joined yet','er');
-
-    const moveCount = await hub.getMoveCount(currentGameId);
-    const moves = moveCount.toNumber();
-
-    // No moves made — use expireGame (opponent joined but never moved)
-    if(moves === 0) {
-      toast('⏳ Expiring game — opponent never moved…','in');
-      const tx = await hub.expireGame(currentGameId, {gasLimit:400000});
-      await tx.wait();
-      toast('✅ Game expired — stake returned','ok');
-    } else {
-      // Moves were made — claim abandonment (opponent stopped responding)
+    if(noPlayer2) {
+      // No player2 — only creator can cancel (or wait 24h for expireGame)
       const elapsed = Math.floor(Date.now()/1000) - g.lastMoveTime.toNumber();
-      const cw = g.challengeWindow.toNumber();
-      // Show time info to user
-      if(elapsed < 3600) {
-        toast(`⏳ Only ${Math.floor(elapsed/60)}min since last move — opponent may still respond`,'in');
-        if(!confirm(`Opponent last moved ${Math.floor(elapsed/60)} minutes ago. Claim abandonment anyway?`)) return;
+      const EXPIRE_TIMEOUT = 86400; // 24 hours
+      if(elapsed >= EXPIRE_TIMEOUT) {
+        toast('⏳ Expiring abandoned game…','in');
+        const tx = await hub.expireGame(currentGameId, {gasLimit:400000});
+        await tx.wait();
+        toast('✅ Game expired — stake returned','ok');
+      } else {
+        const hoursLeft = Math.ceil((EXPIRE_TIMEOUT - elapsed) / 3600);
+        return toast(`⏳ No opponent joined. Can expire in ${hoursLeft}h, or cancel it yourself with FORFEIT.`,'in');
       }
-      toast('⏳ Claiming abandonment…','in');
-      const tx = await hub.claimAbandonment(currentGameId, {gasLimit:600000});
+    } else {
+      // Game started — check if WE are the waiting player (opponent's turn but they haven't moved)
+      const isCreator = g.creator.toLowerCase() === userAddr.toLowerCase();
+      // Waiting player = the one whose turn it is NOT (g.turn==0 means creator's turn, player2 is waiting)
+      const weAreWaiting = (g.turn === 0 && !isCreator) || (g.turn === 1 && isCreator);
+
+      if(!weAreWaiting) {
+        return toast('❌ It is YOUR turn — you are not the waiting player','er');
+      }
+
+      const elapsed = Math.floor(Date.now()/1000) - g.lastMoveTime.toNumber();
+      const ABANDON_TIMEOUT = 14400; // 4 hours
+      if(elapsed < ABANDON_TIMEOUT) {
+        const minsLeft = Math.ceil((ABANDON_TIMEOUT - elapsed) / 60);
+        return toast(`⏳ Opponent has ${minsLeft} more min to move before you can claim abandonment`,'in');
+      }
+
+      toast('⏳ Claiming abandonment win…','in');
+      const tx = await hub.claimAbandonment(currentGameId, {gasLimit:500000});
       await tx.wait();
-      toast('🏆 Abandonment claimed — you win!','ok');
+      toast('🏆 Abandonment claimed!','ok');
+
+      // Also call declareWinner to record win and pay out
+      // Note: claimAbandonment calls _endGame internally so payout already happened
     }
 
     const gid = currentGameId;
     currentGameId = null; lastState = null;
     gameCache.delete(gid);
     document.getElementById('boardContainer').style.display = 'none';
-    document.getElementById('gameInfoBar').textContent = 'Game ended — opponent abandoned';
+    document.getElementById('gameInfoBar').innerHTML = '<span style="color:var(--green)">🏆 Game ended in your favour</span>';
     document.getElementById('challengeBtn').disabled = true;
     document.getElementById('forfeitBtn').disabled = true;
     document.getElementById('shareBtn').disabled = true;
+    updateBal(); loadStats();
     loadOpenGames(); loadMyGames();
   } catch(e) {
-    const reason = e.reason || e.data?.message || e.message || 'Unknown error';
+    let reason = e.reason || (e.data&&e.data.message) || e.message || 'Unknown';
     console.error('challengeAbandonment error:', e);
-    // Give helpful context based on error
-    if(reason.toLowerCase().includes('too early') || reason.toLowerCase().includes('not expired') || reason.toLowerCase().includes('window')) {
-      // Calculate time remaining if possible
-      try {
-        const gFresh = await hub.games(currentGameId || '0');
-        const cw = gFresh.challengeWindow.toNumber();
-        const elapsed = Math.floor(Date.now()/1000) - gFresh.lastMoveTime.toNumber();
-        const wait = Math.max(0, cw - elapsed);
-        if(wait > 0) toast(`⏳ Wait ${Math.ceil(wait/60)} more min for opponent to time out`, 'in');
-        else toast('⏳ Still processing — try again in a moment','in');
-      } catch(_) {
-        toast('⏳ Opponent still has time — try again later','in');
-      }
-    } else {
-      toast('❌ ' + reason, 'er');
-    }
+    toast('❌ ' + reason.slice(0,200), 'er');
   }
 }
-
 async function doChessAI() {
   if(!gameEngine||!isAIGame||isMyTurn||gameEngine.game_over()||aiRunning) return;
   aiRunning = true;
@@ -2436,7 +2492,7 @@ async function initCheckers(id, g, state) {
       isMyTurn = false;
       document.getElementById('forfeitBtn').disabled   = true;
       document.getElementById('challengeBtn').disabled = true;
-      if(!isAIGame) setTimeout(()=>forfeit(), 2000);
+      if(!isAIGame) setTimeout(()=>forfeit(), 3000); // triggers declareWinner(opponent)
       return;
     }
   }
