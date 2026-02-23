@@ -1919,7 +1919,16 @@ async function forfeit() {
       tx = await hub.cancelUnjoinedGame(currentGameId, {gasLimit:400000});
     } else {
       // Joined P2P game — forfeit (you lose stake, opponent wins)
-      // Do NOT pre-check challenge window — let the contract decide
+      // OptimisticHub requires challenge window to have passed since last move
+      const now = Math.floor(Date.now()/1000);
+      const lastMove = g.lastMoveTime.toNumber();
+      const cw = g.challengeWindow.toNumber();
+      const elapsed = now - lastMove;
+      if(elapsed < cw && lastMove > 0) {
+        const wait = cw - elapsed;
+        const mins = Math.ceil(wait/60);
+        return toast(`⏳ Must wait ${mins > 1 ? mins+'min' : wait+'s'} for challenge window before forfeiting — try again after`, 'in');
+      }
       toast('⏳ Forfeiting…','in');
       tx = await hub.forfeitGame(currentGameId, {gasLimit:600000});
     }
@@ -1991,7 +2000,7 @@ async function initChess(id, g, fen) {
 
     let msg, color;
     if(mated && weWon)  { msg='🏆 Opponent checkmated — awaiting settlement'; color='var(--green)'; }
-    else if(mated)      { msg='💀 You were checkmated'; color='var(--red)'; }
+    else if(mated)      { msg="💀 You were checkmated — opponent's funds auto-release after challenge window"; color='var(--red)'; }
     else if(drawn)      { msg='🤝 Game drawn'; color='var(--gold)'; }
     else                { msg='🏁 Game over'; color='var(--dim)'; }
 
@@ -2178,13 +2187,55 @@ async function endAIGame(gameId) {
 // After the challenge window passes unchallenged, funds are released.
 // We just reload the game state and show a toast. The opponent can use forfeitGame to speed up.
 async function declareWin(gameId) {
-  toast('🏆 Winning move submitted! Funds release after challenge window.','ok');
-  currentGameId = null; lastState = null;
-  gameCache.delete(gameId);
-  await delay(2000);
-  loadOpenGames(); loadMyGames();
-  document.getElementById('boardContainer').style.display = 'none';
-  document.getElementById('gameInfoBar').innerHTML = 'Game complete — waiting for challenge window.';
+  // OptimisticGameHub: NO on-chain declareWinner call exists.
+  // After the final move, funds release AUTOMATICALLY once the challenge window expires.
+  // We just need to show the user how long to wait.
+  try {
+    const g = await hub.games(gameId || currentGameId);
+    const cw = g.challengeWindow.toNumber();
+    const lastMove = g.lastMoveTime.toNumber();
+    const now = Math.floor(Date.now()/1000);
+    const elapsed = now - lastMove;
+    const remaining = Math.max(0, cw - elapsed);
+
+    const gid = gameId || currentGameId;
+    currentGameId = null; lastState = null;
+    gameCache.delete(gid);
+    document.getElementById('boardContainer').style.display = 'none';
+    document.getElementById('forfeitBtn').disabled   = true;
+    document.getElementById('challengeBtn').disabled = true;
+
+    if(remaining > 0) {
+      document.getElementById('gameInfoBar').innerHTML =
+        `<span style="color:var(--green)">🏆 You won!</span>
+         <span style="color:var(--dim);font-size:10px"> · Funds release automatically in ~${Math.ceil(remaining/60)}min (challenge window)</span>`;
+      toast(`🏆 You won! Funds auto-release in ${Math.ceil(remaining/60)} min`,'ok');
+      // Countdown update
+      const bar = document.getElementById('gameInfoBar');
+      const iv = setInterval(()=>{
+        const r = Math.max(0, cw - (Math.floor(Date.now()/1000) - lastMove));
+        if(!bar || r <= 0) { clearInterval(iv); if(bar) bar.innerHTML='<span style="color:var(--green)">🏆 Won — funds released!</span>'; return; }
+        bar.innerHTML = `<span style="color:var(--green)">🏆 You won!</span>
+          <span style="color:var(--dim);font-size:10px"> · Auto-release in ${Math.ceil(r/60)}min</span>`;
+      }, 10000);
+    } else {
+      document.getElementById('gameInfoBar').innerHTML =
+        `<span style="color:var(--green)">🏆 You won — funds released!</span>`;
+      toast('🏆 You won! Challenge window passed — funds released','ok');
+    }
+    await delay(1000);
+    loadOpenGames(); loadMyGames();
+  } catch(e) {
+    // Fallback if we can't fetch game
+    const gid = gameId || currentGameId;
+    currentGameId = null; lastState = null;
+    gameCache.delete(gid);
+    document.getElementById('boardContainer').style.display = 'none';
+    document.getElementById('gameInfoBar').innerHTML =
+      '<span style="color:var(--green)">🏆 You won! Funds auto-release after challenge window.</span>';
+    toast('🏆 You won!','ok');
+    loadOpenGames(); loadMyGames();
+  }
 }
 
 // Challenge = claimAbandonment when opponent hasn't moved within the abandon window
