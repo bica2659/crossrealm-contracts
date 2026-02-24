@@ -1,0 +1,2806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#05050f">
+<title>CrossRealm — On-Chain Gaming</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#05050f;--bg2:#080818;--bg3:#0c0c20;--bg4:#101028;
+  --border:#1e1e3a;--border2:#2a2a4a;
+  --gold:#f0a500;--gold2:#c47f00;--gold3:#ffc13b;
+  --green:#00e87a;--green2:#00b85f;
+  --blue:#3d7fff;--red:#ff3355;--purple:#9b59ff;
+  --text:#c8d0ea;--dim:#5a5a80;--dim2:#3a3a5a;
+}
+html,body{width:100%;height:100%;overflow:hidden}
+body{font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.06) 2px,rgba(0,0,0,0.06) 4px);pointer-events:none;z-index:9999}
+.app{display:grid;grid-template-columns:200px 1fr;grid-template-rows:52px 1fr;height:100vh;overflow:hidden}
+.topbar{grid-column:1/-1;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;position:relative;z-index:200;flex-shrink:0}
+.topbar::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.5}
+.logo{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:22px;letter-spacing:4px;color:var(--gold);white-space:nowrap}
+.logo span{color:var(--green)}
+.net-pill{font-size:8px;letter-spacing:2px;color:var(--green);background:rgba(0,232,122,.07);border:1px solid rgba(0,232,122,.25);padding:3px 10px;border-radius:20px}
+.spacer{flex:1}
+.realm-bal{font-size:11px;font-weight:700;color:var(--gold);white-space:nowrap}
+.realm-bal small{color:var(--dim);font-size:9px;margin-left:2px}
+/* FIX BUG-02: trading-disabled warning banner */
+#tradingBanner{display:none;background:rgba(255,51,85,.12);border:1px solid var(--red);color:var(--red);font-size:9px;padding:2px 12px;border-radius:4px;letter-spacing:.5px}
+#walletInfo{display:none;align-items:center;gap:10px}
+.waddr{font-size:10px;color:var(--dim)}
+.connect-btn{background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#000;font-family:inherit;font-size:10px;font-weight:700;padding:8px 16px;border-radius:4px;cursor:pointer;letter-spacing:1px;transition:all .2s;white-space:nowrap;text-transform:uppercase}
+.connect-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(240,165,0,.35)}
+.connect-btn.disc{background:linear-gradient(135deg,#ff3355,#cc0033);color:#fff}
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:12px 0;overflow-y:auto;overflow-x:hidden}
+.sidebar::-webkit-scrollbar{width:0}
+.nav-sect{padding:0 8px;margin-bottom:12px}
+.sect-label{font-size:7px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;padding:0 8px;margin-bottom:5px;display:block}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:5px;cursor:pointer;font-size:11px;color:var(--dim);transition:all .15s;border:1px solid transparent;user-select:none;margin-bottom:2px}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.nav-item.active{background:rgba(240,165,0,.1);color:var(--gold);border-color:rgba(240,165,0,.2)}
+.nav-item .ic{font-size:14px;width:18px;text-align:center;flex-shrink:0}
+.nav-divider{height:1px;background:var(--border);margin:6px 10px}
+.main{overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.view{display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.view.active{display:flex}
+.view-body{flex:1;overflow-y:auto;padding:20px}
+.view-body::-webkit-scrollbar{width:4px}
+.view-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.vhead{padding:18px 20px 14px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(240,165,0,.05),transparent);flex-shrink:0}
+.vtitle{font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;margin-bottom:2px}
+.vtitle em{color:var(--gold);font-style:normal}
+.vsub{font-size:9px;color:var(--dim);letter-spacing:.5px}
+.card{background:var(--bg2);border:1px solid var(--border);padding:18px;border-radius:6px;margin-bottom:14px}
+.card h3{font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:2px;margin-bottom:14px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+input,select,textarea{width:100%;padding:10px 12px;background:rgba(0,0,0,.5);border:1px solid var(--border2);color:var(--text);border-radius:4px;font-family:inherit;font-size:12px;outline:none;transition:border-color .15s;margin-bottom:10px}
+input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 10px rgba(240,165,0,.12)}
+select option{background:var(--bg3)}
+textarea{min-height:70px;resize:vertical}
+label{display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer;font-size:11px;color:var(--dim)}
+label input[type=checkbox]{width:auto;margin:0}
+.fl{font-size:8px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;display:block;margin-bottom:5px}
+.btn{background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#000;font-family:inherit;font-size:11px;font-weight:700;padding:7px 10px;cursor:pointer;letter-spacing:1px;border-radius:4px;transition:all .2s;width:100%;text-transform:uppercase}
+.btn:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(240,165,0,.3)}
+.btn:disabled{background:var(--border2);color:var(--dim);cursor:not-allowed;transform:none;box-shadow:none}
+.btn-ghost{background:none;border:1px solid var(--border2);color:var(--text);font-family:inherit;font-size:11px;font-weight:700;padding:7px 10px;cursor:pointer;letter-spacing:1px;border-radius:4px;transition:all .15s;width:100%;text-transform:uppercase}
+.btn-ghost:hover{border-color:var(--gold);color:var(--gold)}
+.btn-green{background:linear-gradient(135deg,var(--green),var(--green2));color:#000}
+.btn-red{background:linear-gradient(135deg,#ff3355,#cc0033);color:#fff}
+.btn-blue{background:linear-gradient(135deg,var(--blue),#2255cc);color:#fff}
+.btn-sm{padding:6px 12px;font-size:9px;width:auto}
+.toast-stack{position:fixed;top:18px;right:18px;z-index:10000;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.toast{padding:10px 18px;border-radius:4px;font-size:11px;font-weight:700;animation:tin .3s cubic-bezier(.34,1.56,.64,1);border:1px solid;max-width:340px;pointer-events:auto}
+.toast.ok{background:rgba(0,232,122,.1);border-color:var(--green);color:var(--green)}
+.toast.er{background:rgba(255,51,85,.1);border-color:var(--red);color:var(--red)}
+.toast.in{background:rgba(240,165,0,.1);border-color:var(--gold);color:var(--gold)}
+@keyframes tin{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+.stat{background:var(--bg3);border:1px solid var(--border);padding:18px;border-radius:6px;text-align:center;transition:all .2s}
+.stat:hover{border-color:var(--gold);transform:translateY(-2px)}
+.stat .sv{font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:var(--gold);margin:5px 0}
+.stat .sl{font-size:8px;color:var(--dim);letter-spacing:2px;text-transform:uppercase}
+.ir{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(30,30,58,.8);font-size:11px}
+.ir:last-child{border-bottom:none}
+.ir .il{color:var(--dim)}
+.ir .iv{font-weight:700}
+.iv.g{color:var(--green)}.iv.o{color:var(--gold)}.iv.b{color:var(--blue)}.iv.r{color:var(--red)}
+.ibox{padding:10px 12px;background:rgba(240,165,0,.05);border:1px solid rgba(240,165,0,.2);border-radius:5px;margin:10px 0;font-size:10px;line-height:1.7;color:var(--dim)}
+.ibox strong{color:var(--gold)}
+.ibox.gr{background:rgba(0,232,122,.05);border-color:rgba(0,232,122,.2)}.ibox.gr strong{color:var(--green)}
+.ibox.bl{background:rgba(61,127,255,.05);border-color:rgba(61,127,255,.2)}.ibox.bl strong{color:var(--blue)}
+.ibox.re{background:rgba(255,51,85,.05);border-color:rgba(255,51,85,.2)}.ibox.re strong{color:var(--red)}
+.play-wrap{display:grid;grid-template-columns:300px 1fr;flex:1;min-height:0;min-width:0;overflow:hidden}
+.play-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px;min-height:0}
+.play-left::-webkit-scrollbar{width:3px}
+.play-left::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.play-right{overflow-y:auto;overflow-x:hidden;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;background:var(--bg);min-height:0;min-width:0;gap:6px}
+
+/* =====================================================================
+   FIX B1 (Forensic) + BUG-BOARD: board-wrap uses container-type:size
+   so cqw/cqh resolve against the BOARD width, not the viewport.
+   This makes .cp font-size always proportional to cell size.
+   ===================================================================== */
+.board-wrap{
+  display:none;
+  border:2px solid var(--gold);border-radius:6px;
+  box-shadow:0 0 40px rgba(240,165,0,.12),0 0 80px rgba(240,165,0,.05);
+  overflow:hidden;flex-shrink:0;align-self:center;
+  container-type:size;
+  width:min(calc(100vw - 524px),calc(100vh - 276px),500px);
+  aspect-ratio:1/1;
+}
+.board-grid{display:grid;grid-template-columns:repeat(8,1fr);width:100%;height:100%;min-width:0;min-height:0}
+.sq{display:flex;align-items:center;justify-content:center;cursor:pointer;transition:filter .1s;position:relative;aspect-ratio:1;overflow:hidden}
+.sq.lt{background:#e8d5a8}.sq.dk{background:#8b5e3c}
+.sq.sel{background:#d4a017!important;box-shadow:inset 0 0 0 3px #fff}
+.sq.hint::after{content:'';position:absolute;width:30%;height:30%;background:rgba(0,232,122,.75);border-radius:50%;pointer-events:none}
+.sq:hover{filter:brightness(1.12)}
+
+/* =====================================================================
+   FIX B1 (Forensic): Unified piece sizing using cqw (container query
+   width). board-wrap has container-type:size so 9cqw = 9% of board
+   width = perfectly-sized pieces at every screen/board size.
+   Font stack: Noto first (widest Unicode coverage), FreeSerif last.
+   NO mobile override needed — cqw handles all sizes automatically.
+   ===================================================================== */
+.cp{
+  font-size:clamp(18px,9cqw,56px);
+  line-height:1;pointer-events:none;user-select:none;
+  display:flex;align-items:center;justify-content:center;
+  width:100%;height:100%;
+  font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Color Emoji','Symbola','FreeSerif',sans-serif;
+}
+.cp.w{color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000}
+.cp.b{color:#1a1a1a;text-shadow:-1px -1px 0 rgba(255,255,255,.5),1px -1px 0 rgba(255,255,255,.5),-1px 1px 0 rgba(255,255,255,.5),1px 1px 0 rgba(255,255,255,.5)}
+.ck{width:68%;height:68%;border-radius:50%;border:3px solid;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 4px 10px rgba(0,0,0,.6)}
+.ck.r{background:radial-gradient(circle at 35% 35%,#ff8080,#c0392b);border-color:#7b0000}
+.ck.b{background:radial-gradient(circle at 35% 35%,#555,#111);border-color:#000}
+.ai-thinking{text-align:center;padding:10px;background:rgba(0,232,122,.06);border:1px solid rgba(0,232,122,.25);border-radius:5px;margin:8px 0;font-size:11px;color:var(--green);animation:pulse 1.5s infinite;display:none;width:100%;max-width:520px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.game-infobar{width:100%;max-width:520px;text-align:center;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;font-size:11px;color:var(--dim);flex-shrink:0}
+/* FIX B6 (Forensic) challenge-window countdown bar */
+#challengeCountdown{display:none;width:100%;max-width:520px;padding:6px 10px;background:rgba(240,165,0,.07);border:1px solid rgba(240,165,0,.3);border-radius:5px;text-align:center;font-size:10px;color:var(--gold);flex-shrink:0}
+.turn-you{color:var(--green);font-weight:700}
+.turn-opp{color:var(--dim)}
+
+/* FIX B3 (Forensic): Persistent claim-win bar */
+.claim-win-bar{
+  display:none;width:100%;max-width:520px;padding:10px 14px;
+  background:rgba(0,232,122,.08);border:2px solid var(--green);border-radius:6px;
+  text-align:center;font-size:11px;color:var(--green);font-weight:700;
+  flex-shrink:0;
+}
+.claim-win-bar.show{display:flex;align-items:center;justify-content:center;gap:10px;animation:pulse 2s infinite}
+
+.game-item{padding:11px;border:1px solid var(--border);border-radius:5px;margin-bottom:6px;cursor:pointer;background:rgba(0,0,0,.2);transition:all .15s}
+.game-item:hover{border-color:var(--gold);background:rgba(240,165,0,.05);transform:translateX(3px)}
+.gi-id{color:var(--gold);font-weight:700;font-size:11px;margin-bottom:2px}
+.gi-meta{color:var(--dim);font-size:9px}
+/* FIX B4 (Forensic): local badge for AI games */
+.gi-local{color:var(--blue);font-size:8px;letter-spacing:1px;text-transform:uppercase;background:rgba(61,127,255,.1);border:1px solid rgba(61,127,255,.3);padding:1px 5px;border-radius:3px;margin-left:5px}
+.gscroll{max-height:220px;overflow-y:auto}
+.gscroll::-webkit-scrollbar{width:3px}
+.gscroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.social-wrap{display:grid;grid-template-columns:220px 1fr;flex:1;overflow:hidden}
+.rooms-col{border-right:1px solid var(--border);overflow-y:auto;padding:14px;background:var(--bg2)}
+.room-item{padding:10px 12px;border-radius:5px;cursor:pointer;margin-bottom:3px;transition:all .15s;border:1px solid transparent;display:flex;align-items:center;gap:10px}
+.room-item:hover{background:var(--bg3)}
+.room-item.active{background:rgba(240,165,0,.08);border-color:rgba(240,165,0,.2)}
+.room-icon{font-size:16px;flex-shrink:0}
+.room-name{font-size:11px;font-weight:700;color:var(--text)}
+.room-sub{font-size:9px;color:var(--dim);margin-top:1px}
+.chat-col{display:flex;flex-direction:column;overflow:hidden}
+.chat-header{padding:12px 18px;border-bottom:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;gap:12px;flex-shrink:0}
+.chat-rname{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700}
+.chat-rmeta{font-size:9px;color:var(--dim);margin-top:1px}
+.msgs-area{flex:1;overflow-y:auto;padding:16px;background:var(--bg)}
+.msgs-area::-webkit-scrollbar{width:3px}
+.msgs-area::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.msg{margin-bottom:12px;display:flex;gap:10px;align-items:flex-start}
+.msg-av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border2)}
+.msg-header{display:flex;align-items:baseline;gap:8px;margin-bottom:3px}
+.msg-name{font-size:11px;font-weight:700;color:var(--gold)}
+.msg-name.bl{color:var(--blue)}.msg-name.gr{color:var(--green)}.msg-name.pu{color:var(--purple)}
+.msg-time{font-size:9px;color:var(--dim)}
+.msg-text{font-size:11px;line-height:1.55;color:var(--text)}
+.sysmsg{text-align:center;font-size:9px;color:var(--dim);margin:8px 0;padding:4px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;display:inline-block}
+.sysmsg-wrap{text-align:center;margin:6px 0}
+.chat-input-row{padding:10px 16px;border-top:1px solid var(--border);background:var(--bg2);display:flex;gap:8px;flex-shrink:0}
+.chat-inp{flex:1;padding:9px 12px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:inherit;font-size:11px;border-radius:5px;outline:none;transition:border-color .15s;margin:0}
+.chat-inp:focus{border-color:var(--gold)}
+.send-btn{padding:9px 14px;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#000;font-family:inherit;font-size:9px;font-weight:700;border-radius:4px;cursor:pointer;letter-spacing:1px;flex-shrink:0;text-transform:uppercase}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:24px;width:380px;max-height:88vh;overflow-y:auto}
+.modal-title{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:var(--gold);margin-bottom:18px}
+.modal-actions{display:flex;gap:8px;margin-top:10px}
+.modal-cancel{flex:1;padding:10px;background:none;border:1px solid var(--border2);color:var(--dim);font-family:inherit;font-size:11px;border-radius:5px;cursor:pointer;font-weight:700}
+.gw-rate{font-family:'Rajdhani',sans-serif;font-size:44px;font-weight:700;color:var(--gold);text-align:center;margin:10px 0}
+.quote-box{background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:14px;text-align:center;margin:10px 0}
+.quote-val{font-family:'Rajdhani',sans-serif;font-size:32px;font-weight:700;color:var(--green)}
+.quote-lbl{font-size:9px;color:var(--dim);margin-top:3px}
+.chain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.chain-btn{padding:12px 6px;border:2px solid var(--border2);border-radius:6px;text-align:center;cursor:pointer;transition:all .15s;background:var(--bg3)}
+.chain-btn:hover{border-color:var(--blue)}
+.chain-btn.sel{border-color:var(--blue);background:rgba(61,127,255,.1)}
+.chain-ic{font-size:18px;margin-bottom:3px}
+.chain-name{font-size:9px;font-weight:700}
+.chain-id{font-size:8px;color:var(--dim);margin-top:1px}
+.player-card{display:flex;align-items:center;gap:10px;padding:12px;margin-bottom:6px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all .15s}
+.player-card:hover{border-color:var(--gold);transform:translateX(2px)}
+.rank-n{font-size:11px;width:20px;text-align:center;font-weight:700;color:var(--dim)}
+.rk1{color:#ffd700}.rk2{color:#c0c0c0}.rk3{color:#cd7f32}
+.p-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid var(--border2);flex-shrink:0}
+.p-name{font-size:11px;font-weight:700;margin-bottom:2px}
+.p-meta{font-size:9px;color:var(--dim);display:flex;gap:8px}
+.chall-btn{padding:6px 12px;background:none;border:1px solid var(--gold);color:var(--gold);font-family:inherit;font-size:9px;font-weight:700;border-radius:4px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.chall-btn:hover{background:var(--gold);color:#000}
+.lock-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.lock-opt{padding:12px;border:2px solid var(--border2);border-radius:6px;text-align:center;cursor:pointer;transition:all .15s;background:var(--bg3)}
+.lock-opt:hover{border-color:var(--gold)}
+.lock-opt.sel{border-color:var(--green);background:rgba(0,232,122,.07)}
+.lock-la{font-size:15px;font-weight:700;color:var(--green);margin-bottom:2px}
+.lock-lb{font-size:9px;color:var(--dim)}
+.phero{text-align:center;padding:20px;background:linear-gradient(135deg,rgba(240,165,0,.08),rgba(0,232,122,.04));border:1px solid var(--border2);border-radius:8px;margin-bottom:16px}
+.phero-emoji{font-size:48px;margin-bottom:8px}
+.phero-name{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;color:var(--gold)}
+.phero-bio{font-size:10px;color:var(--dim);margin:4px 0 12px;line-height:1.6}
+.pstats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.ps{background:var(--bg);border-radius:5px;padding:10px 4px;text-align:center}
+.ps-val{font-size:16px;font-weight:700;color:var(--green)}
+.ps-lbl{font-size:8px;color:var(--dim);letter-spacing:.5px;margin-top:2px}
+.mob-tabs{display:none}
+
+@media(max-width:768px){
+  html,body{overflow:hidden}
+  .app{display:flex;flex-direction:column;height:100vh;height:-webkit-fill-available;padding-bottom:env(safe-area-inset-bottom)}
+  .topbar{flex-shrink:0;height:52px;padding:0 12px;gap:8px}
+  .logo{font-size:18px;letter-spacing:2px}
+  .net-pill{display:none}
+  .waddr{display:none}
+  .realm-bal{font-size:10px}
+  .connect-btn{font-size:9px;padding:7px 11px}
+  .sidebar{flex-shrink:0;height:56px;flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:6px 0;border-right:none;border-bottom:1px solid var(--border);scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .sidebar::-webkit-scrollbar{display:none}
+  .nav-sect{display:inline-flex;flex-direction:row;gap:2px;padding:0 8px;margin:0;flex-shrink:0}
+  .sect-label{display:none}
+  .nav-divider{width:1px;height:36px;margin:0 8px;align-self:center;background:var(--border)}
+  .nav-item{flex-direction:column;gap:2px;padding:5px 10px;min-width:56px;text-align:center;font-size:8px;flex-shrink:0;white-space:nowrap;border-radius:4px}
+  .nav-item .ic{font-size:18px;width:auto}
+  .main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+  .view{min-height:100%;overflow-y:auto}
+  .view-body{padding:12px}
+  .play-wrap{display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .play-left{border-right:none;border-bottom:none;max-height:none;padding:10px;overflow-y:visible;flex-shrink:0}
+  .play-right{padding:8px 6px;align-items:center;overflow:visible;justify-content:flex-start;gap:4px;flex-shrink:0}
+  /* FIX B1 mobile: container-type preserved; board scales via cqw — no override needed */
+  .board-wrap{
+    container-type:size;
+    width:min(calc(100vw - 20px),calc(100vh - 220px),480px) !important;
+    align-self:center;margin:0 auto;
+  }
+  .board-grid{width:100%;height:100%}
+  .mob-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+  .mob-tab{flex:1;padding:10px 4px;text-align:center;font-size:10px;font-weight:700;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;letter-spacing:.5px;text-transform:uppercase}
+  .mob-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+  .mob-panel{display:none}
+  .mob-panel.active{display:block}
+  .g2,.g3,.chain-grid{grid-template-columns:1fr}
+  input,select,textarea{font-size:16px!important}
+  .social-wrap{display:flex;flex-direction:column}
+  .rooms-col{max-height:32vh;border-right:none;border-bottom:1px solid var(--border)}
+  .modal{width:calc(100vw - 32px);padding:18px;max-height:84vh}
+  .gscroll{max-height:160px}
+  .claim-win-bar{max-width:calc(100vw - 24px)}
+}
+@media(max-width:380px){
+  .nav-item{min-width:48px;padding:5px 7px;font-size:7px}
+}
+</style>
+</head>
+<body>
+<div class="toast-stack" id="toasts"></div>
+<div class="app">
+<header class="topbar">
+  <div class="logo">CROSS<span>REALM</span></div>
+  <span class="net-pill">● CORE MAINNET</span>
+  <!-- FIX BUG-02: trading banner shown when tradingEnabled=false -->
+  <span id="tradingBanner">⚠ TRADING DISABLED</span>
+  <div class="spacer"></div>
+  <div id="walletInfo">
+    <span class="realm-bal" id="realmBal">0 <small>REALM</small></span>
+    <span class="waddr" id="wAddr"></span>
+  </div>
+  <button class="connect-btn" id="connectBtn" onclick="toggleWallet()">Connect</button>
+</header>
+<nav class="sidebar">
+  <div class="nav-sect">
+    <span class="sect-label">Game</span>
+    <div class="nav-item active" id="nav-play" onclick="goView('play',this)"><span class="ic">⚔️</span>Play</div>
+    <div class="nav-item" id="nav-tournaments" onclick="goView('tournaments',this)"><span class="ic">🏆</span>Events</div>
+    <div class="nav-item" id="nav-marketplace" onclick="goView('marketplace',this)"><span class="ic">🏪</span>Market</div>
+  </div>
+  <div class="nav-divider"></div>
+  <div class="nav-sect">
+    <span class="sect-label">Social</span>
+    <div class="nav-item" id="nav-discovery" onclick="goView('discovery',this)"><span class="ic">🔍</span>Discover</div>
+    <div class="nav-item" id="nav-social" onclick="goView('social',this)"><span class="ic">💬</span>Rooms</div>
+  </div>
+  <div class="nav-divider"></div>
+  <div class="nav-sect">
+    <span class="sect-label">DeFi</span>
+    <div class="nav-item" id="nav-gateway" onclick="goView('gateway',this)"><span class="ic">💱</span>Buy</div>
+    <div class="nav-item" id="nav-staking" onclick="goView('staking',this)"><span class="ic">💎</span>Stake</div>
+    <div class="nav-item" id="nav-bridge" onclick="goView('bridge',this)"><span class="ic">🌉</span>Bridge</div>
+    <div class="nav-item" id="nav-stats" onclick="goView('stats',this)"><span class="ic">📊</span>Stats</div>
+  </div>
+  <div class="nav-divider"></div>
+  <div class="nav-sect" id="adminNav" style="display:none">
+    <span class="sect-label">Dev</span>
+    <div class="nav-item" id="nav-admin" onclick="goView('admin',this)"><span class="ic">⚙️</span>Admin</div>
+    <div class="nav-item" id="nav-dao" onclick="goView('dao',this)"><span class="ic">🏛️</span>DAO</div>
+  </div>
+</nav>
+<main class="main">
+
+<!-- ═══ VIEW: PLAY ═══ -->
+<div id="view-play" class="view active">
+  <div class="mob-tabs" id="mobTabs">
+    <div class="mob-tab active" id="mobTabGame" onclick="mobSwitch('game')">🎮 Game</div>
+    <div class="mob-tab" id="mobTabBoard" onclick="mobSwitch('board')">♟️ Board</div>
+    <div class="mob-tab" id="mobTabChat" onclick="mobSwitch('chat')">💬 Chat</div>
+  </div>
+  <div class="play-wrap">
+    <div class="play-left mob-panel active" id="mobPanelGame">
+      <div class="card">
+        <h3>➕ Create Game</h3>
+        <span class="fl">Game Type</span>
+        <select id="gameType">
+          <option value="chess">♟️ Chess</option>
+          <option value="checkers">🎯 Checkers (10×10)</option>
+          <option value="8ball">🎱 8-Ball Pool</option>
+          <option value="penalty">⚽ Penalty Shootout</option>
+        </select>
+        <span class="fl">Stake (REALM)</span>
+        <input type="number" id="stakeAmt" value="10" min="1" step="1">
+        <span class="fl">Challenge Window</span>
+        <select id="chalWin">
+          <option value="60">60s — Fast</option>
+          <option value="180" selected>3min — Standard</option>
+          <option value="600">10min — Careful</option>
+          <option value="3600">60min — Slow</option>
+        </select>
+        <label><input type="checkbox" id="isPrivate"> 🔒 Private Game</label>
+        <label><input type="checkbox" id="isAI" checked onchange="onAIToggle()"> 🤖 vs AI (free practice)</label>
+        <!-- FIX B6 (Forensic): accurate text — AI wins are local only -->
+        <div id="aiInfo" class="ibox bl" style="font-size:9px;line-height:1.6">🤖 <strong>Free local practice</strong> — no stake, no fees. Moves run in-browser. <strong>AI wins are session-local only</strong> and are NOT recorded on-chain. Play P2P games to earn REALM and verify wins on the blockchain.</div>
+        <div id="p2pInfo" class="ibox" style="display:none">💰 <strong>Cost:</strong> Stake + 2.5% fee<br><strong>Win:</strong> Both stakes minus fees</div>
+        <button class="btn" onclick="createGame()">Create Game</button>
+        <button class="btn-ghost" style="margin-top:6px" onclick="refreshGames()">🔄 Refresh Games</button>
+      </div>
+      <div class="card">
+        <h3>🌐 Open Games</h3>
+        <div class="gscroll" id="openGames"><p style="color:var(--dim);font-size:10px;text-align:center;padding:16px">Connect wallet to see games</p></div>
+      </div>
+      <div class="card">
+        <!-- FIX B4 (Forensic): AI local games appear here via renderLocalAIGames() -->
+        <h3>⚔️ My Active Games</h3>
+        <div class="gscroll" id="myGames"><p style="color:var(--dim);font-size:10px;text-align:center;padding:16px">No active games</p></div>
+      </div>
+      <div class="card">
+        <h3>💬 Game Chat</h3>
+        <!-- FIX BUG-01: Game chat info note — GameChat registerGame must be wired in contract -->
+        <div class="ibox re" style="font-size:9px;margin-bottom:6px" id="gameChatNote">⚠️ In-game chat requires contract wiring (registerGame). Use Social Rooms for now.</div>
+        <div id="gameChatBox" style="max-height:180px;overflow-y:auto;background:var(--bg3);border-radius:5px;padding:10px;margin-bottom:8px;font-size:10px;color:var(--dim);text-align:center">Load a game to chat</div>
+        <textarea id="gameChatInput" placeholder="Message... (500 chars max)" rows="2" style="margin-bottom:6px"></textarea>
+        <button class="btn btn-green" id="gameChatSendBtn" onclick="sendGameChat()" disabled>Send Message</button>
+      </div>
+    </div>
+    <div class="play-right mob-panel" id="mobPanelBoard">
+      <div id="aiThinking" class="ai-thinking">🤖 AI calculating move…</div>
+      <div id="gameInfoBar" class="game-infobar">No game loaded — create or join a game</div>
+      <!-- FIX B6 (Forensic): Challenge-window countdown bar -->
+      <div id="challengeCountdown">⏳ Opponent's move still challengeable — <span id="cdSecs">180</span>s remaining before you can move</div>
+      <!-- FIX B3 (Forensic): Persistent claim-win bar — stays until payout confirmed -->
+      <div id="claimWinBar" class="claim-win-bar">
+        <span id="claimWinMsg">🏆 You won! Click to collect your REALM</span>
+        <button class="btn btn-green btn-sm" style="width:auto;flex-shrink:0" onclick="retryClaimWin()">💰 Claim Now</button>
+      </div>
+      <div id="boardContainer" class="board-wrap">
+        <div id="boardGrid" class="board-grid"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;width:100%;max-width:520px;flex-shrink:0">
+        <button class="btn btn-red" id="forfeitBtn" onclick="forfeit()" disabled>FORFEIT</button>
+        <button class="btn-ghost" id="shareBtn" onclick="shareGame()" disabled>🔗 SHARE</button>
+        <button class="btn-ghost" id="challengeBtn" onclick="challengeAbandonment()" disabled title="Claim win if opponent hasn't moved in time">⚡ CHALLENGE</button>
+      </div>
+    </div>
+    <div class="mob-panel" id="mobPanelChat" style="padding:10px;display:none">
+      <div id="gameChatBoxMob" style="max-height:calc(100vh - 200px);overflow-y:auto;background:var(--bg3);border-radius:5px;padding:10px;margin-bottom:8px;font-size:10px;color:var(--dim);text-align:center">Load a game to chat</div>
+      <textarea id="gameChatInputMob" placeholder="Message..." rows="2" style="margin-bottom:6px"></textarea>
+      <button class="btn btn-green" id="gameChatSendBtnMob" onclick="sendGameChatMob()" disabled>Send Message</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEW: SOCIAL ═══ -->
+<div id="view-social" class="view">
+  <div class="social-wrap">
+    <div class="rooms-col">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span style="font-size:8px;letter-spacing:2px;color:var(--dim);text-transform:uppercase">Rooms</span>
+        <button class="btn-ghost btn-sm" onclick="openCreateRoomModal()">+ New</button>
+      </div>
+      <div style="font-size:8px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">My Rooms</div>
+      <div id="myRoomsList"></div>
+      <div style="font-size:8px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin:10px 0 5px">Public Rooms</div>
+      <div id="publicRoomsList"><div style="font-size:10px;color:var(--dim);padding:6px">Loading…</div></div>
+      <button class="btn-ghost btn-sm" onclick="openModal('joinRoomModal')" style="margin-top:8px">Join by ID</button>
+    </div>
+    <div class="chat-col">
+      <div class="chat-header">
+        <div class="room-icon" style="font-size:20px" id="chatRoomIcon">♟️</div>
+        <div>
+          <div class="chat-rname" id="chatRoomName">Chess Lobby</div>
+          <div class="chat-rmeta" id="chatRoomMeta">Public room · Connect wallet to chat</div>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn-ghost btn-sm" onclick="loadSocialMsgs()">↻</button>
+      </div>
+      <div class="msgs-area" id="messagesArea">
+        <div class="sysmsg-wrap"><div class="sysmsg">♟️ Chess Lobby</div></div>
+        <div style="text-align:center;padding:30px 20px;color:var(--dim);font-size:11px">Connect wallet to view messages</div>
+      </div>
+      <div class="chat-input-row">
+        <input class="chat-inp" id="socialChatInput" placeholder="Connect wallet to chat…" onkeypress="if(event.key==='Enter')sendSocialMsg()">
+        <button class="send-btn" onclick="sendSocialMsg()">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEW: DISCOVERY ═══ -->
+<div id="view-discovery" class="view">
+  <div class="vhead">
+    <div class="vtitle">Player <em>Discovery</em></div>
+    <div class="vsub">Stake REALM to boost visibility · challenge anyone to a live game</div>
+  </div>
+  <div class="view-body">
+    <div class="g2">
+      <div>
+        <div class="ibox bl" style="margin-bottom:14px"><strong>On-Chain Leaderboard</strong> — Ranked by REALM staked for visibility. Challenge creates a real game!</div>
+        <div id="leaderboard"></div>
+        <button class="btn-ghost" onclick="loadDiscovery()" style="margin-top:8px">🔄 Refresh</button>
+      </div>
+      <div>
+        <div class="phero">
+          <div class="phero-emoji">🦊</div>
+          <div class="phero-name" id="myDiscName">Connect Wallet</div>
+          <div class="phero-bio">Your on-chain gaming identity</div>
+          <div class="pstats">
+            <div class="ps"><div class="ps-val" id="discWins">0</div><div class="ps-lbl">Wins</div></div>
+            <div class="ps"><div class="ps-val" id="discStaked" style="color:var(--gold)">0</div><div class="ps-lbl">Staked</div></div>
+            <!-- FIX BUG-15: renamed from 'Games' to 'P2P Wins' — no totalGames on-chain -->
+            <div class="ps"><div class="ps-val" id="discGames">0</div><div class="ps-lbl">P2P Wins</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>🎭 Set Profile</h3>
+          <span class="fl">Username</span>
+          <input type="text" id="profileUsername" placeholder="coolplayer123" maxlength="32">
+          <span class="fl">Bio</span>
+          <textarea id="profileBio" placeholder="Chess grandmaster from..." rows="2" style="margin-bottom:8px"></textarea>
+          <button class="btn" onclick="setProfile()">Save Profile</button>
+        </div>
+        <div class="card">
+          <h3>⬆️ Stake for Visibility</h3>
+          <p style="color:var(--dim);font-size:10px;margin-bottom:10px">Stake REALM to appear on the Discovery leaderboard.</p>
+          <span class="fl">REALM to Stake for Visibility</span>
+          <input type="number" id="visStakeAmt" placeholder="100 REALM min" min="1">
+          <button class="btn" onclick="stakeForVisibility()">Stake for Visibility</button>
+          <button class="btn-ghost" onclick="unstakeVisibility()" style="margin-top:6px">Unstake Visibility</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEW: GATEWAY ═══ -->
+<div id="view-gateway" class="view">
+  <div class="vhead">
+    <div class="vtitle">Buy <em>REALM</em></div>
+    <div class="vsub">CORE → REALM · fixed rate · instant · no slippage</div>
+  </div>
+  <div class="view-body">
+    <div class="g2">
+      <div>
+        <div style="text-align:center;padding:24px;background:linear-gradient(135deg,rgba(240,165,0,.1),rgba(0,232,122,.05));border:1px solid rgba(240,165,0,.3);border-radius:8px;margin-bottom:14px">
+          <div style="font-size:10px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Current Rate</div>
+          <div class="gw-rate" id="gwRate">— REALM</div>
+          <div style="font-size:10px;color:var(--dim)">per 1 CORE</div>
+          <div style="margin-top:10px;font-size:10px;color:var(--dim)">Reserve: <span id="gwReserve" style="color:var(--gold)">Loading...</span></div>
+        </div>
+        <div class="card">
+          <h3>💱 Swap CORE → REALM</h3>
+          <span class="fl">CORE Amount</span>
+          <input type="number" id="coreInput" placeholder="0.01" min="0.001" step="0.001" oninput="updateGwQuote()">
+          <div class="quote-box">
+            <!-- FIX BUG-17: quote-val turns red if reserve insufficient -->
+            <div class="quote-val" id="realmQuote">0</div>
+            <div class="quote-lbl" id="realmQuoteLbl">REALM you will receive</div>
+          </div>
+          <div class="ibox gr"><strong>✓ No slippage</strong> — Fixed protocol rate<br><strong>✓ Instant</strong> — Tokens arrive immediately</div>
+          <button class="btn" onclick="buyRealm()">Buy REALM with CORE</button>
+        </div>
+        <div class="card">
+          <h3>📊 Gateway Stats</h3>
+          <div class="ir"><span class="il">Total CORE Received</span><span class="iv o" id="gwTotalCore">—</span></div>
+          <div class="ir"><span class="il">Total REALM Sold</span><span class="iv g" id="gwTotalRealm">—</span></div>
+          <div class="ir"><span class="il">Min Purchase</span><span class="iv">0.001 CORE</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h3>ℹ️ How It Works</h3>
+          <div style="font-size:10px;color:var(--dim);line-height:1.9">
+            <div style="padding:10px;background:var(--bg3);border-radius:5px;margin-bottom:8px;border:1px solid var(--border2)"><div style="color:var(--gold);font-weight:700;margin-bottom:3px">Step 1</div>Enter CORE amount above</div>
+            <div style="padding:10px;background:var(--bg3);border-radius:5px;margin-bottom:8px;border:1px solid var(--border2)"><div style="color:var(--gold);font-weight:700;margin-bottom:3px">Step 2</div>See exact REALM you'll get</div>
+            <div style="padding:10px;background:var(--bg3);border-radius:5px;margin-bottom:8px;border:1px solid var(--border2)"><div style="color:var(--gold);font-weight:700;margin-bottom:3px">Step 3</div>Click Buy — approve in wallet</div>
+            <div style="padding:10px;background:rgba(0,232,122,.06);border-radius:5px;border:1px solid rgba(0,232,122,.2)"><div style="color:var(--green);font-weight:700;margin-bottom:3px">✓ Done</div>REALM in your wallet instantly</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEW: STAKING ═══ -->
+<div id="view-staking" class="view">
+  <div class="vhead">
+    <div class="vtitle">Stake <em>REALM</em></div>
+    <div class="vsub">Earn from the 30M REALM reserve + 14% of all game fees</div>
+  </div>
+  <div class="view-body">
+    <div class="g2">
+      <div class="card">
+        <h3>💎 Stake REALM</h3>
+        <p style="color:var(--dim);font-size:10px;margin-bottom:10px;line-height:1.7">Earn from <strong style="color:var(--gold)">two reward streams</strong>:<br>🏦 <strong>30M REALM reserve</strong><br>🎮 <strong>14% of all game fees</strong></p>
+        <div style="text-align:center;background:rgba(0,232,122,.06);border:1px solid rgba(0,232,122,.2);border-radius:6px;padding:14px;margin-bottom:14px">
+          <div style="font-family:'Rajdhani',sans-serif;font-size:36px;font-weight:700;color:var(--green)" id="platformAPY">~14%</div>
+          <div style="font-size:9px;color:var(--dim)">Variable APY · Funded by game fees</div>
+        </div>
+        <div class="lock-row">
+          <div class="lock-opt sel" onclick="selLock(false,this)"><div class="lock-la">Base</div><div class="lock-lb">No Lock · Base APY</div></div>
+          <div class="lock-opt" onclick="selLock(true,this)"><div class="lock-la">+10%</div><div class="lock-lb">Lock 30 Days</div></div>
+        </div>
+        <span class="fl">Amount (REALM)</span>
+        <input type="number" id="stakeInput" placeholder="Amount to stake" value="1000" min="1">
+        <button class="btn" onclick="doStake()" style="margin-bottom:6px">Stake REALM</button>
+        <span class="fl" style="margin-top:8px">Withdraw Amount</span>
+        <input type="number" id="unstakeInput" placeholder="Leave blank to withdraw all" min="0">
+        <button class="btn-ghost" onclick="doUnstake()" style="margin-bottom:6px">Withdraw Stake</button>
+        <button class="btn btn-green" onclick="doClaimStake()">Claim Rewards</button>
+      </div>
+      <div>
+        <div class="card">
+          <h3>📊 My Staking Position</h3>
+          <div class="ir"><span class="il">Staked REALM</span><span class="iv g" id="sUserStake">0 REALM</span></div>
+          <div class="ir"><span class="il">Lock Status</span><span class="iv" id="sLockStatus">No Lock</span></div>
+          <div class="ir"><span class="il">Locked Until</span><span class="iv" id="sLockedUntil">—</span></div>
+          <div class="ir"><span class="il">Pending Rewards</span><span class="iv g" id="sPending">0 REALM</span></div>
+          <div class="ir"><span class="il">Total Pool Staked</span><span class="iv" id="sTotalStaked">—</span></div>
+          <div class="ir"><span class="il">Total Rewards Funded</span><span class="iv o" id="sTotalFunded">—</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEW: BRIDGE ═══ -->
+<div id="view-bridge" class="view">
+  <div class="vhead"><div class="vtitle">Cross-Chain <em>Bridge</em></div><div class="vsub">Bridge REALM via LayerZero · 0.1% protocol fee</div></div>
+  <div class="view-body">
+    <div class="g2">
+      <div>
+        <div class="card">
+          <h3>🌉 Bridge Tokens</h3>
+          <div style="background:rgba(0,232,122,.07);border:1px solid rgba(0,232,122,.25);padding:10px;border-radius:5px;margin-bottom:10px;font-size:11px"><span style="color:var(--green);font-weight:700">● CORE Mainnet</span> <span style="color:var(--dim);margin-left:8px;font-size:9px">Chain ID: 153</span></div>
+          <span class="fl">To Chain</span>
+          <div class="chain-grid">
+            <div class="chain-btn sel" onclick="selChain(this,102,'BSC')"><div class="chain-ic">🟡</div><div class="chain-name">BSC</div><div class="chain-id">LZ: 102</div></div>
+            <div class="chain-btn" onclick="selChain(this,109,'Polygon')"><div class="chain-ic">🟣</div><div class="chain-name">Polygon</div><div class="chain-id">LZ: 109</div></div>
+            <div class="chain-btn" onclick="selChain(this,110,'Arbitrum')"><div class="chain-ic">🔵</div><div class="chain-name">Arbitrum</div><div class="chain-id">LZ: 110</div></div>
+            <div class="chain-btn" onclick="selChain(this,101,'Ethereum')"><div class="chain-ic">⬛</div><div class="chain-name">Ethereum</div><div class="chain-id">LZ: 101</div></div>
+            <div class="chain-btn" onclick="selChain(this,106,'Avalanche')"><div class="chain-ic">🔴</div><div class="chain-name">Avalanche</div><div class="chain-id">LZ: 106</div></div>
+            <div class="chain-btn" onclick="selChain(this,111,'Optimism')"><div class="chain-ic">🔴</div><div class="chain-name">Optimism</div><div class="chain-id">LZ: 111</div></div>
+          </div>
+          <!-- FIX BUG-24: chain support warning -->
+          <div id="chainSupportWarn" class="ibox re" style="display:none;font-size:9px">⚠️ This chain may not be live yet. Check with admin.</div>
+          <span class="fl">REALM Amount (min 10)</span>
+          <input type="number" id="bridgeAmt" placeholder="Min 10 REALM" min="10" step="1" oninput="estimateBridgeFee()">
+          <span class="fl">Recipient (blank = your wallet)</span>
+          <input type="text" id="bridgeRecipient" placeholder="0x... or leave blank">
+          <div id="bridgeFeeBox" class="quote-box" style="display:none">
+            <div class="quote-val" id="bridgeFeeVal" style="font-size:22px">—</div>
+            <div class="quote-lbl">Estimated LayerZero fee (CORE)</div>
+          </div>
+          <div class="ibox bl"><strong>Burn-and-mint:</strong> REALM burned on CORE, minted on destination. No prior approval needed.</div>
+          <button class="btn btn-blue" onclick="doBridge()">Bridge REALM</button>
+        </div>
+      </div>
+      <div>
+        <div class="card"><h3>📋 Pending Transfers</h3><div id="pendingBridgeList" style="font-size:10px;color:var(--dim);text-align:center;padding:16px">Connect wallet to view</div></div>
+        <div class="card">
+          <h3>📊 Bridge Limits</h3>
+          <div class="ir"><span class="il">Min Transfer</span><span class="iv">10 REALM</span></div>
+          <div class="ir"><span class="il">Max Transfer</span><span class="iv">500,000 REALM</span></div>
+          <div class="ir"><span class="il">Security Queue</span><span class="iv">≥100k → 30min</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEW: STATS ═══ -->
+<div id="view-stats" class="view">
+  <div class="vhead"><div class="vtitle">My <em>Statistics</em></div><div class="vsub">Game history · referral earnings · claimable rewards</div></div>
+  <div class="view-body">
+    <div class="phero">
+      <div class="phero-emoji">🦊</div>
+      <div class="phero-name" id="statsName">Connect Wallet</div>
+      <div class="phero-bio">Your on-chain gaming identity</div>
+      <div class="pstats">
+        <div class="ps"><div class="ps-val" id="stWins">0</div><div class="ps-lbl">P2P Wins</div></div>
+        <div class="ps"><div class="ps-val" style="color:var(--gold)" id="stChess">0</div><div class="ps-lbl">Chess</div></div>
+        <div class="ps"><div class="ps-val" id="stCheckers">0</div><div class="ps-lbl">Checkers</div></div>
+      </div>
+      <!-- FIX B6 (Forensic): AI wins local only — clearly labelled -->
+      <div style="margin-top:10px;font-size:9px;color:var(--dim)">🤖 AI Wins (session): <span id="stAIWins" style="color:var(--blue);font-weight:700">0</span> — not on-chain</div>
+    </div>
+    <div class="g2">
+      <div class="card">
+        <h3>💰 Claimable Rewards</h3>
+        <div class="ir"><span class="il">Cashback (10%)</span><span class="iv g" id="rCashback">0 REALM</span></div>
+        <div class="ir"><span class="il">Referral (5%)</span><span class="iv g" id="rReferral">0 REALM</span></div>
+        <div class="ir"><span class="il">Creator bonus (8%)</span><span class="iv g" id="rCreator">0 REALM</span></div>
+        <div class="ir" style="border-top:1px solid var(--gold);padding-top:10px;margin-top:4px"><span class="il" style="color:var(--gold)">Total Claimable</span><span class="iv o" id="rTotal">0 REALM</span></div>
+        <button class="btn btn-green" onclick="claimRewards()" style="margin-top:14px">💰 Claim All Rewards</button>
+      </div>
+      <div class="card">
+        <h3>🎯 Referral System</h3>
+        <div class="ir"><span class="il">Referred by</span><span class="iv" id="rRefBy">None</span></div>
+        <div class="ir"><span class="il">Your ref link</span><span class="iv o" style="font-size:9px;word-break:break-all" id="rRefCode">Connect wallet</span></div>
+        <button class="btn-ghost btn-sm" onclick="copyRefLink()" style="margin-top:8px">📋 Copy Referral Link</button>
+        <div class="ibox gr" style="margin-top:12px"><strong>Earn forever:</strong> 5% of fees from players you refer, plus 8% creator bonus on your games.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEW: TOURNAMENTS ═══ -->
+<div id="view-tournaments" class="view">
+  <div class="vhead"><div class="vtitle">Tournaments <em>& Events</em></div><div class="vsub">Coming in Phase 2</div></div>
+  <div class="view-body"><div class="card" style="text-align:center;padding:40px"><div style="font-size:64px;margin-bottom:14px">🏆</div><div style="font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:var(--gold);margin-bottom:8px">TOURNAMENTS</div><div style="color:var(--green);font-size:13px;margin-bottom:16px">Phase 2 — Coming Soon</div></div></div>
+</div>
+
+<!-- ═══ VIEW: MARKETPLACE ═══ -->
+<div id="view-marketplace" class="view">
+  <div class="vhead"><div class="vtitle">NFT <em>Marketplace</em></div><div class="vsub">Phase 2</div></div>
+  <div class="view-body"><div class="card" style="text-align:center;padding:40px"><div style="font-size:64px;margin-bottom:14px">🏪</div><div style="font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:var(--gold);margin-bottom:8px">MARKETPLACE</div><div style="color:var(--green);font-size:13px;margin-bottom:16px">Phase 2 — Coming Soon</div></div></div>
+</div>
+
+<!-- ═══ VIEW: ADMIN ═══ -->
+<div id="view-admin" class="view">
+  <div class="vhead"><div class="vtitle">Admin <em>Panel</em></div><div class="vsub">Owner-only · rate management · emergency controls</div></div>
+  <div class="view-body">
+    <div class="card"><h3>🔐 Owner Status</h3><div class="ir"><span class="il">Your Wallet</span><span class="iv o" id="adminWallet" style="font-size:9px">Not connected</span></div><div id="ownerOk" class="ibox gr" style="display:none"><strong>✅ Owner Verified</strong></div><div id="ownerNope" class="ibox re" style="display:none"><strong>⚠️ Not Owner</strong></div></div>
+    <div class="card">
+      <h3>💎 30M Staking Reserve — Emission Control</h3>
+      <div class="ir"><span class="il">Reserve Balance</span><span class="iv g" id="adminReserveBalance">—</span></div>
+      <div class="ir"><span class="il">Total Declared</span><span class="iv o" id="adminTotalFunded">—</span></div>
+      <div class="ir"><span class="il">Total Staked in Pool</span><span class="iv" id="adminPoolStaked">—</span></div>
+      <span class="fl" style="margin-top:12px">Amount to Declare (REALM)</span>
+      <input type="number" id="seedAmt" placeholder="e.g. 500000" min="1" step="1000">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-bottom:10px">
+        <button class="btn-ghost btn-sm" onclick="document.getElementById('seedAmt').value=250000">250k</button>
+        <button class="btn-ghost btn-sm" onclick="document.getElementById('seedAmt').value=500000">500k</button>
+        <button class="btn-ghost btn-sm" onclick="document.getElementById('seedAmt').value=1000000">1M</button>
+        <button class="btn-ghost btn-sm" onclick="document.getElementById('seedAmt').value=2500000">2.5M</button>
+      </div>
+      <button class="btn btn-green" onclick="adminSeedStaking()">💎 Declare Emission Now</button>
+    </div>
+    <div class="card">
+      <h3>💱 Gateway Rate Management</h3>
+      <div class="g2" style="margin-bottom:14px">
+        <div class="stat" style="background:var(--bg4)"><div class="sl">Gateway Rate</div><div class="sv" id="adminGwRate" style="font-size:22px">—</div><div class="sl">REALM/CORE</div></div>
+        <div class="stat" style="background:var(--bg4)"><div class="sl">Reserve</div><div class="sv" id="adminGwReserve" style="font-size:22px">—</div><div class="sl">REALM</div></div>
+      </div>
+      <span class="fl">New Rate (REALM per 1 CORE)</span>
+      <input type="number" id="newGwRate" placeholder="e.g. 9.5" step="0.1" min="0.1">
+      <button class="btn" onclick="adminSetRate()">Update Gateway Rate</button>
+    </div>
+    <div class="card">
+      <h3>🚨 Emergency Controls</h3>
+      <div class="ibox re" style="margin-bottom:12px"><strong>⚠️ Danger Zone</strong> — These affect live contracts and real funds.</div>
+      <div style="display:grid;gap:6px">
+        <button class="btn-ghost" onclick="adminPause()">⏸️ Pause Gateway</button>
+        <button class="btn-ghost" onclick="adminUnpause()">▶️ Unpause Gateway</button>
+        <button class="btn btn-red" onclick="adminWithdraw()">💸 Withdraw Gateway Reserve</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📋 Contract Addresses</h3>
+      <div id="contractList" style="font-size:9px;line-height:2;color:var(--dim)"></div>
+      <button class="btn-ghost btn-sm" onclick="copyAddresses()" style="margin-top:8px">📋 Copy All</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEW: DAO ═══ -->
+<div id="view-dao" class="view">
+  <div class="vhead"><div class="vtitle">Governance <em>DAO</em></div><div class="vsub">On-chain voting · proposals · treasury · vesting</div></div>
+  <div class="view-body">
+    <div class="g2" style="margin-bottom:16px">
+      <div class="card">
+        <h3>🏛️ DAO Status</h3>
+        <div class="ir"><span class="il">Governance live</span><span class="iv" id="daoInitialized">—</span></div>
+        <div class="ir"><span class="il">Total REALM Locked</span><span class="iv g" id="daoTotalLocked">—</span></div>
+        <div class="ir"><span class="il">Quorum Required</span><span class="iv o" id="daoQuorum">—</span></div>
+        <div class="ir"><span class="il">Your Voting Power</span><span class="iv g" id="daoMyPower">—</span></div>
+        <button class="btn-ghost" onclick="loadDAOData()" style="margin-top:8px">🔄 Refresh</button>
+      </div>
+      <div class="card">
+        <h3>🔒 Lock REALM to Vote</h3>
+        <span class="fl">Amount (REALM)</span><input type="number" id="daoLockAmt" placeholder="e.g. 10000" min="1">
+        <span class="fl">Lock until (optional)</span><input type="date" id="daoLockDate">
+        <button class="btn" onclick="daoLockREALM()" style="margin-bottom:6px">Lock REALM</button>
+        <button class="btn-ghost" onclick="daoUnlockREALM()">Unlock All REALM</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0">📋 Active & Recent Proposals</h3>
+        <!-- FIX BUG-03: button disabled when DAO not initialized -->
+        <button class="btn btn-sm" id="newProposalBtn" onclick="openNewProposalModal()">+ New Proposal</button>
+      </div>
+      <div id="daoProposalList" style="color:var(--dim);font-size:10px;text-align:center;padding:20px">Connect wallet and click Refresh above</div>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+
+<!-- MODALS -->
+<div class="overlay" id="proposalModal">
+  <div class="modal" style="width:460px;max-width:calc(100vw - 32px)">
+    <div class="modal-title">📋 New Governance Proposal</div>
+    <span class="fl">Proposal Type</span>
+    <select id="propType">
+      <option value="0">0 — Parameter Change</option>
+      <option value="1">1 — Treasury Spend</option>
+      <option value="2">2 — Whitelist Verifier</option>
+      <option value="3">3 — Upgrade Contract</option>
+    </select>
+    <span class="fl">Title</span><input type="text" id="propTitle" placeholder="Short descriptive title" maxlength="100">
+    <span class="fl">Description</span><textarea id="propDesc" placeholder="Full proposal description…" rows="3"></textarea>
+    <span class="fl">Target Contract</span><input type="text" id="propTarget" placeholder="0x… (optional)">
+    <div id="propTreasuryFields" style="display:none">
+      <span class="fl">REALM Amount</span><input type="number" id="propValue" placeholder="e.g. 50000" min="0">
+      <span class="fl">Recipient</span><input type="text" id="propRecipient" placeholder="0x…">
+    </div>
+    <div class="modal-actions"><button class="modal-cancel" onclick="closeModal('proposalModal')">Cancel</button><button class="btn" style="flex:2" onclick="submitProposal()">Submit Proposal</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="challengeModal">
+  <div class="modal">
+    <div class="modal-title">⚔️ Challenge <span id="mChalName">Player</span></div>
+    <div style="text-align:center;padding:14px;background:var(--bg3);border-radius:6px;margin-bottom:16px"><div style="font-size:36px;margin-bottom:6px" id="mChalAvatar">🎮</div><div style="font-size:13px;font-weight:700;color:var(--green)" id="mChalMeta"></div></div>
+    <span class="fl">Game Type</span><select id="mChalType"><option value="chess">♟️ Chess</option><option value="checkers">🎯 Checkers</option></select>
+    <span class="fl">Stake (REALM)</span><input type="number" id="mChalStake" value="50" min="1">
+    <div class="modal-actions"><button class="modal-cancel" onclick="closeModal('challengeModal')">Cancel</button><button class="btn" style="flex:2" onclick="sendChallenge()">Create Game vs Player</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="createRoomModal">
+  <div class="modal">
+    <div class="modal-title">💬 Create Room</div>
+    <span class="fl">Room Name</span><input type="text" id="newRoomName" placeholder="My Chess Room" maxlength="64">
+    <label><input type="checkbox" id="roomIsPublic" checked> 🌐 Public Room</label>
+    <div class="modal-actions"><button class="modal-cancel" onclick="closeModal('createRoomModal')">Cancel</button><button class="btn" onclick="createRoom()">Create Room</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="joinRoomModal">
+  <div class="modal">
+    <div class="modal-title">🚪 Join Public Room</div>
+    <span class="fl">Room ID</span><input type="number" id="joinRoomId" placeholder="Room ID (e.g. 3)" min="1">
+    <div class="modal-actions"><button class="modal-cancel" onclick="closeModal('joinRoomModal')">Cancel</button><button class="btn" onclick="joinRoom()">Join Room</button></div>
+  </div>
+</div>
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CONTRACT ADDRESSES — CORE MAINNET
+// ═══════════════════════════════════════════════════════════════
+const C = {
+  REALM:         '0x736C7B66F0Dd6dB1bB20f365f6aED498d8059b4A',
+  HUB:           '0x070BB4a8Fa33A39497634e9e8413098C7AcB1a23',
+  REWARDS:       '0x888F0Daa4A92463bC4B0c39CcB47Bb9f8d8232BB',
+  STAKING:       '0x23b0A480aAEF4596926b303deDe130e555A02428',
+  GATEWAY:       '0xAE539875D0068d0cFD04670657b898452357A53b',
+  BRIDGE:        '0x4f66afBDEAE71F87F37a3415970564A8632f87c9',
+  SOCIAL:        '0x1823F31E905C7B27be6067a7Bc0E6B81cDBB959F',
+  GAMECHAT:      '0xF5092178D8c9eacd5d8f13F3BC60A8d66839baf7',
+  CRNFT:         '0x3E07C5b214BA6A887a15889d848d7E8772F4B66C',
+  CHESS_V:       '0xF36997EF2156d46Ef8f4a5438De7E2fdD56Cc660',
+  CHECKERS_V:    '0xA9a9aAEcFb787d9F77033054d3037d1c48511F36',
+  DAO:           '0x15A0a88E7c06f71894cA555A02006DE79F885292',
+  VESTING:       '0x1D26C54e9C82c83bB42Ba86457fCd7dE9E3957d6',
+};
+
+const CORE_CHAIN = {
+  chainId:'0x99',
+  chainName:'Core Blockchain Mainnet',
+  rpcUrls:['https://rpc.coredao.org','https://rpc-core.icecreamswap.com'],
+  nativeCurrency:{name:'CORE',symbol:'CORE',decimals:18},
+  blockExplorerUrls:['https://scan.coredao.org']
+};
+
+// FIX BUG-02: added tradingEnabled() to ERC20 ABI
+const ERC20_ABI=[
+  'function balanceOf(address) view returns (uint256)',
+  'function allowance(address,address) view returns (uint256)',
+  'function approve(address,uint256) returns (bool)',
+  'function tradingEnabled() view returns (bool)',
+];
+
+const HUB_ABI=[
+  'function gameCount() view returns (uint256)',
+  'function games(uint256) view returns (address creator,address player2,uint256 stake,uint256 creatorFee,bool isPrivate,bool isAI,bool active,string gameType,string currentState,uint8 turn,address verifier,uint256 challengeWindow,uint256 lastMoveTime)',
+  'function createGame(string,uint256,bool,bool,address,uint256) returns (uint256)',
+  'function joinGame(uint256)',
+  'function makeMove(uint256,string,string)',
+  'function declareWinner(uint256,address)',
+  'function cancelUnjoinedGame(uint256)',
+  'function expireGame(uint256)',
+  'function claimAbandonment(uint256)',
+  'function initialFen(string) view returns (string)',
+  'function totalWins(address) view returns (uint256)',
+  'function winsByGameType(address,string) view returns (uint256)',
+  'event GameCreated(uint256 indexed id,address indexed creator,string gameType,uint256 stake)',
+];
+
+const REWARDS_ABI=[
+  'function cashbackBalance(address) view returns (uint256)',
+  'function referralBalance(address) view returns (uint256)',
+  'function creatorBalance(address) view returns (uint256)',
+  'function claimAll()',
+  'function pendingRewards(address) view returns (uint256 cashback,uint256 referral,uint256 creator,uint256 total)',
+  // FIX BUG-18: effectiveFee for season-pass discount
+  'function effectiveFee(address,uint256) view returns (uint256)',
+];
+
+const STAKING_ABI=[
+  'function stake(uint256,bool)',
+  'function unstake(uint256)',
+  'function claimRewards()',
+  'function fundRewards(uint256)',
+  'function stakes(address) view returns (uint256 amount,uint256 rewardDebt,uint256 lockUntil,uint256 pendingRewards)',
+  'function totalStaked() view returns (uint256)',
+  'function totalRewardsFunded() view returns (uint256)',
+  'function pendingRewards(address) view returns (uint256)',
+  'function yieldPerShare() view returns (uint256)',
+];
+
+const GATEWAY_ABI=[
+  'function realmPerCore() view returns (uint256)',
+  'function swapCoreForREALM() payable',
+  'function quote(uint256) view returns (uint256)',
+  'function totalCoreReceived() view returns (uint256)',
+  'function totalRealmSold() view returns (uint256)',
+  'function setRate(uint256)',
+  'function owner() view returns (address)',
+  'function paused() view returns (bool)',
+  'function pause()',
+  'function unpause()',
+  'function withdrawReserve(address,uint256)',
+];
+
+const BRIDGE_ABI=[
+  'function bridgeTokens(uint16,address,uint256) payable',
+  'function estimateFee(uint16,address,uint256) view returns (uint256,uint256)',
+  'function pendingCount() view returns (uint256)',
+  'function dailyVolume(address) view returns (uint256)',
+  // FIX BUG-24: chain support check
+  'function isTrustedRemote(uint16,bytes) view returns (bool)',
+];
+
+const SOCIAL_ABI=[
+  'function setProfile(string,string)',
+  'function createRoom(string,bool) returns (uint256)',
+  'function joinRoom(uint256)',
+  'function sendMessage(uint256,string)',
+  'function getMessages(uint256,uint256,uint256) view returns (address[],string[],uint256[])',
+  'function rooms(uint256) view returns (uint256 id,string name,address creator,uint256 memberCount,uint256 messageCount,bool isPublic,bool active)',
+  'function roomCount() view returns (uint256)',
+  'function getUserRooms(address) view returns (uint256[])',
+  'function profiles(address) view returns (string username,string bio,uint256 stakedForVisibility,uint256 stakedAt,uint256 lastActive,bool exists)',
+  'function isMemberOf(uint256,address) view returns (bool)',
+  'function stakeForVisibility(uint256)',
+  'function unstakeVisibility(uint256)',
+  'function getTopVisibleUsers(uint256) view returns (address[],string[],uint256[],uint256[])',
+  // FIX BUG-05: entry fee and paid-check
+  'function messageEntryFee() view returns (uint256)',
+  'function hasPaidEntry(uint256,address) view returns (bool)',
+];
+
+const GAMECHAT_ABI=[
+  'function sendMessage(uint256,string)',
+  'function getMessages(uint256,uint256,uint256) view returns (address[],string[],uint256[])',
+  'function getMessageCount(uint256) view returns (uint256)',
+];
+
+// FIX BUG-03 + BUG-07 + BUG-08: full DAO ABI including proposals mapping for queuedAt
+const DAO_ABI=[
+  'function initialized() view returns (bool)',
+  'function proposalCount() view returns (uint256)',
+  'function totalLocked() view returns (uint256)',
+  'function lockedBalance(address) view returns (uint256)',
+  'function votingPower(address) view returns (uint256)',
+  'function quorumRequired() view returns (uint256)',
+  'function getProposal(uint256) view returns (address proposer,string title,uint8 kind,uint256 forVotes,uint256 againstVotes,uint256 abstainVotes,uint8 state_,uint256 voteEnd)',
+  'function proposals(uint256) view returns (address proposer,string title,uint8 kind,bytes data,address target,uint256 value,address recipient,uint256 voteStart,uint256 voteEnd,uint256 forVotes,uint256 againstVotes,uint256 abstainVotes,uint8 state_,uint256 queuedAt)',
+  'function lockREALM(uint256,uint256)',
+  'function unlockREALM(uint256)',
+  'function castVote(uint256,uint8)',
+  'function propose(uint8,string,string,address,bytes,uint256,address) returns (uint256)',
+  'function finalizeInitialization()',
+];
+
+// ── PIECE MAP ──
+const PIECES={K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
+const PIE_VAL={p:100,n:320,b:330,r:500,q:900,k:20000};
+
+// ── STATE ──
+let provider,signer,userAddr,isConnected=false;
+let hub,rewards,stakingC,gateway,bridge,social,gameChat,realm;
+let selectedLock=false;
+let bridgeChainId=102,bridgeChainName='BSC';
+let currentGameId=null,currentGame=null,isAIGame=false,isMyTurn=false;
+let gameEngine=null;
+let checkersBoard=null;
+let moveFrom=null,ckSelected=null;
+let aiRunning=false;
+let lastState=null,loadingGame=false;
+let chatPollTimer=null;
+let currentSocialRoomId=null;
+// FIX BUG-22: declare currentSocialRoomName
+let currentSocialRoomName=null;
+let socialPollTimer=null;
+let challengeWindowTimer=null; // FIX B6 (Forensic): countdown timer handle
+
+// FIX B3 (Forensic): track pending win gameId for persistent claim button
+let pendingWinGameId=null;
+// FIX B6 (Forensic): local AI win counter for this session
+let localAIWins=0;
+
+// ── GAME CACHE (persists between view switches) ──
+const gameCache=new Map();
+
+// FIX B4 (Forensic): Persist AI games to sessionStorage
+const AI_STORE_KEY='cr_aigames';
+
+function saveAIGamesToStorage(){
+  try{
+    const toSave={};
+    for(const[id,cached]of gameCache){
+      if(id<0&&cached.isAIGame){
+        toSave[id]={
+          gameType:cached.currentGame?.gameType||'chess',
+          isMyTurn:cached.isMyTurn,
+          fen:cached.gameEngine?cached.gameEngine.fen():null,
+          checkersBoard:cached.checkersBoard||null,
+          createdAt:cached.createdAt||Date.now(),
+        };
+      }
+    }
+    const sorted=Object.entries(toSave).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0)).slice(0,3);
+    sessionStorage.setItem(AI_STORE_KEY,JSON.stringify(Object.fromEntries(sorted)));
+  }catch(e){}
+}
+
+function loadAIGamesFromStorage(){
+  try{
+    const raw=sessionStorage.getItem(AI_STORE_KEY);
+    if(!raw)return;
+    const saved=JSON.parse(raw);
+    for(const[idStr,data]of Object.entries(saved)){
+      const id=parseInt(idStr);
+      if(gameCache.has(id))continue;
+      const fakeGame={
+        creator:userAddr||'0x0000000000000000000000000000000000000000',
+        player2:ethers.constants.AddressZero,
+        stake:ethers.BigNumber.from(0),creatorFee:ethers.BigNumber.from(0),
+        isPrivate:false,isAI:true,active:true,
+        gameType:data.gameType,currentState:'',turn:0,
+        verifier:ethers.constants.AddressZero,
+        challengeWindow:ethers.BigNumber.from(180),
+        lastMoveTime:ethers.BigNumber.from(Math.floor(Date.now()/1000))
+      };
+      let eng=null;
+      if(data.gameType==='chess'&&data.fen){
+        try{eng=new Chess(data.fen);}catch(e){eng=new Chess();}
+      }
+      gameCache.set(id,{
+        gameEngine:eng,
+        checkersBoard:data.checkersBoard?[...data.checkersBoard]:null,
+        isMyTurn:data.isMyTurn,
+        isAIGame:true,
+        currentGame:fakeGame,
+        createdAt:data.createdAt||Date.now(),
+      });
+    }
+  }catch(e){}
+}
+
+function saveGameState(){
+  if(!currentGameId)return;
+  gameCache.set(currentGameId,{
+    gameEngine:gameEngine?new Chess(gameEngine.fen()):null,
+    checkersBoard:checkersBoard?[...checkersBoard]:null,
+    isMyTurn,isAIGame,currentGame,lastState,
+    createdAt:gameCache.get(currentGameId)?.createdAt||Date.now(),
+  });
+  if(isAIGame)saveAIGamesToStorage();
+}
+
+// ── UTILITY ──
+function delay(ms){return new Promise(r=>setTimeout(r,ms));}
+function isMobile(){return window.innerWidth<=768;}
+
+function toast(msg,type='ok'){
+  const el=document.createElement('div');
+  el.className=`toast ${type}`;
+  el.textContent=msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>el.remove(),type==='er'?7000:4500);
+}
+
+// FIX B2 (Forensic): robust revert reason decoder
+function decodeErr(e){
+  if(e.reason)return e.reason;
+  const tryDecode=d=>{
+    if(typeof d==='string'&&d.startsWith('0x08c379a0')){
+      try{const hex=d.slice(10);const len=parseInt(hex.slice(64,128),16);return decodeURIComponent(hex.slice(128,128+len*2).replace(/../g,c=>'%'+c));}catch(_){}
+    }
+    return null;
+  };
+  let r=null;
+  try{r=tryDecode(e.error?.error?.data);}catch(_){}
+  if(r)return r;
+  try{r=tryDecode(e.error?.data);}catch(_){}
+  if(r)return r;
+  try{r=tryDecode(e.data);}catch(_){}
+  if(r)return r;
+  if(e.error?.message){const m=e.error.message.match(/reverted[^:]*:\s*(.+)/i);if(m)return m[1].trim();}
+  if(e.message){const m=e.message.match(/reverted[^:]*:\s*(.+)/i);if(m)return m[1].trim();return e.message;}
+  return 'Unknown error';
+}
+
+// ── NAVIGATION ──
+function goView(id,el){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const v=document.getElementById('view-'+id);
+  if(v)v.classList.add('active');
+  if(el)el.classList.add('active');
+  if(id==='staking'&&isConnected)loadStakingData();
+  if(id==='stats'&&isConnected)loadStats();
+  if(id==='gateway'&&isConnected)loadGateway();
+  if(id==='bridge'&&isConnected)loadBridgeData();
+  if(id==='discovery')loadDiscovery();
+  if(id==='social'){loadMyRooms();loadPublicRooms();if(currentSocialRoomId)loadSocialMsgs();}
+  if(id==='admin'&&isConnected){checkOwner();loadAdminData();}
+  if(id==='dao'&&isConnected)loadDAOData();
+}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function mobSwitch(tab){
+  if(!isMobile())return;
+  document.querySelectorAll('.mob-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.mob-panel').forEach(p=>p.classList.remove('active'));
+  const map={game:'mobPanelGame',board:'mobPanelBoard',chat:'mobPanelChat'};
+  document.getElementById('mobTab'+tab.charAt(0).toUpperCase()+tab.slice(1))?.classList.add('active');
+  document.getElementById(map[tab])?.classList.add('active');
+}
+function syncMobChat(){
+  const d=document.getElementById('gameChatBox');
+  const m=document.getElementById('gameChatBoxMob');
+  if(d&&m)m.innerHTML=d.innerHTML;
+}
+async function sendGameChatMob(){
+  const inp=document.getElementById('gameChatInputMob');
+  if(!inp)return;
+  document.getElementById('gameChatInput').value=inp.value;
+  inp.value='';
+  await sendGameChat();
+  syncMobChat();
+}
+
+// ── WALLET ──
+async function toggleWallet(){if(isConnected)disconnect();else await connect();}
+async function connect(){
+  try{
+    const eth=window.ethereum;
+    if(!eth){
+      if(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)){window.location.href=`https://metamask.app.link/dapp/${location.host}${location.pathname}`;return;}
+      throw new Error('Install MetaMask or a Web3 wallet');
+    }
+    const safeMsg=msg=>{const m=(msg||'').toLowerCase();return m.includes('already')||m.includes('same rpc')||m.includes('exists');};
+    try{
+      await eth.request({method:'wallet_switchEthereumChain',params:[{chainId:CORE_CHAIN.chainId}]});
+    }catch(switchErr){
+      if(switchErr.code===4902){
+        try{await eth.request({method:'wallet_addEthereumChain',params:[CORE_CHAIN]});}
+        catch(addErr){if(!safeMsg(addErr.message))throw addErr;}
+      }else if(switchErr.code!==4001&&!safeMsg(switchErr.message))throw switchErr;
+    }
+    provider=new ethers.providers.Web3Provider(eth);
+    await provider.send('eth_requestAccounts',[]);
+    signer=provider.getSigner();
+    userAddr=await signer.getAddress();
+    hub=new ethers.Contract(C.HUB,HUB_ABI,signer);
+    rewards=new ethers.Contract(C.REWARDS,REWARDS_ABI,signer);
+    stakingC=new ethers.Contract(C.STAKING,STAKING_ABI,signer);
+    gateway=new ethers.Contract(C.GATEWAY,GATEWAY_ABI,signer);
+    bridge=new ethers.Contract(C.BRIDGE,BRIDGE_ABI,signer);
+    social=new ethers.Contract(C.SOCIAL,SOCIAL_ABI,signer);
+    gameChat=new ethers.Contract(C.GAMECHAT,GAMECHAT_ABI,signer);
+    realm=new ethers.Contract(C.REALM,ERC20_ABI,signer);
+    isConnected=true;
+    const short=userAddr.slice(0,6)+'…'+userAddr.slice(-4);
+    document.getElementById('wAddr').textContent=short;
+    document.getElementById('walletInfo').style.display='flex';
+    document.getElementById('connectBtn').textContent='Disconnect';
+    document.getElementById('connectBtn').classList.add('disc');
+    document.getElementById('myDiscName').textContent=short;
+    document.getElementById('statsName').textContent=short;
+    document.getElementById('rRefCode').textContent=userAddr;
+
+    // FIX BUG-02: check tradingEnabled immediately after connect
+    try{
+      const tradingOk=await realm.tradingEnabled();
+      const banner=document.getElementById('tradingBanner');
+      if(banner)banner.style.display=tradingOk?'none':'inline-block';
+      if(!tradingOk)toast('⚠️ REALM trading not yet enabled — transactions will fail','er');
+    }catch(e){}
+
+    // FIX B4 (Forensic): restore AI games from sessionStorage
+    loadAIGamesFromStorage();
+    // FIX B6 (Forensic): restore local AI win count
+    try{localAIWins=parseInt(sessionStorage.getItem('cr_aiwins')||'0');}catch(e){}
+    document.getElementById('stAIWins').textContent=localAIWins;
+    updateBal();loadOpenGames();loadMyGames();loadGateway();
+    checkOwner();startPolling();
+    toast('✅ Connected to Core Mainnet!','ok');
+    const p=new URLSearchParams(location.search);
+    if(p.get('game'))setTimeout(()=>loadGame(parseInt(p.get('game'))),1500);
+    eth.on('accountsChanged',a=>{if(!a.length)disconnect();else connect();});
+    eth.on('chainChanged',()=>location.reload());
+  }catch(e){toast('❌ '+e.message,'er');}
+}
+function disconnect(){
+  isConnected=false;userAddr=null;
+  hub=rewards=stakingC=gateway=bridge=social=gameChat=realm=null;
+  if(chatPollTimer)clearInterval(chatPollTimer);
+  if(socialPollTimer)clearInterval(socialPollTimer);
+  if(challengeWindowTimer)clearInterval(challengeWindowTimer);
+  document.getElementById('walletInfo').style.display='none';
+  document.getElementById('connectBtn').textContent='Connect';
+  document.getElementById('connectBtn').classList.remove('disc');
+  const banner=document.getElementById('tradingBanner');
+  if(banner)banner.style.display='none';
+  toast('Disconnected','in');
+}
+async function updateBal(){
+  if(!realm||!userAddr)return;
+  try{
+    const b=await realm.balanceOf(userAddr);
+    const f=parseFloat(ethers.utils.formatEther(b)).toLocaleString(undefined,{maximumFractionDigits:2});
+    document.getElementById('realmBal').innerHTML=`${f} <small>REALM</small>`;
+  }catch(e){}
+}
+function startPolling(){
+  setInterval(()=>{if(isConnected)updateBal();},8000);
+  setInterval(()=>{if(isConnected&&currentGameId&&!loadingGame)pollGameState();},2000);
+  setInterval(()=>{if(isConnected){loadOpenGames();loadMyGames();}},30000);
+  if(socialPollTimer)clearInterval(socialPollTimer);
+  socialPollTimer=setInterval(()=>{if(isConnected&&currentSocialRoomId)loadSocialMsgs();},12000);
+}
+
+// ── GAME MANAGEMENT ──
+async function approve(spender,amount){
+  const al=await realm.allowance(userAddr,spender);
+  if(al.lt(amount)){
+    toast('⏳ Approving REALM…','in');
+    const tx=await realm.approve(spender,ethers.constants.MaxUint256);
+    await tx.wait();
+  }
+}
+function onAIToggle(){
+  const ai=document.getElementById('isAI').checked;
+  document.getElementById('aiInfo').style.display=ai?'':'none';
+  document.getElementById('p2pInfo').style.display=ai?'none':'';
+  document.getElementById('stakeAmt').disabled=ai;
+  document.getElementById('stakeAmt').style.opacity=ai?'0.4':'1';
+}
+setTimeout(()=>{try{onAIToggle();}catch(e){}},500);
+
+// FIX B6 (Forensic): challenge-window countdown helpers
+function startChallengeCountdown(secsLeft){
+  if(challengeWindowTimer)clearInterval(challengeWindowTimer);
+  const bar=document.getElementById('challengeCountdown');
+  const secsEl=document.getElementById('cdSecs');
+  if(!bar||!secsEl)return;
+  let remaining=secsLeft;
+  bar.style.display='block';
+  secsEl.textContent=remaining;
+  // disable chess/checkers clicks during window
+  document.querySelectorAll('.sq').forEach(sq=>{sq.style.pointerEvents='none';});
+  challengeWindowTimer=setInterval(()=>{
+    remaining--;
+    secsEl.textContent=remaining;
+    if(remaining<=0){
+      clearInterval(challengeWindowTimer);
+      bar.style.display='none';
+      document.querySelectorAll('.sq').forEach(sq=>{sq.style.pointerEvents='';});
+      toast('✅ Challenge window expired — you can move now','ok');
+    }
+  },1000);
+}
+function clearChallengeCountdown(){
+  if(challengeWindowTimer)clearInterval(challengeWindowTimer);
+  const bar=document.getElementById('challengeCountdown');
+  if(bar)bar.style.display='none';
+  document.querySelectorAll('.sq').forEach(sq=>{sq.style.pointerEvents='';});
+}
+
+async function createGame(){
+  if(!hub)return toast('Connect wallet first','er');
+  const gType=document.getElementById('gameType').value;
+  if(gType==='8ball'||gType==='penalty')return toast('8-Ball and Penalty coming soon!','in');
+  const isAI=document.getElementById('isAI').checked;
+
+  // FIX BUG-02: block if trading disabled (P2P only — AI is local)
+  if(!isAI){
+    try{
+      const tradingOk=await realm.tradingEnabled();
+      if(!tradingOk)return toast('REALM trading not yet enabled — cannot create P2P game','er');
+    }catch(e){}
+  }
+
+  try{
+    let stake,fee;
+    if(isAI){stake=ethers.BigNumber.from(0);fee=ethers.BigNumber.from(0);}
+    else{
+      const stakeF=parseFloat(document.getElementById('stakeAmt').value)||10;
+      if(stakeF<1)return toast('Minimum stake is 1 REALM','er');
+      stake=ethers.utils.parseEther(stakeF.toString());
+      // FIX BUG-18: use effectiveFee if available
+      let baseFee=stake.mul(250).div(10000);
+      try{fee=await rewards.effectiveFee(userAddr,baseFee);}catch(e){fee=baseFee;}
+      await approve(C.HUB,stake.add(fee));
+    }
+    const isPrivate=document.getElementById('isPrivate').checked;
+    const win=parseInt(document.getElementById('chalWin').value)||180;
+    const verifier=gType==='chess'?C.CHESS_V:(gType==='checkers'?C.CHECKERS_V:ethers.constants.AddressZero);
+
+    if(isAI){
+      const localId=-(Date.now()%1000000);
+      toast('🤖 AI game started!','ok');
+      isAIGame=true; currentGameId=localId;
+      const fakeGame={
+        creator:userAddr,player2:ethers.constants.AddressZero,
+        stake:ethers.BigNumber.from(0),creatorFee:ethers.BigNumber.from(0),
+        isPrivate:false,isAI:true,active:true,
+        gameType:gType,currentState:'',turn:0,
+        verifier:ethers.constants.AddressZero,
+        challengeWindow:ethers.BigNumber.from(180),
+        lastMoveTime:ethers.BigNumber.from(Math.floor(Date.now()/1000))
+      };
+      currentGame=fakeGame;
+      // FIX B5 (Forensic): fetch initial FEN from contract for consistent state
+      let initFen='';
+      try{initFen=await hub.initialFen(gType);}catch(e){}
+      if(gType==='chess')await initChess(localId,fakeGame,initFen);
+      else await initCheckers(localId,fakeGame,initFen);
+      document.getElementById('forfeitBtn').disabled=false;
+      document.getElementById('shareBtn').disabled=true;
+      document.getElementById('challengeBtn').disabled=true;
+      document.getElementById('gameChatSendBtn').disabled=true;
+      hideClaimWinBar();
+      clearChallengeCountdown();
+      saveGameState();
+      loadMyGames();
+      goView('play',document.getElementById('nav-play'));
+      if(isMobile())mobSwitch('board');
+      return;
+    }
+
+    toast('⏳ Creating game…','in');
+    const tx=await hub.createGame(gType,stake,isPrivate,isAI,verifier,win,{gasLimit:900000});
+    const rc=await tx.wait();
+    toast('✅ Game created!','ok');
+    await loadOpenGames();await loadMyGames();
+    // FIX BUG-20: read game ID from event instead of gameCount()
+    const event=rc.events?.find(e=>e.event==='GameCreated');
+    const gameId=event?.args?.id?.toNumber()||((await hub.gameCount()).toNumber());
+    setTimeout(()=>{loadGame(gameId);if(isMobile())mobSwitch('board');},500);
+  }catch(e){toast('❌ '+(e.reason||e.message),'er');}
+}
+
+// FIX B3 (Forensic): Persistent claim-win bar helpers
+function showClaimWinBar(gameId,msg){
+  pendingWinGameId=gameId;
+  const bar=document.getElementById('claimWinBar');
+  const msgEl=document.getElementById('claimWinMsg');
+  if(bar)bar.classList.add('show');
+  if(msgEl&&msg)msgEl.textContent=msg;
+}
+function hideClaimWinBar(){
+  pendingWinGameId=null;
+  const bar=document.getElementById('claimWinBar');
+  if(bar)bar.classList.remove('show');
+}
+async function retryClaimWin(){
+  if(!pendingWinGameId)return toast('No pending win to claim','er');
+  await declareWin(pendingWinGameId);
+}
+
+// FIX B4 (Forensic): Render local AI games in My Active Games list
+function renderLocalAIGames(){
+  let out='';
+  const sorted=[...gameCache.entries()]
+    .filter(([id,c])=>id<0&&c.isAIGame)
+    .sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+  for(const[id,cached]of sorted){
+    const gType=cached.currentGame?.gameType||'chess';
+    const ic={chess:'♟️',checkers:'🎯','8ball':'🎱',penalty:'⚽'}[gType]||'🎮';
+    const turnTxt=cached.isMyTurn?'🟢 YOUR TURN':'⏳ AI thinking';
+    out+=`<div class="game-item" onclick="loadGame(${id})">
+      <div class="gi-id">${ic} AI Practice <span class="gi-local">LOCAL</span></div>
+      <div class="gi-meta">${gType.toUpperCase()} · Free · ${turnTxt}</div>
+    </div>`;
+  }
+  return out;
+}
+
+async function loadOpenGames(){
+  if(!hub||!userAddr)return;
+  const el=document.getElementById('openGames');
+  try{
+    const cnt=(await hub.gameCount()).toNumber();
+    const ids=[];
+    for(let i=cnt;i>=Math.max(1,cnt-40);i--)ids.push(i);
+    const BATCH=10;const rows=[];
+    for(let b=0;b<ids.length;b+=BATCH){
+      const slice=ids.slice(b,b+BATCH);
+      const res=await Promise.all(slice.map(i=>hub.games(i).catch(()=>null)));
+      res.forEach((g,j)=>{if(g)rows.push({id:slice[j],g});});
+    }
+    let out='';
+    for(const{id,g}of rows){
+      if(!g.active)continue;
+      const isMe=g.creator.toLowerCase()===userAddr.toLowerCase();
+      const noP2=g.player2===ethers.constants.AddressZero;
+      if(noP2&&!g.isPrivate&&!g.isAI&&!isMe){
+        const ic={chess:'♟️',checkers:'🎯','8ball':'🎱',penalty:'⚽'}[g.gameType]||'🎮';
+        out+=`<div class="game-item" onclick="joinGame(${id})"><div class="gi-id">🟢 Game #${id} — Join</div><div class="gi-meta">${ic} ${g.gameType.toUpperCase()} · ${ethers.utils.formatEther(g.stake)} REALM · ${g.creator.slice(0,8)}…</div></div>`;
+      }
+    }
+    el.innerHTML=out||'<p style="color:var(--dim);font-size:10px;text-align:center;padding:14px">No open games found</p>';
+  }catch(e){console.error('loadOpenGames',e);}
+}
+
+// FIX B4 (Forensic): loadMyGames prepends local AI games from gameCache
+async function loadMyGames(){
+  const el=document.getElementById('myGames');
+  let out=renderLocalAIGames();
+  if(!hub||!userAddr){el.innerHTML=out||'<p style="color:var(--dim);font-size:10px;text-align:center;padding:16px">No active games</p>';return;}
+  try{
+    const cnt=(await hub.gameCount()).toNumber();
+    const ids=[];
+    for(let i=cnt;i>=Math.max(1,cnt-60);i--)ids.push(i);
+    const BATCH=10;const rows=[];
+    for(let b=0;b<ids.length;b+=BATCH){
+      const slice=ids.slice(b,b+BATCH);
+      const res=await Promise.all(slice.map(i=>hub.games(i).catch(()=>null)));
+      res.forEach((g,j)=>{if(g)rows.push({id:slice[j],g});});
+    }
+    for(const{id,g}of rows){
+      if(!g.active)continue;
+      const me=g.creator.toLowerCase()===userAddr.toLowerCase()||
+        (g.player2!==ethers.constants.AddressZero&&g.player2.toLowerCase()===userAddr.toLowerCase());
+      if(!me)continue;
+      const ic={chess:'♟️',checkers:'🎯','8ball':'🎱',penalty:'⚽'}[g.gameType]||'🎮';
+      out+=`<div class="game-item" onclick="loadGame(${id})"><div class="gi-id">⚔️ Game #${id}</div><div class="gi-meta">${ic} ${g.gameType.toUpperCase()} · ${g.isAI?'🤖 AI':'👥 P2P'} · ${ethers.utils.formatEther(g.stake)} REALM</div></div>`;
+    }
+    el.innerHTML=out||'<p style="color:var(--dim);font-size:10px;text-align:center;padding:16px">No active games</p>';
+  }catch(e){console.error('loadMyGames',e);}
+}
+
+async function refreshGames(){
+  if(!hub)return toast('Connect wallet first','er');
+  toast('🔄 Refreshing…','in');
+  await Promise.all([loadOpenGames(),loadMyGames()]);
+  toast('✅ Refreshed','ok');
+}
+
+async function joinGame(id){
+  if(!hub)return;
+  try{
+    const g=await hub.games(id);
+    // FIX BUG-18: use effectiveFee
+    const baseFee=g.stake.mul(250).div(10000);
+    let fee=baseFee;
+    try{fee=await rewards.effectiveFee(userAddr,baseFee);}catch(e){}
+    await approve(C.HUB,g.stake.add(fee));
+    const tx=await hub.joinGame(id,{gasLimit:500000});
+    toast('⏳ Joining…','in');
+    await tx.wait();
+    toast('✅ Joined game #'+id,'ok');
+    loadGame(id);loadOpenGames();loadMyGames();
+  }catch(e){toast('❌ '+(e.reason||e.message),'er');}
+}
+
+async function loadGame(id){
+  if(loadingGame)return;
+
+  // Negative IDs = local AI games
+  if(id<0){
+    const cached=gameCache.get(id);
+    if(!cached||!cached.isAIGame){toast('AI game not found','in');return;}
+    if(currentGameId&&currentGameId!==id)saveGameState();
+    currentGameId=id;currentGame=cached.currentGame;isAIGame=true;
+    isMyTurn=cached.isMyTurn;
+    gameEngine=cached.gameEngine?new Chess(cached.gameEngine.fen()):null;
+    checkersBoard=cached.checkersBoard?[...cached.checkersBoard]:null;
+    ckSelected=null;moveFrom=null;
+    clearChallengeCountdown();
+    document.getElementById('boardContainer').style.display='none';
+    if(gameEngine){document.getElementById('boardGrid').style.gridTemplateColumns='repeat(8,1fr)';renderChessBoard();}
+    else if(checkersBoard)renderCheckersBoard();
+    document.getElementById('gameInfoBar').innerHTML=
+      `AI · ${(cached.currentGame?.gameType||'GAME').toUpperCase()}<br>
+       <span class="${isMyTurn?'turn-you':'turn-opp'}">${isMyTurn?'🟢 YOUR TURN':'⏳ AI thinking…'}</span>`;
+    document.getElementById('boardContainer').style.display='block';
+    document.getElementById('forfeitBtn').disabled=false;
+    document.getElementById('shareBtn').disabled=true;
+    document.getElementById('challengeBtn').disabled=true;
+    document.getElementById('gameChatSendBtn').disabled=true;
+    hideClaimWinBar();
+    goView('play',document.getElementById('nav-play'));
+    if(isMobile())mobSwitch('board');
+    return;
+  }
+
+  if(currentGameId&&currentGameId!==id)saveGameState();
+  loadingGame=true;
+  try{
+    currentGameId=id;
+    const g=await hub.games(id);
+    currentGame=g;
+    // FIX BUG-25: P2P games from hub are always on-chain, never local AI
+    isAIGame=false;
+    let state=g.currentState;
+    if(!state||state===''){try{state=await hub.initialFen(g.gameType);}catch(e){}}
+    clearChallengeCountdown();
+    document.getElementById('boardContainer').style.display='none';
+    if(g.gameType==='chess')await initChess(id,g,state);
+    else if(g.gameType==='checkers')await initCheckers(id,g,state);
+    else{toast('8-Ball & Penalty coming soon!','in');return;}
+    document.getElementById('forfeitBtn').disabled=false;
+    document.getElementById('shareBtn').disabled=false;
+    document.getElementById('challengeBtn').disabled=false;
+    document.getElementById('gameChatSendBtn').disabled=false;
+    if(chatPollTimer)clearInterval(chatPollTimer);
+    loadGameChatMsgs();
+    chatPollTimer=setInterval(loadGameChatMsgs,10000);
+    goView('play',document.getElementById('nav-play'));
+    lastState=buildStateKey(g);
+    saveGameState();
+    if(isMobile())mobSwitch('board');
+
+    // FIX B6 (Forensic): if it's opponent's turn and challenge window is still active, show countdown
+    if(!isMyTurn&&g.active){
+      const elapsed=Math.floor(Date.now()/1000)-g.lastMoveTime.toNumber();
+      const windowSecs=g.challengeWindow.toNumber();
+      const remaining=windowSecs-elapsed;
+      if(remaining>0)startChallengeCountdown(remaining);
+    }
+  }catch(e){
+    console.error('loadGame error:',e);
+    toast('❌ Error loading game: '+(e.reason||e.message),'er');
+  }finally{loadingGame=false;}
+}
+
+function buildStateKey(g){return `${g.currentState}|${Number(g.turn)}|${g.active}|${g.player2}`;}
+
+async function pollGameState(){
+  if(!hub||!currentGameId||loadingGame||isAIGame||currentGameId<0)return;
+  try{
+    const g=await hub.games(currentGameId);
+    const key=buildStateKey(g);
+    if(!lastState){lastState=key;return;}
+    if(key!==lastState){gameCache.delete(currentGameId);gameEngine=null;checkersBoard=null;lastState=key;await loadGame(currentGameId);}
+  }catch(e){}
+}
+
+// FIX B2 (Forensic): FORFEIT — always re-fetch from chain, raised gas, decoded errors
+async function forfeit(){
+  if(!currentGameId)return toast('No game loaded','er');
+  if(!confirm('Forfeit this game? Opponent receives your stake.'))return;
+
+  if(isAIGame||currentGameId<0){
+    gameCache.delete(currentGameId);
+    saveAIGamesToStorage();
+    currentGameId=null;lastState=null;
+    clearChallengeCountdown();
+    document.getElementById('boardContainer').style.display='none';
+    document.getElementById('gameInfoBar').textContent='AI game ended';
+    document.getElementById('forfeitBtn').disabled=true;
+    document.getElementById('shareBtn').disabled=true;
+    document.getElementById('challengeBtn').disabled=true;
+    hideClaimWinBar();
+    toast('AI game ended','ok');
+    loadMyGames();
+    return;
+  }
+
+  if(!hub)return toast('Connect wallet first','er');
+  try{
+    // FIX B2 (Forensic): ALWAYS re-fetch game state from chain
+    const g=await hub.games(currentGameId);
+    if(!g.active)return toast('Game is no longer active','er');
+
+    const noPlayer2=g.player2===ethers.constants.AddressZero;
+    const isCreator=g.creator.toLowerCase()===userAddr.toLowerCase();
+    const isPlayer2=!noPlayer2&&g.player2.toLowerCase()===userAddr.toLowerCase();
+
+    if(!isCreator&&!isPlayer2)return toast('You are not a player in this game','er');
+
+    // FIX B2 (Forensic): guard against stale player2=0 for non-creator
+    if(noPlayer2&&!isCreator)return toast('Only the game creator can cancel before an opponent joins','er');
+
+    let tx;
+    if(noPlayer2&&isCreator){
+      toast('⏳ Cancelling game…','in');
+      tx=await hub.cancelUnjoinedGame(currentGameId,{gasLimit:400000});
+      await tx.wait();
+      toast('✅ Game cancelled — stake refunded','ok');
+    }else if(!noPlayer2){
+      const opponent=isCreator?g.player2:g.creator;
+      toast('⏳ Forfeiting — paying opponent…','in');
+      // FIX B2 (Forensic): gas raised from 500k → 800k to cover NFT mint chain
+      tx=await hub.declareWinner(currentGameId,opponent,{gasLimit:800000});
+      await tx.wait();
+      toast('✅ Forfeited — opponent paid','ok');
+    }
+
+    const gid=currentGameId;
+    currentGameId=null;lastState=null;gameCache.delete(gid);
+    clearChallengeCountdown();
+    document.getElementById('boardContainer').style.display='none';
+    document.getElementById('gameInfoBar').textContent='Game ended';
+    document.getElementById('forfeitBtn').disabled=true;
+    document.getElementById('shareBtn').disabled=true;
+    document.getElementById('challengeBtn').disabled=true;
+    hideClaimWinBar();
+    loadOpenGames();loadMyGames();
+    setTimeout(loadStats,3000);
+  }catch(e){
+    // FIX B2 (Forensic): decode revert reason
+    const reason=decodeErr(e);
+    console.error('forfeit error:',e);
+    toast('❌ Forfeit failed: '+reason.slice(0,200),'er');
+  }
+}
+
+function shareGame(){
+  if(!currentGameId||currentGameId<0)return toast('No shareable game loaded','er');
+  const url=location.href.split('?')[0]+'?game='+currentGameId;
+  navigator.clipboard.writeText(url).then(()=>toast('✅ Link copied!','ok'));
+}
+
+// ──────────────────────────────────────────
+// CHESS
+// ──────────────────────────────────────────
+async function initChess(id,g,fen){
+  checkersBoard=null;ckSelected=null;
+  document.getElementById('boardGrid').style.gridTemplateColumns='repeat(8,1fr)';
+  try{gameEngine=new Chess(fen);}catch(e){gameEngine=new Chess();}
+  const amCreator=g.creator.toLowerCase()===userAddr.toLowerCase();
+  const turn=gameEngine.fen().split(' ')[1];
+  const stakeStr=ethers.utils.formatEther(g.stake);
+  isMyTurn=isAIGame?(turn==='w'):((turn==='w'&&amCreator)||(turn==='b'&&!amCreator));
+  renderChessBoard();
+  if(!g.active){
+    document.getElementById('gameInfoBar').innerHTML=`Game #${id} · CHESS · ${stakeStr} REALM<br><span style="color:var(--gold)">🏁 Settled on-chain</span>`;
+    isMyTurn=false;return;
+  }
+  if(gameEngine.game_over()){
+    const mated=gameEngine.in_checkmate();
+    const drawn=gameEngine.in_draw()||gameEngine.in_stalemate();
+    const weWon=mated&&!isMyTurn;
+    const color=weWon?'var(--green)':(mated?'var(--red)':'var(--gold)');
+    const msg=weWon?'🏆 Checkmated opponent!':(mated?'💀 You were checkmated':(drawn?'🤝 Draw':'🏁 Game over'));
+    document.getElementById('gameInfoBar').innerHTML=`Game #${id} · CHESS<br><span style="color:${color}">${msg}</span>`;
+    isMyTurn=false;document.getElementById('forfeitBtn').disabled=true;document.getElementById('challengeBtn').disabled=true;
+    if(mated&&weWon&&!isAIGame){toast('🏆 Checkmated position — claiming win…','ok');setTimeout(()=>declareWin(id),1000);}
+    return;
+  }
+  document.getElementById('gameInfoBar').innerHTML=
+    `Game #${id} · CHESS · ${stakeStr} REALM · 👥 P2P<br>
+     <span class="${isMyTurn?'turn-you':'turn-opp'}">${isMyTurn?'🟢 YOUR TURN':'⏳ Opponent\'s turn…'}</span>`;
+  if(isAIGame&&!isMyTurn&&!gameEngine.game_over()&&!aiRunning)setTimeout(doChessAI,1500);
+}
+
+// FIX B1 (Forensic): renderChessBoard — .cp uses cqw via CSS, no inline font-size
+function renderChessBoard(){
+  if(!gameEngine)return;
+  const wrap=document.getElementById('boardContainer');
+  const grid=document.getElementById('boardGrid');
+  grid.style.gridTemplateColumns='repeat(8,1fr)';
+  wrap.style.display='block';grid.innerHTML='';
+  const board=gameEngine.board();
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+    const sq=document.createElement('div');
+    sq.className=`sq ${(r+c)%2===0?'lt':'dk'}`;
+    sq.dataset.r=r;sq.dataset.c=c;
+    const _r=r,_c=c;
+    sq.onclick=()=>onChessSq(_r,_c);
+    sq.ontouchend=e=>{e.preventDefault();onChessSq(_r,_c);};
+    const piece=board[r][c];
+    if(piece){
+      const span=document.createElement('span');
+      const key=piece.color==='w'?piece.type.toUpperCase():piece.type;
+      // FIX B1 (Forensic): .cp uses clamp(18px,9cqw,56px) — see CSS
+      // width/height 100% + flex centering ensures glyph fills cell at any size
+      span.className=`cp ${piece.color==='w'?'w':'b'}`;
+      span.textContent=PIECES[key]||piece.type.toUpperCase();
+      sq.appendChild(span);
+    }
+    grid.appendChild(sq);
+  }
+}
+
+function onChessSq(r,c){
+  if(!gameEngine||!isMyTurn){if(!isMyTurn)toast('Not your turn!','er');return;}
+  const files='abcdefgh';
+  const sqName=files[c]+(8-r);
+  if(!moveFrom){
+    const piece=gameEngine.get(sqName);
+    if(!piece)return;
+    const turn=gameEngine.fen().split(' ')[1];
+    if(piece.color!==turn)return toast('Not your piece!','er');
+    moveFrom=sqName;clearBoardHighlights();
+    document.querySelector(`[data-r="${r}"][data-c="${c}"]`)?.classList.add('sel');
+    gameEngine.moves({square:sqName,verbose:true}).forEach(m=>{
+      const tr=8-parseInt(m.to[1]),tc=m.to.charCodeAt(0)-97;
+      document.querySelector(`[data-r="${tr}"][data-c="${tc}"]`)?.classList.add('hint');
+    });
+  }else{
+    if(moveFrom===sqName){moveFrom=null;clearBoardHighlights();return;}
+    const piece=gameEngine.get(sqName);
+    const turn=gameEngine.fen().split(' ')[1];
+    if(piece&&piece.color===turn){
+      moveFrom=sqName;clearBoardHighlights();
+      document.querySelector(`[data-r="${r}"][data-c="${c}"]`)?.classList.add('sel');
+      return;
+    }
+    submitChessMove(moveFrom,sqName);
+  }
+}
+function clearBoardHighlights(){document.querySelectorAll('.sq').forEach(s=>s.classList.remove('sel','hint'));}
+
+async function submitChessMove(from,to){
+  const test=gameEngine.move({from,to,promotion:'q'});
+  if(!test){toast('Invalid move!','er');moveFrom=null;clearBoardHighlights();return;}
+  const moveStr=from+to;
+  const mated=gameEngine.in_checkmate();
+  const drawn=gameEngine.in_stalemate()||gameEngine.in_draw();
+  const newFen=gameEngine.fen();
+  renderChessBoard();moveFrom=null;
+
+  if(isAIGame){
+    if(mated){toast('♟️ Checkmate — you win!','ok');endAIGame(currentGameId);return;}
+    if(drawn){toast('Draw!','in');return;}
+    toast('Move made!','in');isMyTurn=false;setTimeout(doChessAI,800);return;
+  }
+
+  toast('⏳ Submitting move…','in');
+  try{
+    const tx=await hub.makeMove(currentGameId,moveStr,newFen,{gasLimit:800000});
+    await tx.wait();
+    if(mated){
+      toast('♟️ Checkmate confirmed!','ok');
+      isMyTurn=false;
+      document.getElementById('forfeitBtn').disabled=true;
+      document.getElementById('challengeBtn').disabled=true;
+      document.getElementById('gameInfoBar').innerHTML='<span style="color:var(--green)">🏆 Collecting winnings…</span>';
+      clearBoardHighlights();
+      // FIX B3 (Forensic): 2s delay for RPC propagation before declareWinner
+      await delay(2000);
+      await declareWin(currentGameId);
+      return;
+    }else if(drawn){toast('🤝 Draw!','in');}
+    else{toast('✅ Move confirmed!','ok');}
+    clearBoardHighlights();lastState=null;
+    await delay(1500);await loadGame(currentGameId);
+  }catch(e){
+    gameEngine.undo();renderChessBoard();clearBoardHighlights();
+    const reason=(e.reason||e.message||'').toLowerCase();
+    // FIX B6 (Forensic): show countdown on challenge window error
+    if(reason.includes('challenge')||reason.includes('window')){
+      toast('⏳ Challenge window active — wait for countdown','in');
+      // re-fetch to get accurate remaining time
+      try{
+        const g=await hub.games(currentGameId);
+        const elapsed=Math.floor(Date.now()/1000)-g.lastMoveTime.toNumber();
+        const remaining=g.challengeWindow.toNumber()-elapsed;
+        if(remaining>0)startChallengeCountdown(remaining);
+      }catch(e2){}
+    }else if(reason.includes('not your turn')||reason.includes('sender'))toast('❌ Not your turn on-chain — reload the game','er');
+    else toast('❌ Tx failed: '+decodeErr(e).slice(0,120),'er');
+  }
+}
+
+async function doChessAI(){
+  if(!gameEngine||!isAIGame||isMyTurn||gameEngine.game_over()||aiRunning)return;
+  aiRunning=true;document.getElementById('aiThinking').style.display='block';
+  try{
+    await delay(900);
+    const best=bestChessMove(gameEngine,2);
+    if(!best){isMyTurn=true;return;}
+    gameEngine.move(best);renderChessBoard();
+    if(gameEngine.in_checkmate()){toast('🤖 AI wins by checkmate!','er');endAIGame(currentGameId);return;}
+    toast('🤖 AI: '+best.from+'→'+best.to,'in');
+    isMyTurn=true;
+    document.getElementById('gameInfoBar').innerHTML=
+      `Game #${currentGameId} · CHESS · 🤖 AI<br><span class="turn-you">🟢 YOUR TURN</span>`;
+    saveGameState();
+  }catch(e){if(gameEngine)try{gameEngine.undo();}catch(e2){}}
+  finally{aiRunning=false;document.getElementById('aiThinking').style.display='none';}
+}
+function bestChessMove(chess,depth){
+  const moves=chess.moves({verbose:true});if(!moves.length)return null;
+  let best=moves[0],bestV=-99999;
+  for(const m of moves){chess.move(m);const v=-minimax(chess,depth-1,-10000,10000,false);chess.undo();if(v>bestV){bestV=v;best=m;}}
+  return best;
+}
+function minimax(ch,d,a,b,mx){
+  if(!d)return evalBoard(ch.board());
+  const mvs=ch.moves({verbose:true});if(!mvs.length)return ch.in_checkmate()?(mx?-9999:9999):0;
+  if(mx){let v=-10000;for(const m of mvs){ch.move(m);v=Math.max(v,-minimax(ch,d-1,a,b,!mx));ch.undo();a=Math.max(a,v);if(b<=a)break;}return v;}
+  else{let v=10000;for(const m of mvs){ch.move(m);v=Math.min(v,-minimax(ch,d-1,a,b,!mx));ch.undo();b=Math.min(b,v);if(b<=a)break;}return v;}
+}
+function evalBoard(board){let t=0;for(let i=0;i<8;i++)for(let j=0;j<8;j++){const p=board[i][j];if(p){const v=PIE_VAL[p.type.toLowerCase()]||0;t+=(p.color==='w'?1:-1)*v;}}return t;}
+
+// ──────────────────────────────────────────
+// CHECKERS (10×10 International Draughts)
+// ──────────────────────────────────────────
+async function initCheckers(id,g,state){
+  gameEngine=null;moveFrom=null;checkersBoard=null;ckSelected=null;
+  // FIX B5 (Forensic): parseCheckersState handles both 50-cell and 100-cell formats
+  parseCheckersState(state,g.gameType);
+  const amCreator=g.creator.toLowerCase()===userAddr.toLowerCase();
+  const turn=Number(g.turn);
+  isMyTurn=isAIGame?(turn===0):(turn===0&&amCreator)||(turn===1&&!amCreator);
+  const whiteLeft=checkersBoard.filter(p=>p===1||p===3).length;
+  const blackLeft=checkersBoard.filter(p=>p===2||p===4).length;
+  const stakeStr=ethers.utils.formatEther(g.stake);
+  renderCheckersBoard();
+  if(!g.active){
+    document.getElementById('gameInfoBar').innerHTML=`Game #${id} · CHECKERS 10×10 · ${stakeStr} REALM<br><span style="color:var(--gold)">🏁 Settled on-chain</span>`;
+    isMyTurn=false;document.getElementById('forfeitBtn').disabled=true;return;
+  }
+  if(!whiteLeft||!blackLeft){
+    const amW=amCreator;const myPieces=amW?[1,3]:[2,4];const enemyPieces=amW?[2,4]:[1,3];
+    const enemyLeft=checkersBoard.filter(p=>enemyPieces.includes(p)).length;
+    const weWon=enemyLeft===0;
+    document.getElementById('gameInfoBar').innerHTML=`Game #${id} · CHECKERS · ${stakeStr}<br><span style="color:${weWon?'var(--green)':'var(--red)'}">${weWon?'🏆 You won! Claiming…':'💀 You lost'}</span>`;
+    isMyTurn=false;document.getElementById('forfeitBtn').disabled=true;
+    if(weWon&&!isAIGame){toast('🏆 No enemy pieces — claiming win…','ok');setTimeout(()=>declareWin(id),1000);}
+    else if(weWon&&isAIGame){toast('🏆 You won!','ok');setTimeout(()=>endAIGame(id),1000);}
+    return;
+  }
+  document.getElementById('gameInfoBar').innerHTML=
+    `Game #${id} · CHECKERS 10×10 · ${stakeStr} REALM<br>
+     <span class="${isMyTurn?'turn-you':'turn-opp'}">${isMyTurn?'🟢 YOUR TURN':'⏳ Opponent\'s turn…'}</span>`;
+  if(isAIGame&&!isMyTurn&&g.active&&!aiRunning)setTimeout(doCheckersAI,1500);
+}
+
+// FIX B5 (Forensic): auto-detects 50-cell (contract) vs 100-cell (frontend) format
+function parseCheckersState(state,gameType){
+  checkersBoard=new Array(100).fill(0);
+  if(!state||state===''){defaultCheckersBoard();return;}
+  try{
+    const parts=state.split('|');
+    const cells=parts[0].split(',').map(Number);
+    if(cells.length===100){
+      checkersBoard=cells;return;
+    }else if(cells.length===50){
+      // Contract 50-cell dark-square-only format: expand to 100-cell
+      let idx=0;
+      for(let r=0;r<10;r++)for(let c=0;c<10;c++){
+        if((r+c)%2===1)checkersBoard[r*10+c]=cells[idx++];
+      }
+      return;
+    }
+  }catch(e){}
+  defaultCheckersBoard();
+}
+
+function defaultCheckersBoard(){
+  checkersBoard=new Array(100).fill(0);
+  for(let r=0;r<4;r++)for(let c=0;c<10;c++){if((r+c)%2===1)checkersBoard[r*10+c]=2;}
+  for(let r=6;r<10;r++)for(let c=0;c<10;c++){if((r+c)%2===1)checkersBoard[r*10+c]=1;}
+}
+
+// FIX B5 (Forensic): always output 100-cell format
+function checkersToState(whiteTurn){return checkersBoard.join(',')+`|${whiteTurn?'w':'b'}`;}
+
+function renderCheckersBoard(){
+  const wrap=document.getElementById('boardContainer');
+  const grid=document.getElementById('boardGrid');
+  grid.style.gridTemplateColumns='repeat(10,1fr)';
+  wrap.style.display='block';grid.innerHTML='';
+  for(let r=0;r<10;r++)for(let c=0;c<10;c++){
+    const sq=document.createElement('div');
+    const isDark=(r+c)%2===1;
+    sq.className=`sq ${isDark?'dk':'lt'}`;
+    sq.dataset.r=r;sq.dataset.c=c;sq.style.aspectRatio='1';
+    const _r=r,_c=c;
+    if(isDark){sq.onclick=()=>onCheckersSq(_r,_c);sq.ontouchend=e=>{e.preventDefault();onCheckersSq(_r,_c);};}
+    const piece=checkersBoard[r*10+c];
+    if(piece>0){
+      const div=document.createElement('div');
+      const isWhite=piece===1||piece===3;
+      div.className=`ck ${isWhite?'r':'b'}`;
+      if(piece===3||piece===4)div.textContent='♛';
+      sq.appendChild(div);
+    }
+    grid.appendChild(sq);
+  }
+}
+
+function getCkMoves(r,c){
+  const idx=r*10+c;const piece=checkersBoard[idx];if(!piece)return[];
+  const isKing=piece===3||piece===4;const isWhite=piece===1||piece===3;
+  const enemy=isWhite?[2,4]:[1,3];
+  const moveDirs=isKing?[[-1,-1],[-1,1],[1,-1],[1,1]]:isWhite?[[-1,-1],[-1,1]]:[[1,-1],[1,1]];
+  const jumpDirs=[[-1,-1],[-1,1],[1,-1],[1,1]];
+  const quietMoves=[];const jumpMoves=[];
+  if(isKing){for(const[dr,dc]of moveDirs){let nr=r+dr,nc=c+dc;while(nr>=0&&nr<=9&&nc>=0&&nc<=9){if(checkersBoard[nr*10+nc])break;quietMoves.push({from:idx,to:nr*10+nc,mid:-1,jump:false});nr+=dr;nc+=dc;}}}
+  else{for(const[dr,dc]of moveDirs){const nr=r+dr,nc=c+dc;if(nr<0||nr>9||nc<0||nc>9)continue;if(!checkersBoard[nr*10+nc])quietMoves.push({from:idx,to:nr*10+nc,mid:-1,jump:false});}}
+  if(isKing){for(const[dr,dc]of jumpDirs){let nr=r+dr,nc=c+dc;while(nr>=0&&nr<=9&&nc>=0&&nc<=9){const midPiece=checkersBoard[nr*10+nc];if(midPiece){if(enemy.includes(midPiece)){const jr=nr+dr,jc=nc+dc;if(jr>=0&&jr<=9&&jc>=0&&jc<=9&&!checkersBoard[jr*10+jc]){jumpMoves.push({from:idx,to:jr*10+jc,mid:nr*10+nc,jump:true});}}break;}nr+=dr;nc+=dc;}}}
+  else{for(const[dr,dc]of jumpDirs){const mr=r+dr,mc=c+dc,jr=r+dr*2,jc=c+dc*2;if(mr<0||mr>9||mc<0||mc>9||jr<0||jr>9||jc<0||jc>9)continue;if(!enemy.includes(checkersBoard[mr*10+mc]))continue;if(checkersBoard[jr*10+jc]!==0)continue;jumpMoves.push({from:idx,to:jr*10+jc,mid:mr*10+mc,jump:true});}}
+  return jumpMoves.length>0?jumpMoves:quietMoves;
+}
+function getAllCkMoves(isWhiteTurn){
+  const myPieces=isWhiteTurn?[1,3]:[2,4];const all=[];
+  for(let r=0;r<10;r++)for(let c=0;c<10;c++){if(myPieces.includes(checkersBoard[r*10+c]))all.push(...getCkMoves(r,c));}
+  const jumps=all.filter(m=>m.jump);return jumps.length>0?jumps:all;
+}
+function onCheckersSq(r,c){
+  if(!isMyTurn){toast('Not your turn!','er');return;}
+  const idx=r*10+c;const piece=checkersBoard[idx];
+  const amCreator=currentGame&&currentGame.creator.toLowerCase()===userAddr.toLowerCase();
+  // Creator = white (1,3), Player2 = black (2,4)
+  const myPieces=isAIGame?[1,3]:(amCreator?[1,3]:[2,4]);
+  const isWhiteTurn=myPieces.includes(1);
+  const allMoves=getAllCkMoves(isWhiteTurn);
+  if(!ckSelected){
+    if(!piece||!myPieces.includes(piece))return;
+    const pieceMoves=allMoves.filter(m=>m.from===idx);
+    if(!pieceMoves.length)return toast('No legal moves for this piece','er');
+    ckSelected={r,c};document.querySelectorAll('.sq').forEach(s=>s.classList.remove('sel','hint'));
+    document.querySelector(`[data-r="${r}"][data-c="${c}"]`)?.classList.add('sel');
+    pieceMoves.forEach(m=>{const tr=Math.floor(m.to/10),tc=m.to%10;document.querySelector(`[data-r="${tr}"][data-c="${tc}"]`)?.classList.add('hint');});
+  }else{
+    const{r:fr,c:fc}=ckSelected;
+    if(fr===r&&fc===c){ckSelected=null;document.querySelectorAll('.sq').forEach(s=>s.classList.remove('sel','hint'));return;}
+    if(piece&&myPieces.includes(piece)){
+      const pm2=allMoves.filter(m=>m.from===idx);ckSelected={r,c};
+      document.querySelectorAll('.sq').forEach(s=>s.classList.remove('sel','hint'));
+      document.querySelector(`[data-r="${r}"][data-c="${c}"]`)?.classList.add('sel');
+      pm2.forEach(m=>{const tr=Math.floor(m.to/10),tc=m.to%10;document.querySelector(`[data-r="${tr}"][data-c="${tc}"]`)?.classList.add('hint');});
+      return;
+    }
+    const fromIdx=fr*10+fc,destIdx=r*10+c;
+    const mv=allMoves.find(m=>m.from===fromIdx&&m.to===destIdx);
+    if(!mv){toast('Invalid move!','er');ckSelected=null;document.querySelectorAll('.sq').forEach(s=>s.classList.remove('sel','hint'));return;}
+    submitCheckersMove(mv,fr,fc,r,c);
+  }
+}
+async function submitCheckersMove(mv,fr,fc,tr,tc){
+  const fromIdx=fr*10+fc,toIdx=tr*10+tc;
+  const piece=checkersBoard[fromIdx];
+  checkersBoard[toIdx]=piece;checkersBoard[fromIdx]=0;
+  if(mv.jump&&mv.mid>=0){mv.capturedPiece=checkersBoard[mv.mid];checkersBoard[mv.mid]=0;}
+  if(tr===0&&piece===1)checkersBoard[toIdx]=3;
+  if(tr===9&&piece===2)checkersBoard[toIdx]=4;
+  ckSelected=null;document.querySelectorAll('.sq').forEach(s=>s.classList.remove('sel','hint'));renderCheckersBoard();
+  if(mv.jump){
+    const promotedPiece=checkersBoard[toIdx];const wasPromoted=promotedPiece!==piece;
+    const chainJumps=!wasPromoted?getCkMoves(tr,tc).filter(m=>m.jump):[];
+    if(chainJumps.length>0){
+      toast('🔗 Multi-jump! Select next capture','in');isMyTurn=true;ckSelected={r:tr,c:tc};
+      document.querySelector(`[data-r="${tr}"][data-c="${tc}"]`)?.classList.add('sel');
+      chainJumps.forEach(m=>{const _r=Math.floor(m.to/10),_c=m.to%10;document.querySelector(`[data-r="${_r}"][data-c="${_c}"]`)?.classList.add('hint');});
+      return;
+    }
+  }
+  const moveStr=mv.jump?`${fromIdx}x${toIdx}`:`${fromIdx}-${toIdx}`;
+  const amCreator=currentGame&&currentGame.creator.toLowerCase()===userAddr.toLowerCase();
+  // FIX BUG-13: correct turn logic — after creator (white) moves, it's black's turn (whiteTurn=false)
+  // After player2 (black) moves, it's white's turn (whiteTurn=true)
+  const whiteTurn=!amCreator;
+  const newState=checkersToState(whiteTurn);
+  const whiteLeft=checkersBoard.filter(p=>p===1||p===3).length;
+  const blackLeft=checkersBoard.filter(p=>p===2||p===4).length;
+  if(isAIGame){if(!whiteLeft||!blackLeft){toast('🏆 Game over!','ok');endAIGame(currentGameId);return;}toast('Move made!','in');isMyTurn=false;setTimeout(doCheckersAI,800);return;}
+  toast('⏳ Submitting…','in');
+  try{
+    const tx=await hub.makeMove(currentGameId,moveStr,newState,{gasLimit:800000});
+    await tx.wait();
+    if(!whiteLeft||!blackLeft){
+      toast('🏆 Winning move confirmed!','ok');
+      isMyTurn=false;document.getElementById('forfeitBtn').disabled=true;document.getElementById('challengeBtn').disabled=true;
+      document.getElementById('gameInfoBar').innerHTML='<span style="color:var(--green)">🏆 You won! Collecting winnings…</span>';
+      // FIX B3 (Forensic): 2s delay before declareWin
+      await delay(2000);await declareWin(currentGameId);return;
+    }else{toast('✅ Move confirmed!','ok');}
+    lastState=null;await delay(1500);await loadGame(currentGameId);
+  }catch(e){
+    checkersBoard[fromIdx]=piece;checkersBoard[toIdx]=0;
+    if(mv.jump&&mv.mid>=0)checkersBoard[mv.mid]=mv.capturedPiece||0;
+    renderCheckersBoard();isMyTurn=true;
+    const reason=(e.reason||e.message||'').toLowerCase();
+    if(reason.includes('challenge')||reason.includes('window')){
+      toast('⏳ Challenge window active — wait for countdown','in');
+      try{
+        const g=await hub.games(currentGameId);
+        const elapsed=Math.floor(Date.now()/1000)-g.lastMoveTime.toNumber();
+        const remaining=g.challengeWindow.toNumber()-elapsed;
+        if(remaining>0)startChallengeCountdown(remaining);
+      }catch(e2){}
+    }
+    else if(reason.includes('not your turn'))toast('❌ Not your turn on-chain','er');
+    else toast('❌ '+decodeErr(e).slice(0,120),'er');
+    lastState=null;
+  }
+}
+async function doCheckersAI(){
+  if(!isAIGame||isMyTurn||aiRunning)return;
+  aiRunning=true;document.getElementById('aiThinking').style.display='block';
+  try{
+    await delay(900);
+    const allMoves=getAllCkMoves(false);
+    if(!allMoves.length){toast('🏆 No moves for AI — you win!','ok');endAIGame(currentGameId);return;}
+    const mv=allMoves[Math.floor(Math.random()*allMoves.length)];
+    const tr=Math.floor(mv.to/10),tc=mv.to%10;
+    const piece=checkersBoard[mv.from];
+    checkersBoard[mv.to]=piece;checkersBoard[mv.from]=0;
+    if(mv.jump&&mv.mid>=0)checkersBoard[mv.mid]=0;
+    if(tr===9&&piece===2)checkersBoard[mv.to]=4;
+    renderCheckersBoard();
+    toast('🤖 AI moved'+(mv.jump?' (captured!)':''),'in');
+    const whiteLeft=checkersBoard.filter(p=>p===1||p===3).length;
+    if(!whiteLeft){toast('🤖 AI wins!','er');endAIGame(currentGameId);return;}
+    isMyTurn=true;
+    document.getElementById('gameInfoBar').innerHTML=`AI Practice · CHECKERS<br><span class="turn-you">🟢 YOUR TURN</span>`;
+    saveGameState();
+  }catch(e){console.error('Checkers AI:',e);}
+  finally{aiRunning=false;document.getElementById('aiThinking').style.display='none';}
+}
+
+// ── GAME END ──
+// FIX B4/B6 (Forensic): endAIGame increments local session counter — NOT on-chain
+async function endAIGame(gameId){
+  localAIWins++;
+  try{sessionStorage.setItem('cr_aiwins',String(localAIWins));}catch(e){}
+  const el=document.getElementById('stAIWins');if(el)el.textContent=localAIWins;
+  toast('🏆 AI game complete!','ok');
+  gameCache.delete(gameId);saveAIGamesToStorage();
+  currentGameId=null;lastState=null;
+  clearChallengeCountdown();
+  document.getElementById('boardContainer').style.display='none';
+  document.getElementById('gameInfoBar').innerHTML='AI game complete! 🏆';
+  document.getElementById('forfeitBtn').disabled=true;
+  hideClaimWinBar();
+  await delay(1500);loadMyGames();
+}
+
+// FIX B3 (Forensic): declareWin — retry once automatically, then show persistent Claim Now bar
+async function declareWin(gameId){
+  const gid=gameId||currentGameId;
+  currentGameId=null;lastState=null;
+  gameCache.delete(gid);
+  clearChallengeCountdown();
+  document.getElementById('boardContainer').style.display='none';
+  document.getElementById('forfeitBtn').disabled=true;
+  document.getElementById('challengeBtn').disabled=true;
+
+  const attemptClaim=async(attempt)=>{
+    try{
+      toast('⏳ Claiming winnings'+(attempt>1?` (attempt ${attempt})`:'')+'…','in');
+      const tx=await hub.declareWinner(gid,userAddr,{gasLimit:800000});
+      await tx.wait();
+      const g=await hub.games(gid).catch(()=>null);
+      const winAmount=g?(parseFloat(ethers.utils.formatEther(g.stake))*2).toFixed(2):'?';
+      document.getElementById('gameInfoBar').innerHTML=
+        `<span style="color:var(--green)">🏆 You won! ${winAmount} REALM sent to wallet.</span>`;
+      toast('💰 '+winAmount+' REALM in your wallet!','ok');
+      hideClaimWinBar();
+      updateBal();loadStats();loadOpenGames();loadMyGames();
+      return true;
+    }catch(e){console.error('declareWin attempt '+attempt+' failed:',e);return false;}
+  };
+
+  let ok=await attemptClaim(1);
+  if(!ok){
+    // FIX B3: wait 3s for RPC propagation, then retry once automatically
+    await delay(3000);
+    ok=await attemptClaim(2);
+  }
+  if(!ok){
+    // FIX B3: show persistent Claim Now bar — stays until user successfully claims
+    document.getElementById('gameInfoBar').innerHTML=
+      `<span style="color:var(--green)">🏆 You won!</span> <span style="color:var(--dim);font-size:10px">· Use button below to claim</span>`;
+    toast('⚠️ Auto-claim failed — use the Claim Now button below','in');
+    showClaimWinBar(gid,'🏆 Win confirmed — tap Claim Now to receive your REALM');
+    loadOpenGames();loadMyGames();
+  }
+}
+
+async function challengeAbandonment(){
+  if(!hub||!currentGameId)return toast('No game loaded','er');
+  if(isAIGame)return toast('Not available for AI games','in');
+  try{
+    const g=await hub.games(currentGameId);
+    if(!g.active)return toast('Game is no longer active','er');
+    const noPlayer2=g.player2===ethers.constants.AddressZero;
+    if(noPlayer2){
+      const elapsed=Math.floor(Date.now()/1000)-g.lastMoveTime.toNumber();
+      if(elapsed>=86400){
+        toast('⏳ Expiring abandoned game…','in');
+        const tx=await hub.expireGame(currentGameId,{gasLimit:400000});await tx.wait();
+        toast('✅ Game expired — stake returned','ok');
+      }else{return toast(`⏳ Can expire in ${Math.ceil((86400-elapsed)/3600)}h, or cancel with FORFEIT`,'in');}
+    }else{
+      const isCreator=g.creator.toLowerCase()===userAddr.toLowerCase();
+      const weAreWaiting=(g.turn===0&&!isCreator)||(g.turn===1&&isCreator);
+      if(!weAreWaiting)return toast('❌ It is YOUR turn — not waiting','er');
+      const elapsed=Math.floor(Date.now()/1000)-g.lastMoveTime.toNumber();
+      if(elapsed<14400)return toast(`⏳ Opponent has ${Math.ceil((14400-elapsed)/60)} more min to move`,'in');
+      toast('⏳ Claiming abandonment win…','in');
+      const tx=await hub.claimAbandonment(currentGameId,{gasLimit:500000});await tx.wait();
+      toast('🏆 Abandonment claimed!','ok');
+    }
+    const gid=currentGameId;currentGameId=null;lastState=null;gameCache.delete(gid);
+    clearChallengeCountdown();
+    document.getElementById('boardContainer').style.display='none';
+    document.getElementById('gameInfoBar').innerHTML='<span style="color:var(--green)">🏆 Game ended in your favour</span>';
+    ['forfeitBtn','shareBtn','challengeBtn'].forEach(id=>{document.getElementById(id).disabled=true;});
+    hideClaimWinBar();
+    updateBal();loadStats();loadOpenGames();loadMyGames();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,200),'er');}
+}
+
+// ── GAME CHAT ──
+async function loadGameChatMsgs(){
+  if(!gameChat||!currentGameId||currentGameId<0)return;
+  try{
+    const cnt=await gameChat.getMessageCount(currentGameId);
+    const n=cnt.toNumber();
+    if(n===0){const e='<p style="color:var(--dim);font-size:10px;text-align:center">No messages yet</p>';document.getElementById('gameChatBox').innerHTML=e;syncMobChat();return;}
+    const start=Math.max(0,n-20);
+    const[senders,contents,timestamps]=await gameChat.getMessages(currentGameId,start,n-start);
+    const box=document.getElementById('gameChatBox');let html='';
+    for(let i=0;i<senders.length;i++){
+      const isMe=senders[i].toLowerCase()===userAddr.toLowerCase();
+      const name=isMe?'You':senders[i].slice(0,8)+'…';
+      const time=new Date(timestamps[i].toNumber()*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      html+=`<div style="margin-bottom:8px"><span style="color:${isMe?'var(--green)':'var(--gold)'}">▶ ${name}</span> <span style="color:var(--dim);font-size:9px">${time}</span><br><span>${contents[i]}</span></div>`;
+    }
+    box.innerHTML=html;box.scrollTop=box.scrollHeight;syncMobChat();
+  }catch(e){}
+}
+async function sendGameChat(){
+  if(!gameChat||!currentGameId||currentGameId<0)return toast('Load a game first','er');
+  const inp=document.getElementById('gameChatInput');
+  const msg=inp.value.trim();
+  if(!msg)return;
+  if(msg.length>500)return toast('Max 500 characters','er');
+  try{
+    const tx=await gameChat.sendMessage(currentGameId,msg,{gasLimit:300000});
+    await tx.wait();
+    inp.value='';toast('💬 Sent!','ok');
+    await loadGameChatMsgs();
+  }catch(e){
+    const reason=decodeErr(e);
+    // FIX BUG-01: show a clear error about registerGame not being wired
+    if(reason.toLowerCase().includes('not a player')||reason.toLowerCase().includes('not registered')){
+      toast('❌ GameChat not available — contract wiring pending (registerGame)','er');
+    }else{
+      toast('❌ '+reason.slice(0,150),'er');
+    }
+  }
+}
+
+// ── STATS ──
+async function loadStats(){
+  if(!hub||!userAddr)return;
+  try{
+    const[wins,chessWins,checkersWins]=await Promise.all([
+      hub.totalWins(userAddr),
+      hub.winsByGameType(userAddr,'chess'),
+      hub.winsByGameType(userAddr,'checkers'),
+    ]);
+    document.getElementById('stWins').textContent=wins.toNumber();
+    document.getElementById('stChess').textContent=chessWins.toNumber();
+    document.getElementById('stCheckers').textContent=checkersWins.toNumber();
+    // FIX B6 (Forensic): AI wins are local-only — clearly separate
+    document.getElementById('stAIWins').textContent=localAIWins;
+    // FIX BUG-23: use getElementById directly, not undeclared variable references
+    const discWinsEl=document.getElementById('discWins');
+    const discGamesEl=document.getElementById('discGames');
+    if(discWinsEl)discWinsEl.textContent=wins.toNumber();
+    // FIX BUG-15: discGames shows P2P wins (no totalGames on-chain), consistent with label rename
+    if(discGamesEl)discGamesEl.textContent=wins.toNumber();
+  }catch(e){}
+  try{
+    const[cb,rf,cr]=await Promise.all([
+      rewards.cashbackBalance(userAddr),
+      rewards.referralBalance(userAddr),
+      rewards.creatorBalance(userAddr),
+    ]);
+    const total=cb.add(rf).add(cr);
+    document.getElementById('rCashback').textContent=parseFloat(ethers.utils.formatEther(cb)).toFixed(2)+' REALM';
+    document.getElementById('rReferral').textContent=parseFloat(ethers.utils.formatEther(rf)).toFixed(2)+' REALM';
+    document.getElementById('rCreator').textContent=parseFloat(ethers.utils.formatEther(cr)).toFixed(2)+' REALM';
+    document.getElementById('rTotal').textContent=parseFloat(ethers.utils.formatEther(total)).toFixed(2)+' REALM';
+  }catch(e){}
+}
+async function claimRewards(){
+  if(!rewards)return toast('Connect wallet','er');
+  try{
+    toast('⏳ Claiming all rewards…','in');
+    const tx=await rewards.claimAll({gasLimit:400000});
+    await tx.wait();
+    toast('💰 Rewards claimed!','ok');updateBal();loadStats();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+function copyRefLink(){
+  if(!userAddr)return toast('Connect wallet first','er');
+  const url=location.href.split('?')[0]+'?ref='+userAddr;
+  navigator.clipboard.writeText(url).then(()=>toast('✅ Referral link copied!','ok'));
+}
+
+// ── STAKING ──
+function selLock(lock,el){
+  selectedLock=lock;
+  document.querySelectorAll('.lock-opt').forEach(x=>x.classList.remove('sel'));
+  el.classList.add('sel');
+}
+async function loadStakingData(){
+  if(!stakingC||!userAddr)return;
+  try{
+    const[s,total,funded,pending]=await Promise.all([
+      stakingC.stakes(userAddr),stakingC.totalStaked(),
+      stakingC.totalRewardsFunded(),stakingC.pendingRewards(userAddr),
+    ]);
+    document.getElementById('sUserStake').textContent=parseFloat(ethers.utils.formatEther(s.amount)).toFixed(2)+' REALM';
+    const now=Math.floor(Date.now()/1000);
+    const locked=s.lockUntil.toNumber()>now;
+    document.getElementById('sLockStatus').textContent=locked?'🔒 Locked':'🔓 Unlocked';
+    document.getElementById('sLockedUntil').textContent=locked?new Date(s.lockUntil.toNumber()*1000).toLocaleDateString():'—';
+    document.getElementById('sPending').textContent=parseFloat(ethers.utils.formatEther(pending)).toFixed(4)+' REALM';
+    document.getElementById('sTotalStaked').textContent=parseFloat(ethers.utils.formatEther(total)).toFixed(0)+' REALM';
+    document.getElementById('sTotalFunded').textContent=parseFloat(ethers.utils.formatEther(funded)).toFixed(0)+' REALM';
+  }catch(e){console.error('loadStakingData',e);}
+}
+async function doStake(){
+  if(!stakingC)return toast('Connect wallet','er');
+  const amt=parseFloat(document.getElementById('stakeInput').value)||0;
+  if(amt<=0)return toast('Enter amount','er');
+  try{
+    const am=ethers.utils.parseEther(amt.toString());
+    await approve(C.STAKING,am);
+    toast('⏳ Staking…','in');
+    const tx=await stakingC.stake(am,selectedLock,{gasLimit:400000});
+    await tx.wait();toast('💎 Staked!','ok');loadStakingData();updateBal();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+async function doUnstake(){
+  if(!stakingC)return toast('Connect wallet','er');
+  const v=document.getElementById('unstakeInput').value;
+  // FIX BUG-19: check lock before unstaking
+  const s=await stakingC.stakes(userAddr);
+  const now=Math.floor(Date.now()/1000);
+  if(s.lockUntil.toNumber()>now){
+    const unlockDate=new Date(s.lockUntil.toNumber()*1000).toLocaleDateString();
+    return toast('🔒 Stake locked until '+unlockDate,'er');
+  }
+  let am;
+  if(!v||v===''){am=s.amount;}
+  else am=ethers.utils.parseEther(v.toString());
+  try{
+    toast('⏳ Unstaking…','in');
+    const tx=await stakingC.unstake(am,{gasLimit:400000});await tx.wait();toast('✅ Unstaked!','ok');loadStakingData();updateBal();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+async function doClaimStake(){
+  if(!stakingC)return toast('Connect wallet','er');
+  try{
+    toast('⏳ Claiming staking rewards…','in');
+    const tx=await stakingC.claimRewards({gasLimit:300000});await tx.wait();toast('💰 Rewards claimed!','ok');loadStakingData();updateBal();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+
+// ── GATEWAY ──
+async function loadGateway(){
+  if(!gateway)return;
+  try{
+    const[rate,tc,ts]=await Promise.all([
+      gateway.realmPerCore(),
+      gateway.totalCoreReceived().catch(()=>ethers.BigNumber.from(0)),
+      gateway.totalRealmSold().catch(()=>ethers.BigNumber.from(0)),
+    ]);
+    const rateF=parseFloat(ethers.utils.formatEther(rate)).toFixed(2);
+    document.getElementById('gwRate').textContent=rateF+' REALM';
+    if(document.getElementById('adminGwRate'))document.getElementById('adminGwRate').textContent=rateF;
+
+    // FIX BUG-10: gateway reserve = actual balanceOf, not a price quote
+    const resBN=await realm.balanceOf(C.GATEWAY);
+    const resAmt=parseFloat(ethers.utils.formatEther(resBN)).toLocaleString(undefined,{maximumFractionDigits:0});
+    document.getElementById('gwReserve').textContent=resAmt+' REALM';
+    if(document.getElementById('adminGwReserve'))document.getElementById('adminGwReserve').textContent=resAmt;
+
+    document.getElementById('gwTotalCore').textContent=parseFloat(ethers.utils.formatEther(tc)).toFixed(4)+' CORE';
+    document.getElementById('gwTotalRealm').textContent=parseFloat(ethers.utils.formatEther(ts)).toLocaleString(undefined,{maximumFractionDigits:0})+' REALM';
+  }catch(e){}
+}
+async function updateGwQuote(){
+  if(!gateway)return;
+  try{
+    const c=parseFloat(document.getElementById('coreInput').value)||0;
+    if(c<=0){
+      document.getElementById('realmQuote').textContent='0';
+      document.getElementById('realmQuote').style.color='var(--green)';
+      document.getElementById('realmQuoteLbl').textContent='REALM you will receive';
+      return;
+    }
+    const q=await gateway.quote(ethers.utils.parseEther(c.toString()));
+    // FIX BUG-17: check reserve sufficiency before displaying
+    const reserve=await realm.balanceOf(C.GATEWAY);
+    const quoteEl=document.getElementById('realmQuote');
+    const lblEl=document.getElementById('realmQuoteLbl');
+    if(q.gt(reserve)){
+      quoteEl.textContent='Insufficient reserve';
+      quoteEl.style.color='var(--red)';
+      lblEl.textContent='Not enough REALM in gateway';
+    }else{
+      quoteEl.textContent=parseFloat(ethers.utils.formatEther(q)).toLocaleString(undefined,{maximumFractionDigits:2});
+      quoteEl.style.color='var(--green)';
+      lblEl.textContent='REALM you will receive';
+    }
+  }catch(e){}
+}
+async function buyRealm(){
+  if(!gateway)return toast('Connect wallet','er');
+  const c=parseFloat(document.getElementById('coreInput').value)||0;
+  if(c<0.001)return toast('Min 0.001 CORE','er');
+  // FIX BUG-17: pre-check reserve before sending tx
+  try{
+    const q=await gateway.quote(ethers.utils.parseEther(c.toString()));
+    const reserve=await realm.balanceOf(C.GATEWAY);
+    if(q.gt(reserve))return toast('❌ Insufficient gateway reserve for this purchase','er');
+    toast('⏳ Swapping CORE → REALM…','in');
+    const tx=await gateway.swapCoreForREALM({value:ethers.utils.parseEther(c.toString()),gasLimit:300000});
+    await tx.wait();toast('✅ REALM received!','ok');updateBal();loadGateway();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+
+// ── BRIDGE ──
+function selChain(el,id,name){
+  document.querySelectorAll('.chain-btn').forEach(b=>b.classList.remove('sel'));
+  el.classList.add('sel');bridgeChainId=id;bridgeChainName=name;
+  // FIX BUG-24: show warning for potentially unsupported chains
+  // (full isTrustedRemote check requires bytes remote address — show advisory warning)
+  const warnEl=document.getElementById('chainSupportWarn');
+  if(warnEl)warnEl.style.display='block';
+  estimateBridgeFee();
+}
+async function estimateBridgeFee(){
+  if(!bridge)return;
+  const amt=parseFloat(document.getElementById('bridgeAmt').value)||0;
+  if(amt<10){document.getElementById('bridgeFeeBox').style.display='none';return;}
+  try{
+    const[nativeFee]=await bridge.estimateFee(bridgeChainId,userAddr,ethers.utils.parseEther(amt.toString()));
+    document.getElementById('bridgeFeeVal').textContent=parseFloat(ethers.utils.formatEther(nativeFee)).toFixed(6)+' CORE';
+    document.getElementById('bridgeFeeBox').style.display='block';
+    // If estimateFee succeeds, chain is supported — hide warning
+    const warnEl=document.getElementById('chainSupportWarn');
+    if(warnEl)warnEl.style.display='none';
+  }catch(e){
+    // estimateFee failed — chain likely not supported
+    document.getElementById('bridgeFeeBox').style.display='none';
+    const warnEl=document.getElementById('chainSupportWarn');
+    if(warnEl)warnEl.style.display='block';
+  }
+}
+async function doBridge(){
+  if(!bridge)return toast('Connect wallet','er');
+  const amt=parseFloat(document.getElementById('bridgeAmt').value)||0;
+  if(amt<10)return toast('Minimum 10 REALM to bridge','er');
+  try{
+    const realmAmt=ethers.utils.parseEther(amt.toString());
+    // FIX BUG-11: bridge uses burn-and-mint — NO approve needed (removed)
+    const rec=document.getElementById('bridgeRecipient').value.trim()||userAddr;
+    const[fee]=await bridge.estimateFee(bridgeChainId,rec,realmAmt);
+    toast('⏳ Bridging…','in');
+    const tx=await bridge.bridgeTokens(bridgeChainId,rec,realmAmt,{value:fee.mul(12).div(10),gasLimit:500000});
+    await tx.wait();toast('✅ Bridge tx sent!','ok');updateBal();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+async function loadBridgeData(){
+  if(!bridge||!userAddr)return;
+  try{
+    const vol=await bridge.dailyVolume(userAddr);
+    const used=parseFloat(ethers.utils.formatEther(vol)).toLocaleString(undefined,{maximumFractionDigits:0});
+    const el=document.getElementById('bridgeDailyUsed');if(el)el.textContent=used+' REALM';
+  }catch(e){}
+}
+
+// ── SOCIAL ──
+async function loadMyRooms(){
+  if(!social||!userAddr)return;
+  const el=document.getElementById('myRoomsList');
+  try{
+    const ids=await social.getUserRooms(userAddr);
+    if(!ids.length){el.innerHTML='<div style="font-size:10px;color:var(--dim);padding:6px">No rooms yet</div>';return;}
+    let html='';
+    for(const id of ids.slice(0,10)){
+      const r=await social.rooms(id.toNumber()).catch(()=>null);
+      if(!r)continue;
+      const icons={chess:'♟️',checkers:'🎯',general:'💬',defi:'💱'};
+      const ic=icons[r.name.toLowerCase().includes('chess')?'chess':r.name.toLowerCase().includes('check')?'checkers':'general']||'💬';
+      html+=`<div class="room-item ${currentSocialRoomId===id.toNumber()?'active':''}" onclick="switchRoom(${id.toNumber()},'${r.name.replace("'","")}','${ic}')">
+        <div class="room-icon">${ic}</div>
+        <div><div class="room-name">${r.name}</div><div class="room-sub">${r.memberCount} members</div></div>
+      </div>`;
+    }
+    el.innerHTML=html;
+  }catch(e){}
+}
+// FIX BUG-21: parallelized room loading
+async function loadPublicRooms(){
+  const el=document.getElementById('publicRoomsList');
+  if(!social){el.innerHTML='<div style="font-size:10px;color:var(--dim);padding:6px">Connect wallet to view rooms</div>';return;}
+  try{
+    const cnt=(await social.roomCount()).toNumber();
+    const ids=[];
+    for(let i=Math.min(cnt,20);i>=1;i--)ids.push(i);
+    // FIX BUG-21: parallel fetch instead of sequential await in loop
+    const rooms=await Promise.all(ids.map(i=>social.rooms(i).catch(()=>null)));
+    let html='';
+    for(let j=0;j<rooms.length;j++){
+      const r=rooms[j];
+      if(!r||!r.active||!r.isPublic)continue;
+      const ic='💬';
+      html+=`<div class="room-item" onclick="switchRoom(${ids[j]},'${r.name.replace("'","")}','${ic}')">
+        <div class="room-icon">${ic}</div>
+        <div><div class="room-name">${r.name}</div><div class="room-sub">Room #${ids[j]} · ${r.memberCount} members</div></div>
+      </div>`;
+    }
+    el.innerHTML=html||'<div style="font-size:10px;color:var(--dim);padding:6px">No public rooms</div>';
+  }catch(e){}
+}
+// FIX BUG-22: currentSocialRoomName is now declared in state
+function switchRoom(id,name,icon){
+  currentSocialRoomId=id;currentSocialRoomName=name;
+  document.getElementById('chatRoomName').textContent=name;
+  document.getElementById('chatRoomIcon').textContent=icon;
+  document.getElementById('chatRoomMeta').textContent=`Room #${id}`;
+  loadSocialMsgs();
+}
+async function loadSocialMsgs(){
+  if(!social||!currentSocialRoomId)return;
+  try{
+    const room=await social.rooms(currentSocialRoomId);
+    const n=room.messageCount.toNumber();
+    if(n===0){document.getElementById('messagesArea').innerHTML='<div style="text-align:center;padding:30px;color:var(--dim);font-size:11px">No messages yet — say hello!</div>';return;}
+    const start=Math.max(0,n-30);
+    const[senders,contents,timestamps]=await social.getMessages(currentSocialRoomId,start,n-start);
+    const area=document.getElementById('messagesArea');let html='';
+    const colors=['var(--gold)','var(--blue)','var(--green)','var(--purple)'];
+    const colorMap={};let ci=0;
+    for(let i=0;i<senders.length;i++){
+      if(!colorMap[senders[i]]){colorMap[senders[i]]=colors[ci%colors.length];ci++;}
+      const isMe=senders[i].toLowerCase()===userAddr?.toLowerCase();
+      const name=isMe?'You':senders[i].slice(0,8)+'…';
+      const time=new Date(timestamps[i].toNumber()*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      html+=`<div class="msg">
+        <div class="msg-av">👤</div>
+        <div>
+          <div class="msg-header"><span class="msg-name" style="color:${colorMap[senders[i]]}">${name}</span><span class="msg-time">${time}</span></div>
+          <div class="msg-text">${contents[i]}</div>
+        </div>
+      </div>`;
+    }
+    area.innerHTML=html;area.scrollTop=area.scrollHeight;
+  }catch(e){}
+}
+async function sendSocialMsg(){
+  if(!social||!userAddr)return toast('Connect wallet first','er');
+  if(!currentSocialRoomId)return toast('Select a room first','er');
+  const inp=document.getElementById('socialChatInput');
+  const msg=inp.value.trim();
+  if(!msg)return;
+  try{
+    // FIX BUG-05: approve entry fee only when needed, before sendMessage
+    const entryFee=await social.messageEntryFee().catch(()=>ethers.BigNumber.from(0));
+    if(entryFee.gt(0)){
+      const paid=await social.hasPaidEntry(currentSocialRoomId,userAddr).catch(()=>false);
+      if(!paid){
+        const al=await realm.allowance(userAddr,C.SOCIAL);
+        if(al.lt(entryFee)){
+          toast('⏳ Approving entry fee…','in');
+          const approveTx=await realm.approve(C.SOCIAL,ethers.constants.MaxUint256);
+          await approveTx.wait();
+        }
+      }
+    }
+    const tx=await social.sendMessage(currentSocialRoomId,msg,{gasLimit:300000});
+    await tx.wait();inp.value='';toast('💬 Sent!','ok');loadSocialMsgs();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+async function createRoom(){
+  if(!social||!userAddr)return toast('Connect wallet first','er');
+  const name=document.getElementById('newRoomName').value.trim();
+  if(!name)return toast('Enter room name','er');
+  const isPublic=document.getElementById('roomIsPublic').checked;
+  try{
+    // FIX BUG-12: createRoom does NOT charge REALM — no approve needed
+    toast('⏳ Creating room…','in');
+    const tx=await social.createRoom(name,isPublic,{gasLimit:400000});await tx.wait();
+    toast('✅ Room created!','ok');closeModal('createRoomModal');loadMyRooms();loadPublicRooms();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+// FIX BUG-14: check profile exists before opening create room modal
+async function openCreateRoomModal(){
+  if(!social||!userAddr)return toast('Connect wallet first','er');
+  try{
+    const p=await social.profiles(userAddr);
+    if(!p.exists)return toast('Set a username first in Player Discovery','er');
+  }catch(e){}
+  openModal('createRoomModal');
+}
+async function joinRoom(){
+  if(!social)return toast('Connect wallet first','er');
+  const id=parseInt(document.getElementById('joinRoomId').value)||0;
+  if(id<=0)return toast('Enter valid room ID','er');
+  try{
+    // FIX BUG-12: joinRoom does NOT charge REALM — no approve needed
+    toast('⏳ Joining room…','in');
+    const tx=await social.joinRoom(id,{gasLimit:300000});await tx.wait();
+    toast('✅ Joined room #'+id,'ok');closeModal('joinRoomModal');loadMyRooms();switchRoom(id,'Room #'+id,'💬');
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+
+// ── DISCOVERY ──
+async function loadDiscovery(){
+  const el=document.getElementById('leaderboard');
+  if(!social){el.innerHTML='<div style="color:var(--dim);font-size:10px;text-align:center;padding:20px">Connect wallet to see leaderboard</div>';return;}
+  try{
+    const[addrs,names,stakes,winsArr]=await social.getTopVisibleUsers(20);
+    let html='';
+    const ranks=['🥇','🥈','🥉'];
+    for(let i=0;i<addrs.length;i++){
+      if(!stakes[i]||stakes[i].isZero())continue;
+      const rank=ranks[i]||`${i+1}`;
+      const name=names[i]||addrs[i].slice(0,8)+'…';
+      const staked=parseFloat(ethers.utils.formatEther(stakes[i])).toLocaleString(undefined,{maximumFractionDigits:0});
+      html+=`<div class="player-card" onclick="openChallengeModal('${addrs[i]}','${name}',${i})">
+        <div class="rank-n ${i===0?'rk1':i===1?'rk2':i===2?'rk3':''}">${rank}</div>
+        <div class="p-avatar">🎮</div>
+        <div style="flex:1"><div class="p-name">${name}</div><div class="p-meta"><span>⚡ ${staked} REALM staked</span></div></div>
+        <button class="chall-btn">⚔️ Challenge</button>
+      </div>`;
+    }
+    el.innerHTML=html||'<div style="color:var(--dim);font-size:10px;text-align:center;padding:20px">No players have staked for visibility yet. Be first!</div>';
+    if(userAddr){
+      try{
+        const p=await social.profiles(userAddr);
+        if(p.exists){
+          document.getElementById('myDiscName').textContent=p.username||userAddr.slice(0,10)+'…';
+          document.getElementById('discStaked').textContent=parseFloat(ethers.utils.formatEther(p.stakedForVisibility)).toLocaleString(undefined,{maximumFractionDigits:0});
+        }
+      }catch(e){}
+    }
+  }catch(e){el.innerHTML='<div style="color:var(--dim);font-size:10px;text-align:center;padding:20px">Error loading leaderboard</div>';}
+}
+function openChallengeModal(addr,name,idx){
+  document.getElementById('mChalName').textContent=name;
+  document.getElementById('mChalAvatar').textContent='🎮';
+  document.getElementById('mChalMeta').textContent=addr;
+  openModal('challengeModal');
+}
+async function sendChallenge(){
+  if(!hub)return toast('Connect wallet first','er');
+  const gType=document.getElementById('mChalType').value;
+  const stakeF=parseFloat(document.getElementById('mChalStake').value)||50;
+  try{
+    const stake=ethers.utils.parseEther(stakeF.toString());
+    const baseFee=stake.mul(250).div(10000);
+    let fee=baseFee;
+    try{fee=await rewards.effectiveFee(userAddr,baseFee);}catch(e){}
+    await approve(C.HUB,stake.add(fee));
+    const verifier=gType==='chess'?C.CHESS_V:C.CHECKERS_V;
+    const win=180;
+    toast('⏳ Creating challenge game…','in');
+    const tx=await hub.createGame(gType,stake,false,false,verifier,win,{gasLimit:900000});
+    const rc=await tx.wait();
+    toast('✅ Challenge game created! Share the link.','ok');
+    closeModal('challengeModal');
+    // FIX BUG-20: parse game ID from event
+    const event=rc.events?.find(e=>e.event==='GameCreated');
+    const gameId=event?.args?.id?.toNumber()||((await hub.gameCount()).toNumber());
+    setTimeout(()=>{loadGame(gameId);},500);
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+async function setProfile(){
+  if(!social||!userAddr)return toast('Connect wallet first','er');
+  const u=document.getElementById('profileUsername').value.trim();
+  const b=document.getElementById('profileBio').value.trim();
+  if(!u)return toast('Enter a username','er');
+  try{
+    toast('⏳ Saving profile…','in');
+    const tx=await social.setProfile(u,b,{gasLimit:300000});await tx.wait();
+    toast('✅ Profile saved!','ok');document.getElementById('myDiscName').textContent=u;
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+async function stakeForVisibility(){
+  if(!social||!userAddr)return toast('Connect wallet first','er');
+  const amt=parseFloat(document.getElementById('visStakeAmt').value)||0;
+  if(amt<=0)return toast('Enter amount','er');
+  try{
+    const am=ethers.utils.parseEther(amt.toString());
+    await approve(C.SOCIAL,am);
+    toast('⏳ Staking for visibility…','in');
+    const tx=await social.stakeForVisibility(am,{gasLimit:300000});await tx.wait();
+    toast('✅ Visibility staked!','ok');loadDiscovery();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+async function unstakeVisibility(){
+  if(!social||!userAddr)return toast('Connect wallet first','er');
+  try{
+    const p=await social.profiles(userAddr);
+    toast('⏳ Unstaking visibility…','in');
+    const tx=await social.unstakeVisibility(p.stakedForVisibility,{gasLimit:300000});await tx.wait();
+    toast('✅ Visibility unstaked!','ok');loadDiscovery();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+
+// ── ADMIN ──
+async function checkOwner(){
+  if(!gateway||!userAddr){
+    document.getElementById('ownerOk').style.display='none';
+    document.getElementById('ownerNope').style.display='block';
+    return;
+  }
+  try{
+    const owner=await gateway.owner();
+    const isOwner=owner.toLowerCase()===userAddr.toLowerCase();
+    document.getElementById('ownerOk').style.display=isOwner?'block':'none';
+    document.getElementById('ownerNope').style.display=isOwner?'none':'block';
+    document.getElementById('adminWallet').textContent=userAddr;
+    document.getElementById('adminNav').style.display=isOwner?'':'none';
+  }catch(e){}
+}
+async function loadAdminData(){
+  if(!stakingC||!gateway||!userAddr)return;
+  try{
+    const[total,rate]=await Promise.all([stakingC.totalStaked(),gateway.realmPerCore()]);
+    document.getElementById('adminPoolStaked').textContent=parseFloat(ethers.utils.formatEther(total)).toLocaleString(undefined,{maximumFractionDigits:0})+' REALM';
+    document.getElementById('adminGwRate').textContent=parseFloat(ethers.utils.formatEther(rate)).toFixed(2);
+    const funded=await stakingC.totalRewardsFunded();
+    document.getElementById('adminTotalFunded').textContent=parseFloat(ethers.utils.formatEther(funded)).toLocaleString(undefined,{maximumFractionDigits:0})+' REALM';
+    // FIX BUG-10: admin reserve also uses balanceOf
+    const res=await realm.balanceOf(C.STAKING);
+    document.getElementById('adminReserveBalance').textContent=parseFloat(ethers.utils.formatEther(res)).toLocaleString(undefined,{maximumFractionDigits:0})+' REALM';
+    const list=document.getElementById('contractList');
+    if(list)list.innerHTML=Object.entries(C).map(([k,v])=>`<div class="ir"><span class="il">${k}</span><span class="iv o" style="font-size:8px">${v}</span></div>`).join('');
+  }catch(e){}
+}
+async function adminSeedStaking(){
+  if(!stakingC)return toast('Connect wallet','er');
+  const amt=parseFloat(document.getElementById('seedAmt').value)||0;
+  if(amt<=0)return toast('Enter amount','er');
+  try{
+    const am=ethers.utils.parseEther(amt.toString());
+    await approve(C.STAKING,am);
+    toast('⏳ Declaring emission…','in');
+    const tx=await stakingC.fundRewards(am,{gasLimit:400000});await tx.wait();
+    toast('💎 '+amt.toLocaleString()+' REALM emission declared!','ok');loadAdminData();loadStakingData();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+async function adminSetRate(){
+  if(!gateway)return toast('Connect wallet','er');
+  const r=parseFloat(document.getElementById('newGwRate').value)||0;
+  if(r<=0)return toast('Enter valid rate','er');
+  try{
+    toast('⏳ Updating rate…','in');
+    const tx=await gateway.setRate(ethers.utils.parseEther(r.toString()),{gasLimit:200000});await tx.wait();
+    toast('✅ Rate updated to '+r+' REALM/CORE','ok');loadGateway();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+async function adminPause(){
+  if(!gateway)return;
+  try{const tx=await gateway.pause({gasLimit:200000});await tx.wait();toast('⏸️ Gateway paused','ok');}catch(e){toast('❌ '+decodeErr(e),'er');}
+}
+async function adminUnpause(){
+  if(!gateway)return;
+  try{const tx=await gateway.unpause({gasLimit:200000});await tx.wait();toast('▶️ Gateway unpaused','ok');}catch(e){toast('❌ '+decodeErr(e),'er');}
+}
+async function adminWithdraw(){
+  if(!gateway||!userAddr)return;
+  if(!confirm('Withdraw all REALM from gateway reserve to your wallet?'))return;
+  try{
+    const bal=await realm.balanceOf(C.GATEWAY);
+    const tx=await gateway.withdrawReserve(userAddr,bal,{gasLimit:200000});await tx.wait();
+    toast('💸 Reserve withdrawn!','ok');updateBal();loadGateway();
+  }catch(e){toast('❌ '+decodeErr(e),'er');}
+}
+function copyAddresses(){
+  const txt=Object.entries(C).map(([k,v])=>`${k}: ${v}`).join('\n');
+  navigator.clipboard.writeText(txt).then(()=>toast('✅ Addresses copied!','ok'));
+}
+
+// ── DAO ──
+// FIX BUG-03: gate new proposal button on initialized state
+async function openNewProposalModal(){
+  if(!userAddr)return toast('Connect wallet first','er');
+  try{
+    const daoC=new ethers.Contract(C.DAO,DAO_ABI,signer);
+    const init=await daoC.initialized();
+    if(!init)return toast('DAO governance not yet live — admin must call finalizeInitialization()','er');
+  }catch(e){}
+  openModal('proposalModal');
+}
+
+async function loadDAOData(){
+  if(!hub||!userAddr)return;
+  try{
+    const daoC=new ethers.Contract(C.DAO,DAO_ABI,signer);
+    const[init,totalLocked,quorum,myPower]=await Promise.all([
+      daoC.initialized(),daoC.totalLocked(),daoC.quorumRequired(),daoC.votingPower(userAddr),
+    ]);
+    document.getElementById('daoInitialized').textContent=init?'✅ Live':'🔧 Setup mode';
+    document.getElementById('daoTotalLocked').textContent=parseFloat(ethers.utils.formatEther(totalLocked)).toLocaleString(undefined,{maximumFractionDigits:0})+' REALM';
+    document.getElementById('daoQuorum').textContent=parseFloat(ethers.utils.formatEther(quorum)).toLocaleString(undefined,{maximumFractionDigits:0})+' REALM';
+    document.getElementById('daoMyPower').textContent=parseFloat(ethers.utils.formatEther(myPower)).toLocaleString(undefined,{maximumFractionDigits:0});
+    // FIX BUG-03: disable proposal button when not initialized
+    const btn=document.getElementById('newProposalBtn');
+    if(btn)btn.disabled=!init;
+    const cnt=(await daoC.proposalCount()).toNumber();
+    let propHtml='';
+    for(let i=cnt;i>=Math.max(1,cnt-5);i--){
+      const p=await daoC.getProposal(i).catch(()=>null);
+      if(!p)continue;
+      // FIX BUG-08: correct state enum — ACTIVE=0,QUEUED=1,EXECUTED=2,DEFEATED=3,EXPIRED=4,CANCELLED=5
+      const stateLabels=['Active','Queued','Executed','Defeated','Expired','Cancelled'];
+      const stateColors={0:'var(--green)',1:'var(--gold)',2:'var(--blue)',3:'var(--red)',4:'var(--dim)',5:'var(--dim)'};
+      const label=stateLabels[p.state_]||'Unknown';
+      const col=stateColors[p.state_]||'var(--dim)';
+      // FIX BUG-16: distinguish queued-pending-queue vs in-timelock
+      let queueNote='';
+      if(p.state_===1){
+        try{
+          const full=await daoC.proposals(i);
+          if(full.queuedAt.isZero()){
+            queueNote=` <span style="color:var(--gold);font-size:9px">· Queue needed</span>`;
+          }else{
+            const eta=new Date((full.queuedAt.toNumber()+172800)*1000).toLocaleDateString();
+            queueNote=` <span style="color:var(--dim);font-size:9px">· Executes ~${eta}</span>`;
+          }
+        }catch(e){}
+      }
+      propHtml+=`<div class="card" style="margin-bottom:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:4px">#${i} — ${p.title}</div>
+        <div style="font-size:9px;color:var(--dim);margin-bottom:6px">State: <span style="color:${col}">${label}</span>${queueNote} · For: ${parseFloat(ethers.utils.formatEther(p.forVotes)).toFixed(0)} · Against: ${parseFloat(ethers.utils.formatEther(p.againstVotes)).toFixed(0)}</div>
+        ${p.state_===0?`<div style="display:flex;gap:4px">
+          <button class="btn btn-green btn-sm" onclick="castVote(${i},1)">✅ For</button>
+          <button class="btn btn-red btn-sm" onclick="castVote(${i},2)">❌ Against</button>
+          <button class="btn-ghost btn-sm" onclick="castVote(${i},3)">⬜ Abstain</button>
+        </div>`:''}
+      </div>`;
+    }
+    document.getElementById('daoProposalList').innerHTML=propHtml||'<div style="color:var(--dim);font-size:10px;text-align:center;padding:20px">No proposals yet</div>';
+  }catch(e){document.getElementById('daoProposalList').innerHTML='<div style="color:var(--dim);font-size:10px;text-align:center;padding:20px">Error loading DAO data</div>';}
+}
+async function daoLockREALM(){
+  if(!hub||!userAddr)return toast('Connect wallet','er');
+  const amt=parseFloat(document.getElementById('daoLockAmt').value)||0;
+  if(amt<=0)return toast('Enter amount','er');
+  try{
+    const daoC=new ethers.Contract(C.DAO,DAO_ABI,signer);
+    const am=ethers.utils.parseEther(amt.toString());
+    await approve(C.DAO,am);
+    const dt=document.getElementById('daoLockDate').value;
+    const until=dt?Math.floor(new Date(dt).getTime()/1000):0;
+    toast('⏳ Locking REALM…','in');
+    const tx=await daoC.lockREALM(am,until,{gasLimit:400000});await tx.wait();
+    toast('🔒 REALM locked!','ok');loadDAOData();updateBal();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+async function daoUnlockREALM(){
+  if(!hub||!userAddr)return toast('Connect wallet','er');
+  try{
+    const daoC=new ethers.Contract(C.DAO,DAO_ABI,signer);
+    const locked=await daoC.lockedBalance(userAddr);
+    if(locked.isZero())return toast('Nothing to unlock','in');
+    toast('⏳ Unlocking…','in');
+    const tx=await daoC.unlockREALM(locked,{gasLimit:400000});await tx.wait();
+    toast('✅ REALM unlocked!','ok');loadDAOData();updateBal();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+// FIX BUG-07: castVote — correct support values: 1=For, 2=Against, 3=Abstain
+async function castVote(id,support){
+  if(!userAddr)return toast('Connect wallet','er');
+  // support must be 1, 2, or 3
+  if(![1,2,3].includes(support))return toast('Invalid vote option','er');
+  try{
+    const daoC=new ethers.Contract(C.DAO,DAO_ABI,signer);
+    toast('⏳ Casting vote…','in');
+    const tx=await daoC.castVote(id,support,{gasLimit:300000});await tx.wait();
+    toast('✅ Vote cast!','ok');loadDAOData();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+async function submitProposal(){
+  if(!userAddr)return toast('Connect wallet','er');
+  try{
+    const daoC=new ethers.Contract(C.DAO,DAO_ABI,signer);
+    // FIX BUG-03: double-check initialized before sending tx
+    const init=await daoC.initialized();
+    if(!init)return toast('DAO not yet initialized — admin must call finalizeInitialization()','er');
+    const type=parseInt(document.getElementById('propType').value)||0;
+    const title=document.getElementById('propTitle').value.trim();
+    const desc=document.getElementById('propDesc').value.trim();
+    const target=document.getElementById('propTarget').value.trim()||ethers.constants.AddressZero;
+    if(!title||!desc)return toast('Fill title and description','er');
+    toast('⏳ Submitting proposal…','in');
+    const tx=await daoC.propose(type,title,desc,target,'0x',0,ethers.constants.AddressZero,{gasLimit:500000});
+    await tx.wait();toast('✅ Proposal submitted!','ok');closeModal('proposalModal');loadDAOData();
+  }catch(e){toast('❌ '+decodeErr(e).slice(0,150),'er');}
+}
+
+// ── INIT ──
+window.addEventListener('load',()=>{
+  loadDiscovery();
+  loadAIGamesFromStorage();
+  loadMyGames();
+  try{localAIWins=parseInt(sessionStorage.getItem('cr_aiwins')||'0');}catch(e){}
+  if(document.getElementById('stAIWins'))document.getElementById('stAIWins').textContent=localAIWins;
+  const p=new URLSearchParams(location.search);
+  if(p.get('ref')&&window.ethereum){
+    sessionStorage.setItem('cr_ref',p.get('ref'));
+  }
+  if(isMobile()){
+    const tabs=document.getElementById('mobTabs');
+    if(tabs)tabs.style.display='flex';
+    document.getElementById('mobPanelGame')?.classList.add('active');
+    document.getElementById('mobTabGame')?.classList.add('active');
+  }
+  window.addEventListener('resize',()=>{
+    const board=document.getElementById('boardContainer');
+    if(board&&board.style.display==='block'){
+      if(gameEngine)renderChessBoard();
+      else if(checkersBoard)renderCheckersBoard();
+    }
+  });
+});
+</script>
+</body>
+</html>
