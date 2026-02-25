@@ -2128,6 +2128,23 @@ async function forfeit() {
         toast('⚠️ Hub token mismatch! Hub uses '+hubToken.slice(0,10)+'… not REALM token','er');
     } catch(e2){ console.warn('realmToken check failed:', e2.message); }
 
+    // ── Check actual Hub REALM balance vs required payout
+    try {
+      const realmC = new ethers.Contract(C.REALM, ['function balanceOf(address) view returns (uint256)'], provider);
+      const hubBal = await realmC.balanceOf(C.HUB);
+      const hubBalF = parseFloat(ethers.utils.formatEther(hubBal)).toFixed(4);
+      const g2 = await hub.games(currentGameId);
+      const required = parseFloat(ethers.utils.formatEther(g2.stake.mul(2))).toFixed(4);
+      console.log(`Hub REALM balance: ${hubBalF} | Required payout: ${required}`);
+      if(hubBal.lt(g2.stake.mul(2))) {
+        const shortfall = parseFloat(ethers.utils.formatEther(g2.stake.mul(2).sub(hubBal))).toFixed(6);
+        toast(`❌ Hub has ${hubBalF} REALM but needs ${required} — shortfall: ${shortfall} REALM. Contract accounting bug.`, 'er');
+        return;
+      } else {
+        console.log(`✅ Hub has sufficient balance (${hubBalF} >= ${required})`);
+      }
+    } catch(e3){ console.warn('Hub balance check failed:', e3.message); }
+
     if(!g.active) return toast('Game is no longer active','er');
 
     const ZERO = '0x0000000000000000000000000000000000000000';
@@ -2151,6 +2168,22 @@ async function forfeit() {
       const opponent = isCreator ? g.player2 : g.creator;
       if(!opponent || opponent.toLowerCase() === ZERO)
         return toast('❌ Opponent address invalid — game may not be fully joined','er');
+
+      // ── Check Hub has enough REALM to pay out ──────────────────────────
+      try {
+        const realmC = new ethers.Contract(C.REALM, ['function balanceOf(address) view returns (uint256)'], provider);
+        const hubBal = await realmC.balanceOf(C.HUB);
+        const payout = g.stake.mul(2);
+        console.log('Hub REALM balance:', ethers.utils.formatEther(hubBal));
+        console.log('Payout needed:', ethers.utils.formatEther(payout));
+        if(hubBal.lt(payout)) {
+          return toast(
+            '❌ Hub has '+parseFloat(ethers.utils.formatEther(hubBal)).toFixed(2)+
+            ' REALM but needs '+parseFloat(ethers.utils.formatEther(payout)).toFixed(2)+
+            ' — fund the Hub contract first','er'
+          );
+        }
+      } catch(balErr){ console.warn('balance check failed:', balErr.message); }
 
       // callStatic simulates the tx and gives exact revert reason if it fails
       try { await hub.callStatic.declareWinner(currentGameId, opponent); }
