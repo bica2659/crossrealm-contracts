@@ -196,10 +196,12 @@ label input[type=checkbox]{width:auto;margin:0}
 .sq.hint::after{content:'';position:absolute;width:30%;height:30%;background:rgba(0,232,122,.75);border-radius:50%;pointer-events:none}
 .sq:hover{filter:brightness(1.12)}
 .cp{
-  font-size:clamp(22px,3.5vw,42px);line-height:1;pointer-events:none;
-  user-select:none;display:block;
-  /* FIX B1: Noto Sans Symbols 2 first — best cross-platform coverage for chess Unicode */
-  font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Color Emoji',sans-serif;
+  font-size:clamp(14px,min(2vw,2vh),30px);line-height:1;pointer-events:none;
+  user-select:none;display:flex;align-items:center;justify-content:center;
+  width:100%;height:100%;
+  /* Use system fonts first — Google Fonts may not load on some networks */
+  font-family:'Segoe UI Symbol','Apple Color Emoji','Noto Sans Symbols 2',
+              'DejaVu Sans','FreeSans',sans-serif;
   text-rendering:geometricPrecision;
 }
 .cp.w{color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000}
@@ -356,7 +358,7 @@ label input[type=checkbox]{width:auto;margin:0}
     align-self:center;margin:0 auto;
   }
   .cp{
-    font-size:clamp(26px,7vw,36px) !important;
+    font-size:clamp(12px,min(7vw,7vh),28px) !important;
   }
   .board-grid{width:100%;height:100%}
   .mob-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
@@ -962,6 +964,13 @@ label input[type=checkbox]{width:auto;margin:0}
         <button class="btn-ghost" onclick="adminPause()">⏸️ Pause Gateway</button>
         <button class="btn-ghost" onclick="adminUnpause()">▶️ Unpause Gateway</button>
         <button class="btn btn-red" onclick="adminWithdraw()" style="margin-top:6px">💸 Withdraw Gateway Reserve</button>
+      </div>
+      <!-- Add inside Admin panel, under Emergency Controls or create new section -->
+      <div class="card" style="margin-top:8px">
+        <div class="card-title">🗨️ Game Chat Registration</div>
+        <p style="font-size:10px;color:var(--dim);margin-bottom:8px">Register a game's players so they can use in-game chat. (Requires owner wallet)</p>
+        <input id="regGameId" type="number" placeholder="Game ID" style="width:100%;margin-bottom:6px">
+        <button class="btn btn-green" onclick="adminRegisterGameChat()">Register Game for Chat</button>
       </div>
       <div class="ir" style="margin-top:14px"><span class="il">Gateway Status</span><span class="iv" id="gwStatus">—</span></div>
     </div>
@@ -1774,6 +1783,9 @@ async function createGame() {
       document.getElementById('forfeitBtn').disabled = false;
       document.getElementById('shareBtn').disabled = true;
       document.getElementById('challengeBtn').disabled = true;
+      // PATCH 1: Save AI game to cache immediately so loadMyGames() can display it
+      saveGameState();
+      await loadMyGames();
       if(isMobile()) mobSwitch('board');
       goView('play', document.getElementById('nav-play'));
       return;
@@ -1898,17 +1910,23 @@ async function joinGame(id) {
     await tx.wait();
     toast('✅ Joined game #'+id,'ok');
 
-    // FIX BUG-01: Register both players in GameChat so in-game chat works
-    // GameChat.registerGame(gameId, player1, player2)
+    // PATCH 3: GameChat.registerGame requires msg.sender == gameHub or owner().
+    // Only attempt if connected wallet is the contract owner. 
+    // Otherwise, the admin must call registerGame via the Admin panel after game starts.
     try {
-      const freshG = await hub.games(id);
-      const regTx = await gameChat.registerGame(id, freshG.creator, freshG.player2, {gasLimit:200000});
-      await regTx.wait();
-    } catch(chatErr){ console.warn('GameChat registerGame failed (non-fatal):', chatErr.message); }
-
-    loadGame(id); loadOpenGames(); loadMyGames();
-  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
-}
+      const gcOwner = await gameChat.owner();
+      if(gcOwner.toLowerCase() === userAddr.toLowerCase()) {
+        const regTx = await gameChat.registerGame(id, freshG.creator, freshG.player2, {gasLimit:200000});
+        await regTx.wait();
+        console.log('GameChat registerGame success (called as owner)');
+      } else {
+        console.warn('GameChat: not owner — registerGame must be called by hub or owner. Chat disabled until registered.');
+        // Disable chat send button and show helpful message
+        const chatBoxEl = document.getElementById('gameChatBox');
+        if(chatBoxEl) chatBoxEl.innerHTML = '<div style="color:var(--dim);text-align:center;padding:8px;font-size:10px">⚠️ Chat requires owner to register game via Admin panel.<br>Go to Admin → Game Chat → Register Game.</div>';
+        document.getElementById('gameChatSendBtn').disabled = true;
+      }
+    } catch(chatErr){ console.warn('GameChat registerGame failed:', chatErr.message); }
 
 async function loadGame(id) {
   if(!hub||loadingGame) return;
@@ -2087,8 +2105,12 @@ async function forfeit() {
     const g = await hub.games(currentGameId);
     if(!g.active) return toast('Game is no longer active','er');
 
-    const noPlayer2 = g.player2 === ethers.constants.AddressZero;
+    const ZERO = '0x0000000000000000000000000000000000000000';
+    const noPlayer2 = !g.player2 || g.player2.toLowerCase() === ZERO;
     const isCreator = g.creator.toLowerCase() === userAddr.toLowerCase();
+
+    // Safety: if player2 not joined yet and we're not creator, nothing to do
+    if(noPlayer2 && !isCreator) return toast('❌ You are not the creator of this game','er');
 
     let tx;
     if(noPlayer2 && isCreator) {
@@ -2101,6 +2123,10 @@ async function forfeit() {
       // Mid-game forfeit: loser calls declareWinner with OPPONENT as winner
       // This immediately pays opponent both stakes minus fees
       const opponent = isCreator ? g.player2 : g.creator;
+      // Safety check: opponent must be a real address
+      if(!opponent || opponent.toLowerCase() === ZERO) {
+        return toast('❌ Opponent address is invalid — game may not be fully joined','er');
+      }
       toast('⏳ Forfeiting — paying opponent…','in');
       tx = await hub.declareWinner(currentGameId, opponent, {gasLimit:500000});
       await tx.wait();
@@ -2365,12 +2391,13 @@ async function endAIGame(gameId) {
 async function declareWin(gameId) {
   // Winner calls declareWinner(gameId, winnerAddress) — IMMEDIATE payout.
   const gid = gameId || currentGameId;
+  if(!gid || !hub) return;
 
-  currentGameId = null; lastState = null;
-  gameCache.delete(gid);
-  document.getElementById('boardContainer').style.display = 'none';
+  // PATCH 5: Don't clear game state until AFTER successful tx — keeps retry possible
   document.getElementById('forfeitBtn').disabled   = true;
   document.getElementById('challengeBtn').disabled = true;
+  document.getElementById('gameInfoBar').innerHTML =
+    `<span style="color:var(--green)">⏳ Claiming winnings for game #${gid}…</span>`;
 
   try {
     // FIX BUG-04: Verify we are actually a player in this game before declaring
@@ -2396,6 +2423,10 @@ async function declareWin(gameId) {
     document.getElementById('gameInfoBar').innerHTML =
       `<span style="color:var(--green)">🏆 You won! ${winAmount} REALM sent to your wallet.</span>`;
     toast('💰 ' + winAmount + ' REALM in your wallet!','ok');
+    // Only clear game state after confirmed win
+    currentGameId = null; lastState = null;
+    gameCache.delete(gid);
+    document.getElementById('boardContainer').style.display = 'none';
     updateBal();
     loadStats();
     loadOpenGames(); loadMyGames();
@@ -2404,6 +2435,11 @@ async function declareWin(gameId) {
     console.error('declareWin error:', e);
     // FIX BUG-03 (B3): retry once after 3s if first attempt fails (timing issue)
     toast('⚠️ First claim attempt failed — retrying in 3s…','in');
+    // After retry success:
+      currentGameId = null; lastState = null;
+      gameCache.delete(gid);
+      document.getElementById('boardContainer').style.display = 'none';
+      updateBal(); loadStats(); loadOpenGames(); loadMyGames();
     await new Promise(r => setTimeout(r, 3000));
     try {
       const tx2 = await hub.declareWinner(gid, userAddr, {gasLimit:600000});
@@ -4262,6 +4298,18 @@ async function expireDispute() {
     toast('✅ Dispute #'+id+' expired — move auto-marked VALID','ok');
     loadDisputeQueue();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+async function adminRegisterGameChat() {
+  const gid = parseInt(document.getElementById('regGameId').value);
+  if(!gid) return toast('Enter a game ID','er');
+  try {
+    const g = await hub.games(gid);
+    if(g.player2 === ethers.constants.AddressZero) return toast('Player 2 has not joined yet','er');
+    const tx = await gameChat.registerGame(gid, g.creator, g.player2, {gasLimit:200000});
+    await tx.wait();
+    toast(`✅ Game #${gid} registered for chat`, 'ok');
+  } catch(e) { toast('❌ ' + (e.reason||e.message), 'er'); }
 }
 
 // ════════════════════════════════════════════
