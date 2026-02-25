@@ -1275,6 +1275,7 @@ const HUB_ABI = [
   'function winsByGameType(address,string) view returns (uint256)',
   'function getMoveCount(uint256) view returns (uint256)',
   'function canClaimAbandonment(uint256,address) view returns (bool)',
+  'function realmToken() view returns (address)',
 ];
 
 const REWARDS_ABI = [
@@ -2107,30 +2108,58 @@ async function forfeit() {
 
   try {
     const g = await hub.games(currentGameId);
+
+    // ── DIAGNOSTIC: dump game state to console so we can see exactly what's wrong
+    console.log('🔍 Forfeit diagnostic — Game #'+currentGameId, {
+      creator:  g.creator,
+      player2:  g.player2,
+      stake:    ethers.utils.formatEther(g.stake)+' REALM',
+      active:   g.active,
+      isAI:     g.isAI,
+      gameType: g.gameType,
+      myAddr:   userAddr,
+    });
+
+    // ── Verify hub's realmToken points to our token
+    try {
+      const hubToken = await hub.realmToken();
+      console.log('Hub realmToken:', hubToken, '| Expected:', C.REALM);
+      if(hubToken.toLowerCase() !== C.REALM.toLowerCase())
+        toast('⚠️ Hub token mismatch! Hub uses '+hubToken.slice(0,10)+'… not REALM token','er');
+    } catch(e2){ console.warn('realmToken check failed:', e2.message); }
+
     if(!g.active) return toast('Game is no longer active','er');
 
     const ZERO = '0x0000000000000000000000000000000000000000';
     const noPlayer2 = !g.player2 || g.player2.toLowerCase() === ZERO;
     const isCreator = g.creator.toLowerCase() === userAddr.toLowerCase();
+    const isPlayer2 = !noPlayer2 && g.player2.toLowerCase() === userAddr.toLowerCase();
 
-    // Safety: if player2 not joined yet and we're not creator, nothing to do
-    if(noPlayer2 && !isCreator) return toast('❌ You are not the creator of this game','er');
+    if(!isCreator && !isPlayer2) return toast('❌ You are not a player in game #'+currentGameId,'er');
+    if(noPlayer2 && !isCreator)  return toast('❌ You are not the creator of this game','er');
 
     let tx;
     if(noPlayer2 && isCreator) {
-      // No opponent joined yet — cancel for full refund
+      // No opponent joined — callStatic first to verify it won't revert
+      try { await hub.callStatic.cancelUnjoinedGame(currentGameId); }
+      catch(sim){ return toast('❌ Cancel would fail: '+decodeErr(sim),'er'); }
       toast('⏳ Cancelling game…','in');
       tx = await hub.cancelUnjoinedGame(currentGameId, {gasLimit:400000});
       await tx.wait();
       toast('✅ Game cancelled — stake refunded','ok');
     } else {
-      // Mid-game forfeit: loser calls declareWinner with OPPONENT as winner
-      // This immediately pays opponent both stakes minus fees
       const opponent = isCreator ? g.player2 : g.creator;
-      // Safety check: opponent must be a real address
-      if(!opponent || opponent.toLowerCase() === ZERO) {
-        return toast('❌ Opponent address is invalid — game may not be fully joined','er');
+      if(!opponent || opponent.toLowerCase() === ZERO)
+        return toast('❌ Opponent address invalid — game may not be fully joined','er');
+
+      // callStatic simulates the tx and gives exact revert reason if it fails
+      try { await hub.callStatic.declareWinner(currentGameId, opponent); }
+      catch(sim){
+        const simReason = decodeErr(sim);
+        console.error('callStatic declareWinner failed:', sim);
+        return toast('❌ Forfeit would fail on-chain: "'+simReason+'"','er');
       }
+
       toast('⏳ Forfeiting — paying opponent…','in');
       tx = await hub.declareWinner(currentGameId, opponent, {gasLimit:500000});
       await tx.wait();
@@ -2149,7 +2178,7 @@ async function forfeit() {
     setTimeout(loadStats, 3000);
   } catch(e) {
     const reason = decodeErr(e);
-    console.error('forfeit error:', e);
+    console.error('forfeit error full object:', e);
     toast('❌ Forfeit: ' + reason, 'er');
   }
 }
