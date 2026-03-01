@@ -1906,7 +1906,7 @@ async function joinGame(id) {
       fee = g.stake.mul(250).div(10000); // fallback to 250bps
     }
     await approve(C.HUB, g.stake.add(fee));
-    const tx = await hub.joinGame(id, {gasLimit:300000, type:0});
+    const tx = await hub.joinGame(id, {gasLimit:800000, type:0});
     toast('⏳ Joining…','in');
     await tx.wait();
     toast('✅ Joined game #'+id,'ok');
@@ -2182,7 +2182,7 @@ async function forfeit() {
       toast('⏳ Cancelling game…','in');
       const feeData0 = await provider.getFeeData();
       const gasPrice0 = feeData0.gasPrice || ethers.utils.parseUnits('60', 'gwei');
-      tx = await hub.cancelUnjoinedGame(currentGameId, { gasLimit:150000, type:0, gasPrice:gasPrice0 });
+      tx = await hub.cancelUnjoinedGame(currentGameId, { gasLimit:800000, type:0, gasPrice:gasPrice0 });
       await tx.wait();
       toast('✅ Game cancelled — stake refunded','ok');
     } else {
@@ -2220,7 +2220,7 @@ async function forfeit() {
       const feeData = await provider.getFeeData();
       const gasPrice = feeData.gasPrice || ethers.utils.parseUnits('60', 'gwei');
       tx = await hub.declareWinner(currentGameId, opponent, {
-        gasLimit: 150000,
+        gasLimit: 800000,
         type: 0,
         gasPrice,
       });
@@ -2417,7 +2417,7 @@ async function submitChessMove(from, to) {
   // ── P2P game: submit on-chain ──────────────────────────────────────────
   toast('⏳ Submitting move…','in');
   try {
-    const tx = await hub.makeMove(currentGameId, moveStr, newFen, {gasLimit:300000, type:0});
+    const tx = await hub.makeMove(currentGameId, moveStr, newFen, {gasLimit:800000, type:0});
     await tx.wait();
     if(mated) {
       toast('♟️ Checkmate! Move confirmed — funds release after challenge window.','ok');
@@ -2513,7 +2513,7 @@ async function declareWin(gameId) {
     toast('⏳ Claiming your winnings…','in');
     const feeDataW = await provider.getFeeData();
     const gasPriceW = feeDataW.gasPrice || ethers.utils.parseUnits('60', 'gwei');
-    const tx = await hub.declareWinner(gid, userAddr, {gasLimit:150000, type:0, gasPrice:gasPriceW});
+    const tx = await hub.declareWinner(gid, userAddr, {gasLimit:800000, type:0, gasPrice:gasPriceW});
     await tx.wait();
 
     const winAmount = parseFloat(ethers.utils.formatEther(g.stake.mul(2))).toFixed(2);
@@ -2535,7 +2535,7 @@ async function declareWin(gameId) {
     try {
       const feeDataW2 = await provider.getFeeData();
       const gasPriceW2 = feeDataW2.gasPrice || ethers.utils.parseUnits('60', 'gwei');
-      const tx2 = await hub.declareWinner(gid, userAddr, {gasLimit:150000, type:0, gasPrice:gasPriceW2});
+      const tx2 = await hub.declareWinner(gid, userAddr, {gasLimit:800000, type:0, gasPrice:gasPriceW2});
       await tx2.wait();
       document.getElementById('gameInfoBar').innerHTML =
         `<span style="color:var(--green)">🏆 You won! Winnings claimed.</span>`;
@@ -2569,7 +2569,7 @@ async function challengeAbandonment() {
       const EXPIRE_TIMEOUT = 86400; // 24 hours
       if(elapsed >= EXPIRE_TIMEOUT) {
         toast('⏳ Expiring abandoned game…','in');
-        const tx = await hub.expireGame(currentGameId, {gasLimit:150000, type:0});
+        const tx = await hub.expireGame(currentGameId, {gasLimit:800000, type:0});
         await tx.wait();
         toast('✅ Game expired — stake returned','ok');
       } else {
@@ -2594,7 +2594,7 @@ async function challengeAbandonment() {
       }
 
       toast('⏳ Claiming abandonment win…','in');
-      const tx = await hub.claimAbandonment(currentGameId, {gasLimit:150000, type:0});
+      const tx = await hub.claimAbandonment(currentGameId, {gasLimit:800000, type:0});
       await tx.wait();
       toast('🏆 Abandonment claimed!','ok');
 
@@ -3044,7 +3044,7 @@ async function submitCheckersMove(mv, fr, fc, tr, tc) {
 
   toast('⏳ Submitting…','in');
   try {
-    const tx = await hub.makeMove(currentGameId, moveStr, newState, {gasLimit:300000, type:0});
+    const tx = await hub.makeMove(currentGameId, moveStr, newState, {gasLimit:800000, type:0});
     await tx.wait();
     if(!whiteLeft || !blackLeft) {
       toast('🏆 Winning move confirmed! Funds release after challenge window.','ok');
