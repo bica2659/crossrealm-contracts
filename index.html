@@ -1239,7 +1239,7 @@ const C = {
 };
 
 const CORE_CHAIN = {
-  chainId:'0x99', // 153 decimal — Core Blockchain Mainnet
+  chainId:'0x45c', // 1116 decimal — Core Blockchain Mainnet
   chainName:'Core Blockchain Mainnet',
   rpcUrls:['https://rpc.coredao.org','https://rpc-core.icecreamswap.com'],
   nativeCurrency:{name:'CORE',symbol:'CORE',decimals:18},
@@ -1252,11 +1252,6 @@ const ERC20_ABI = [
   'function allowance(address,address) view returns (uint256)',
   'function approve(address,uint256) returns (bool)',
   'function decimals() view returns (uint8)',
-  // FIX BUG-02: Trading gate functions (REALMToken specific)
-  'function tradingEnabled() view returns (bool)',
-  'function isWhitelisted(address) view returns (bool)',
-  'function enableTrading() external',
-  'function setWhitelisted(address,bool) external',
 ];
 
 const HUB_ABI = [
