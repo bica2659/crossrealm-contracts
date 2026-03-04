@@ -1849,7 +1849,6 @@ const C = {
   REWARDS:       '0x0C5Da3622e42efE0C579ef758BC8f3144018Dfc1', // NEW proxy (Core Safe owned)
   STAKING:       '0x8374D50a9f48A4C0De4394f75e766cE3C741E698', // v2 (owned by 0x73a6)
   VAULT:         '0xFfD9bc74304966d2B252E2e35EB2d248004434E0', // RealmVault
-  DAO:           '0x50DA6AB7903BDde191Cc7596012EC5920dC19e9b', // NEW GovernanceDAO
   CORE_SAFE:     '0xf88104BDaD09209600298B922193DB4351D104f8', // 2/3 multisig
   GATEWAY:       '0xAE539875D0068d0cFD04670657b898452357A53b',
   BRIDGE:        '0x4f66afBDEAE71F87F37a3415970564A8632f87c9',
@@ -4516,16 +4515,36 @@ let isOwner = false;
 
 async function checkOwner() {
   if(!isConnected||!userAddr) return;
+  // Known admin wallets — any of these can access the admin panel
+  const ADMIN_WALLETS = [
+    '0x73a6eA93A7BF0FC9F8D3C997AEDD046A6ED79054', // Community wallet (staking owner)
+    '0xbc307d5c26A62eED1d92aF9E8F8e39046274d2Eb', // Founder/Dev wallet (gateway owner)
+    '0xf88104BDaD09209600298B922193DB4351D104f8', // Core Safe (Hub+Rewards proxy owner)
+    '0x7ADB4852C70FB86d906deB082604Fc338C067135', // Tech Lead
+    '0x35Cc377A9a0f1071111B7510f57268af66f74C3A', // Ops
+  ].map(a => a.toLowerCase());
+
   try {
-    const owner = await gateway.owner();
+    const addr = userAddr.toLowerCase();
+    isOwner = ADMIN_WALLETS.includes(addr);
+
+    // Also check gateway owner dynamically (in case ownership transferred)
+    let gwOwnerAddr = '';
+    try {
+      gwOwnerAddr = await gateway.owner();
+      if(gwOwnerAddr.toLowerCase() === addr) isOwner = true;
+    } catch(e) {}
+
     document.getElementById('adminWallet').textContent = userAddr.slice(0,12)+'…';
-    document.getElementById('gwOwner').textContent     = owner.slice(0,12)+'…';
-    isOwner = userAddr.toLowerCase()===owner.toLowerCase();
-    document.getElementById('ownerOk').style.display   = isOwner?'block':'none';
-    document.getElementById('ownerNope').style.display = isOwner?'none':'block';
-    document.getElementById('adminNav').style.display  = isOwner?'':'none';
-    if(isOwner) document.getElementById('nav-admin').closest('.nav-sect').style.display='';
-  } catch(e){}
+    document.getElementById('gwOwner').textContent     = gwOwnerAddr ? gwOwnerAddr.slice(0,12)+'…' : '—';
+    document.getElementById('ownerOk').style.display   = isOwner ? 'block' : 'none';
+    document.getElementById('ownerNope').style.display = isOwner ? 'none'  : 'block';
+    document.getElementById('adminNav').style.display  = isOwner ? ''      : 'none';
+    if(isOwner) {
+      const navSect = document.getElementById('nav-admin')?.closest('.nav-sect');
+      if(navSect) navSect.style.display = '';
+    }
+  } catch(e) { console.error('checkOwner:', e); }
 }
 
 async function loadAdminData() {
