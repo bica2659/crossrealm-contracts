@@ -168,6 +168,7 @@ label input[type=checkbox]{width:auto;margin:0}
   box-shadow:0 0 40px rgba(240,165,0,.12),0 0 80px rgba(240,165,0,.05);
   overflow:hidden;flex-shrink:0;
   align-self:center;
+  container-type:inline-size;
   /*
    Width  = 100vw - sidebar(200) - play-left(300) - padding(24) = 100vw - 524px
    Height = 100vh - topbar(52) - infobar(54) - buttons(52) - gaps/pad(24) - chrome-safety(68) = 100vh - 250px
@@ -196,10 +197,9 @@ label input[type=checkbox]{width:auto;margin:0}
 .sq.hint::after{content:'';position:absolute;width:30%;height:30%;background:rgba(0,232,122,.75);border-radius:50%;pointer-events:none}
 .sq:hover{filter:brightness(1.12)}
 .cp{
-  font-size:clamp(14px,min(2vw,2vh),30px);line-height:1;pointer-events:none;
+  font-size:clamp(18px,4cqi,52px);line-height:1;pointer-events:none;
   user-select:none;display:flex;align-items:center;justify-content:center;
   width:100%;height:100%;
-  /* Use system fonts first — Google Fonts may not load on some networks */
   font-family:'Segoe UI Symbol','Apple Color Emoji','Noto Sans Symbols 2',
               'DejaVu Sans','FreeSans',sans-serif;
   text-rendering:geometricPrecision;
@@ -358,7 +358,7 @@ label input[type=checkbox]{width:auto;margin:0}
     align-self:center;margin:0 auto;
   }
   .cp{
-    font-size:clamp(12px,min(7vw,7vh),28px) !important;
+    font-size:clamp(18px,5cqi,52px) !important;
   }
   .board-grid{width:100%;height:100%}
   .mob-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
@@ -1151,6 +1151,7 @@ label input[type=checkbox]{width:auto;margin:0}
         <button class="btn-ghost" onclick="adminWireStakingRewards()">🔧 Set Staking.rewardsContract → Rewards</button>
         <button class="btn-ghost" onclick="adminWireHubRewards()">🔧 Set Hub.rewardsContract → Rewards</button>
         <button class="btn btn-green" onclick="adminWireAll()" style="margin-top:4px">⚡ Wire All (runs all 4 above)</button>
+        <button class="btn-ghost" onclick="updateGameChatHub()" style="margin-top:4px;border-color:var(--blue)">🗨️ Update GameChat → New Hub</button>
       </div>
       <div id="wireStatus" style="font-size:9px;margin-top:10px;color:var(--dim)"></div>
     </div>
@@ -1158,8 +1159,11 @@ label input[type=checkbox]{width:auto;margin:0}
     <div class="card">
       <h3>🗨️ Game Chat Registration</h3>
       <p style="font-size:10px;color:var(--dim);margin-bottom:8px">Register a game's players so they can use in-game chat. (Requires owner wallet)</p>
+      <div class="ibox bl" style="font-size:9px;margin-bottom:8px">
+        First click <strong>Update GameChat → New Hub</strong> above (one time). After that, games auto-register on join.
+      </div>
       <input id="regGameId" type="number" placeholder="Game ID" style="width:100%;margin-bottom:6px">
-      <button class="btn btn-green" onclick="adminRegisterGameChat()">Register Game for Chat</button>
+      <button class="btn btn-green" onclick="adminRegisterGameChat()">Manually Register Game for Chat</button>
     </div>
     <div class="card">
       <h3>📅 Emission Rate Reference</h3>
@@ -2106,8 +2110,9 @@ async function createGame() {
       return toast('❌ Tx reverted: ' + (waitErr?.reason || waitErr?.message), 'er');
     }
     toast('✅ Game created!','ok');
+    document.getElementById('boardContainer').style.display = 'block';
     await loadOpenGames(); await loadMyGames();
-    // FIX BUG-20: Use GameCreated event from receipt to get real game ID, not gameCount() which may be stale
+    // FIX BUG-20: Use GameCreated event from receipt to get real game ID
     let gameId;
     try {
       const iface = new ethers.utils.Interface(['event GameCreated(uint256 indexed id, address indexed creator, uint256 stake, string gameType, uint256 window)']);
@@ -2119,7 +2124,11 @@ async function createGame() {
       gameId = cnt.toNumber();
     }
     setTimeout(()=>{ loadGame(gameId); if(isMobile()) mobSwitch('board'); }, 1500);
-  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+  } catch(e){
+    console.error('createGame error:', e);
+    const msg = e?.reason || e?.data?.message || e?.error?.message || e?.message || String(e);
+    toast('❌ ' + msg, 'er');
+  }
 }
 
 async function loadOpenGames() {
@@ -2183,13 +2192,17 @@ async function loadMyGames() {
 
     for(const {id,g} of rows){
       if(!g.active)continue;
-      const me=g.creator.toLowerCase()===userAddr.toLowerCase()||
-        (g.player2!==ethers.constants.AddressZero&&g.player2.toLowerCase()===userAddr.toLowerCase());
-      if(!me)continue;
+      const isCreator = g.creator.toLowerCase()===userAddr.toLowerCase();
+      const isJoiner  = g.player2!==ethers.constants.AddressZero&&g.player2.toLowerCase()===userAddr.toLowerCase();
+      if(!isCreator&&!isJoiner)continue;
       const ic={chess:'♟️',checkers:'🎯','8ball':'🎱',penalty:'⚽'}[g.gameType]||'🎮';
+      const waiting = g.player2===ethers.constants.AddressZero;
+      const statusLabel = waiting
+        ? '<span style="color:var(--gold)">⏳ Waiting for opponent</span>'
+        : g.isAI ? '🤖 AI' : '👥 P2P';
       out+=`<div class="game-item" onclick="loadGame(${id})">
-        <div class="gi-id">⚔️ Game #${id}</div>
-        <div class="gi-meta">${ic} ${g.gameType.toUpperCase()} · ${g.isAI?'🤖 AI':'👥 P2P'} · ${ethers.utils.formatEther(g.stake)} REALM</div>
+        <div class="gi-id">⚔️ Game #${id} ${waiting?'· OPEN':''}</div>
+        <div class="gi-meta">${ic} ${g.gameType.toUpperCase()} · ${statusLabel} · ${ethers.utils.formatEther(g.stake)} REALM</div>
       </div>`;
     }
     el.innerHTML=out||'<p style="color:var(--dim);font-size:10px;text-align:center;padding:14px">No active games</p>';
@@ -5126,6 +5139,26 @@ async function vmFundPool() {
     await vmLoadBalances();
   } catch(e) { vmSetStatus('❌ ' + (e.reason || e.message), 'er'); toast(e.reason || e.message, 'er'); }
 }
+
+// ─── GAMECHAT HUB WIRING ──────────────────────────────────────────────────
+async function updateGameChatHub() {
+  if (!isOwner) return toast('Owner wallet required','er');
+  try {
+    const gcFull = new ethers.Contract(C.GAMECHAT, [
+      'function setGameHub(address) external',
+      'function gameHub() view returns (address)',
+    ], signer);
+    const current = await gcFull.gameHub();
+    if(current.toLowerCase() === C.HUB.toLowerCase()) {
+      return toast('GameChat already pointing at new Hub ✅','ok');
+    }
+    toast('⏳ Updating GameChat hub…','in');
+    const tx = await gcFull.setGameHub(C.HUB, {gasLimit:100000});
+    await tx.wait();
+    toast('✅ GameChat now wired to new Hub','ok');
+  } catch(e) { toast('❌ ' + (e.reason||e.message),'er'); }
+}
+// ─── END GAMECHAT HUB WIRING ──────────────────────────────────────────────
 
 // ─── END VAULT MANAGER ─────────────────────────────────────────────────────
 
