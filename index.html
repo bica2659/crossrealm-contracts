@@ -458,8 +458,8 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .nbadge{margin-left:auto;background:var(--gold);color:#000;font-size:8px;font-weight:700;padding:2px 5px;border-radius:8px;min-width:16px;text-align:center}
 
 /* ── MAIN ── */
-.main{overflow:hidden;display:flex;flex-direction:column;min-height:0}
-.view{display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.main{overflow:hidden;display:flex;flex-direction:column;height:calc(100vh - 52px)}
+.view{display:none;flex-direction:column;flex:1;overflow:hidden;height:100%}
 .view.active{display:flex}
 .view-body{flex:1;overflow-y:auto;padding:20px}
 .view-body::-webkit-scrollbar{width:4px}
@@ -538,11 +538,16 @@ label input[type=checkbox]{width:auto;margin:0}
 .mob-tabs{display:none}
 .mob-panel{display:block} /* on desktop all panels are visible normally */
 
-.play-wrap{display:grid;grid-template-columns:300px 1fr;grid-template-rows:1fr;flex:1;min-height:0;min-width:0;overflow:hidden}
-.play-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px;min-height:0}
+.play-wrap{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 52px);overflow:hidden}
+.play-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px;height:100%;box-sizing:border-box}
 .play-left::-webkit-scrollbar{width:3px}
 .play-left::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
-.play-right{overflow-y:auto;overflow-x:hidden;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;background:var(--bg);min-height:0;min-width:0;gap:6px;max-height:calc(100vh - 52px);box-sizing:border-box}
+.play-right{
+  overflow:hidden;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;background:var(--bg);
+  padding:10px 12px;gap:6px;box-sizing:border-box;
+  height:100%;
+}
 
 /* ── BOARD ── */
 .board-wrap{
@@ -550,19 +555,17 @@ label input[type=checkbox]{width:auto;margin:0}
   border:2px solid var(--gold);border-radius:6px;
   box-shadow:0 0 40px rgba(240,165,0,.12),0 0 80px rgba(240,165,0,.05);
   overflow:hidden;flex-shrink:0;
-  align-self:center;
+  position:relative; /* for AI overlay */
   /*
-   Width  = 100vw - sidebar(200) - play-left(300) - padding(24) = 100vw - 524px
-   Height = 100vh - topbar(52) - infobar(54) - buttons(52) - gaps/pad(24) - chrome-safety(68) = 100vh - 250px
-   Hard cap 520px. aspect-ratio makes it a perfect square.
-   The chrome-safety of 68px accounts for browser address bar eating into 100vh on some setups.
+   Side = min(
+     viewport_width - sidebar(200) - play-left(300) - padding(48) = vw-548,
+     viewport_height - topbar(52) - infobar(50) - buttons(48) - gaps(12) - padding(20) = vh-182,
+     560px cap
+   )
   */
-  /*
-   Layout (top→bottom): pad(12)+buttons(44)+gap(8)+infobar(50)+gap(8)+BOARD+pad(12) = 134px overhead
-   Plus chrome safety 70px = 204px. Width = 100vw-524px. Hard cap 520px.
-  */
-  width: min(calc(100vw - 540px), calc(100vh - 200px), 560px);
-  aspect-ratio: 1 / 1;
+  --board-side: min(calc(100vw - 548px), calc(100vh - 182px), 560px);
+  width:  var(--board-side);
+  height: var(--board-side);
 }
 .board-grid{
   display:grid;
@@ -593,11 +596,17 @@ label input[type=checkbox]{width:auto;margin:0}
 .ck.r{background:radial-gradient(circle at 35% 35%,#ff8080,#c0392b);border-color:#7b0000}
 .ck.b{background:radial-gradient(circle at 35% 35%,#555,#111);border-color:#000}
 
-.ai-thinking{text-align:center;padding:10px;background:rgba(0,232,122,.06);border:1px solid rgba(0,232,122,.25);border-radius:5px;margin:8px 0;font-size:11px;color:var(--green);animation:pulse 1.5s infinite;display:none}
+.ai-thinking{
+  position:absolute;bottom:8px;left:8px;right:8px;
+  padding:8px 12px;background:rgba(0,232,122,.12);border:1px solid rgba(0,232,122,.35);
+  border-radius:5px;font-size:11px;color:var(--green);
+  animation:pulse 1.5s infinite;display:none;z-index:5;text-align:center;
+  pointer-events:none;
+}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
 .game-infobar{
-  width:100%;max-width:480px;text-align:center;padding:5px 10px;
+  width:100%;max-width:min(calc(100vw - 548px), 560px);text-align:center;padding:6px 12px;
   background:var(--bg3);border:1px solid var(--border);border-radius:5px;
   font-size:11px;color:var(--dim);flex-shrink:0;
 }
@@ -726,29 +735,38 @@ label input[type=checkbox]{width:auto;margin:0}
     text-align:center;font-size:8px;flex-shrink:0;white-space:nowrap;border-radius:4px;
   }
   .nav-item .ic{font-size:18px;width:auto}
-  .main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
-  .view{min-height:100%;overflow-y:auto}
-  .view-body{padding:12px}
-  .play-wrap{display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  .play-left{border-right:none;border-bottom:none;max-height:none;padding:10px;overflow-y:visible;flex-shrink:0}
-  .play-right{padding:8px 6px;align-items:center;overflow:visible;justify-content:flex-start;gap:4px;flex-shrink:0}
-  /* mob-panel must fill full width of its flex-column parent */
-  .mob-panel{display:none;width:100%}
-  .mob-panel.active{display:flex;flex-direction:column;align-items:center;width:100%}
-  /* Board on mobile: fill width minus margins, cap at viewport height minus chrome */
-  .board-wrap{
-    width:min(calc(100vw - 20px), calc(100vh - 220px), 480px) !important;
-    align-self:center;margin:0 auto;
+  /* Main scrolls normally on mobile — each view manages its own overflow */
+  .main{flex:1;overflow:hidden;min-height:0}
+  .view{height:100%;overflow-y:auto;display:none;flex-direction:column}
+  .view.active{display:flex}
+  .view-body{padding:12px;flex:1;overflow-y:auto}
+
+  /* PLAY view — mobile specific: full height flex column */
+  #view-play{overflow:hidden}
+  .play-wrap{
+    display:flex;flex-direction:column;
+    height:100%;overflow:hidden;
   }
-  .cp{
-    font-size:clamp(20px,7vmin,48px) !important;
-  }
-  .board-grid{width:100%;height:100%}
   .mob-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
   .mob-tab{flex:1;padding:10px 4px;text-align:center;font-size:10px;font-weight:700;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;letter-spacing:.5px;text-transform:uppercase}
   .mob-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
-  .mob-panel{display:none}
-  .mob-panel.active{display:block}
+  .mob-panel{display:none;width:100%;flex:1;min-height:0;overflow-y:auto;}
+  .mob-panel.active{display:flex;flex-direction:column;align-items:center;}
+  .play-left{border-right:none;border-bottom:none;padding:10px;height:auto;overflow-y:auto;}
+  /* Board panel on mobile */
+  .play-right{
+    overflow:hidden;justify-content:center;padding:8px 6px;gap:4px;
+    height:100%;
+  }
+  /* Mobile board: fill width minus margins, cap at viewport height minus chrome/tabs */
+  .board-wrap{
+    --mob-side: min(calc(100vw - 20px), calc(100vh - 52px - 56px - 140px), 480px);
+    width: var(--mob-side) !important;
+    height: var(--mob-side) !important;
+  }
+  .game-infobar{max-width:calc(100vw - 20px)}
+  .cp{font-size:clamp(18px,6.5vmin,44px) !important;}
+  .board-grid{width:100%;height:100%}
   .g2,.g3,.chain-grid{grid-template-columns:1fr}
   input,select,textarea{font-size:16px!important}
   .social-wrap{display:flex;flex-direction:column}
@@ -757,20 +775,20 @@ label input[type=checkbox]{width:auto;margin:0}
   .msgs-area{min-height:200px}
   .modal{width:calc(100vw - 32px);padding:18px;max-height:84vh}
   .gscroll{max-height:160px}
-  .board-wrap{margin:8px auto;max-width:calc(100vw - 24px)}
   .pstats{gap:4px}
   .vhead{padding:12px}
   .vtitle{font-size:20px}
+  /* Buttons row under board — tight spacing */
+  #boardBtnRow{
+    max-width:min(calc(100vw - 20px), 480px) !important;
+  }
 }
 @media(max-width:380px){
-  .nav-item{min-width:48px;padding:5px 7px;font-size:7px}
-  .play-left{max-height:36vh}
+  .nav-item{min-width:44px;padding:4px 6px;font-size:7px}
+  .board-wrap{--mob-side:min(calc(100vw - 12px), calc(100vh - 52px - 56px - 130px), 340px) !important}
 }
-
-/* Thin scrollbar for play-right */
-.play-right::-webkit-scrollbar{width:4px}
-.play-right::-webkit-scrollbar-track{background:transparent}
-.play-right::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+/* Thin scrollbar for play-right (desktop) */
+.play-right::-webkit-scrollbar{width:0}
 </style>
 </head>
 <body>
@@ -873,23 +891,23 @@ label input[type=checkbox]{width:auto;margin:0}
       </div>
     </div>
     <div class="play-right mob-panel" id="mobPanelBoard">
-      <div id="aiThinking" class="ai-thinking">🤖 AI calculating move…</div>
-            <!-- Infobar above board so context is always visible -->
+      <!-- Infobar above board so context is always visible -->
       <div id="gameInfoBar" class="game-infobar">No game loaded — create or join a game</div>
       <div id="boardContainer" class="board-wrap">
         <div id="boardGrid" class="board-grid"></div>
+        <div id="aiThinking" class="ai-thinking">🤖 AI calculating move…</div>
       </div>
       <!-- Forfeit / Share / Challenge BELOW board -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;width:100%;max-width:520px;flex-shrink:0">
+      <div id="boardBtnRow" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;width:100%;max-width:min(calc(100vw - 548px),560px);flex-shrink:0">
         <button class="btn btn-red" id="forfeitBtn" onclick="forfeit()" disabled>FORFEIT</button>
         <button class="btn-ghost" id="shareBtn" onclick="shareGame()" disabled>🔗 SHARE</button>
         <button class="btn-ghost" id="challengeBtn" onclick="challengeAbandonment()" disabled title="Claim win if opponent hasn't moved in time">⚡ CHALLENGE</button>
       </div>
     </div>
     <!-- Mobile-only chat panel (desktop uses the card inside play-left) -->
-    <div class="mob-panel" id="mobPanelChat" style="padding:10px">
-      <div style="max-height:calc(100vh - 200px);overflow-y:auto;background:var(--bg3);border-radius:5px;padding:10px;margin-bottom:8px;font-size:10px;color:var(--dim);text-align:center" id="gameChatBoxMob">Load a game to chat</div>
-      <textarea id="gameChatInputMob" placeholder="Message... (500 chars max)" rows="2" style="margin-bottom:6px"></textarea>
+    <div class="mob-panel" id="mobPanelChat" style="padding:10px;display:flex;flex-direction:column;gap:6px">
+      <div style="flex:1;overflow-y:auto;min-height:120px;background:var(--bg3);border-radius:5px;padding:10px;font-size:10px;color:var(--dim);text-align:center" id="gameChatBoxMob">Load a game to chat</div>
+      <textarea id="gameChatInputMob" placeholder="Message... (500 chars max)" rows="2" style="margin-bottom:0;flex-shrink:0"></textarea>
       <button class="btn btn-green" id="gameChatSendBtnMob" onclick="sendGameChatMob()" disabled>Send Message</button>
     </div>
   </div>
@@ -1112,13 +1130,18 @@ label input[type=checkbox]{width:auto;margin:0}
     <div class="vsub">Bridge REALM via LayerZero · 0.1% protocol fee · burn-and-mint</div>
   </div>
   <div class="view-body">
+    <div class="ibox re" style="margin-bottom:16px;font-size:11px;line-height:1.8">
+      <strong>⛔ Bridge Currently Disabled</strong><br>
+      The CrossChainBridge is <strong>permanently paused</strong>. Inbound <code>bridgeMint()</code> is broken because the token reached MAX_SUPPLY at mint. Outbound transactions will fail on the destination chain.<br>
+      <strong>Status:</strong> Paused — do not send tokens via bridge. Recovery planned for Phase 2.
+    </div>
     <div class="g2">
       <div>
         <div class="card">
           <h3>🌉 Bridge Tokens</h3>
           <span class="fl">From Chain</span>
           <div style="background:rgba(0,232,122,.07);border:1px solid rgba(0,232,122,.25);padding:10px;border-radius:5px;margin-bottom:10px;font-size:11px">
-            <span style="color:var(--green);font-weight:700">● CORE Mainnet</span> <span style="color:var(--dim);margin-left:8px;font-size:9px">Chain ID: 153</span>
+            <span style="color:var(--green);font-weight:700">● CORE Mainnet</span> <span style="color:var(--dim);margin-left:8px;font-size:9px">Chain ID: 1116</span>
           </div>
           <span class="fl">To Chain</span>
           <div class="chain-grid">
@@ -1674,6 +1697,10 @@ label input[type=checkbox]{width:auto;margin:0}
 <div id="view-dao" class="view">
   <div class="vhead"><div class="vtitle">Governance <em>DAO</em></div><div class="vsub">On-chain voting · proposals · treasury · vesting</div></div>
   <div class="view-body">
+    <!-- Dynamic banner: shown until DAO is finalized -->
+    <div id="daoPendingBanner" class="ibox" style="margin-bottom:16px;display:none">
+      ⏳ <strong>DAO Pending Finalization</strong> — The owner still controls protocol parameters directly. Once <code>finalizeInitialization()</code> is called, all future changes require a community vote + 2-day timelock. Proposals are blocked until then.
+    </div>
 
     <div class="g2" style="margin-bottom:16px">
       <div class="card">
@@ -1870,12 +1897,12 @@ const C = {
   TOURNAMENT:    '0x7D22F0AdB85AcC8F4EC1e43903B3E7Eb7dB468a3',
   MARKETPLACE:   '0xd11bD7EB625C4C6c7755f6517d0039a74E164eF0',
   // Implementation addresses (for block explorer verification links)
-  HUB_IMPL:      '0x48dBC2AdE86Fb7cB67De0D87144f64E056C6C021',
-  REWARDS_IMPL:  '0x1E5271B214f3B529419DB69FA0a98bA8de4Dd959',
+  HUB_IMPL:      '0x11d5AbC0e4978Cb8e96BE482669b28F68cf9b7CB',
+  REWARDS_IMPL:  '0xE08192fFA2CEaF17fDDa6CE77A692065044A4F5e',
 };
 
 const CORE_CHAIN = {
-  chainId:'0x99', // 153 decimal — Core Blockchain Mainnet
+  chainId:'0x45c', // 1116 decimal — Core Blockchain Mainnet
   chainName:'Core Blockchain Mainnet',
   rpcUrls:['https://rpc.coredao.org','https://rpc-core.icecreamswap.com'],
   nativeCurrency:{name:'CORE',symbol:'CORE',decimals:18},
@@ -2254,7 +2281,7 @@ async function connect() {
         } else {
           // Mobile: Core is pre-registered in most mobile wallets, the 4902 is often wrong
           // Just show a helpful message and the user can switch manually
-          toast('Please switch to Core Mainnet (chain 153) in your wallet app','in');
+          toast('Please switch to Core Mainnet (chain 1116) in your wallet app','in');
         }
       } else if (switchErr.code === 4001) {
         throw switchErr; // User explicitly rejected
@@ -2364,10 +2391,14 @@ function onAIToggle() {
   const ai = document.getElementById('isAI').checked;
   document.getElementById('aiInfo').style.display  = ai ? '' : 'none';
   document.getElementById('p2pInfo').style.display = ai ? 'none' : '';
-  // Hide/show stake input for AI (free) vs P2P (staked)
-  document.getElementById('stakeAmt').closest('span') && (document.getElementById('stakeAmt').closest('div') || null);
-  document.getElementById('stakeAmt').disabled = ai;
-  document.getElementById('stakeAmt').style.opacity = ai ? '0.4' : '1';
+  const stakeRow = document.getElementById('stakeAmt');
+  if(stakeRow) {
+    stakeRow.disabled = ai;
+    stakeRow.style.opacity = ai ? '0.4' : '1';
+    // Also grey out the label above it
+    const fl = stakeRow.previousElementSibling;
+    if(fl && fl.classList.contains('fl')) fl.style.opacity = ai ? '0.4' : '1';
+  }
 }
 // Run on load
 setTimeout(()=>{ try{onAIToggle();}catch(e){} }, 500);
@@ -2559,7 +2590,7 @@ async function joinGame(id) {
       fee = g.stake.mul(250).div(10000); // fallback to 250bps
     }
     await approve(C.HUB, g.stake.add(fee));
-    const tx = await hub.joinGame(id, {gasLimit:500000});
+    const tx = await hub.joinGame(id, {gasLimit:500000, type:0});
     toast('⏳ Joining…','in');
     await tx.wait();
     toast('✅ Joined game #'+id,'ok');
@@ -2571,17 +2602,20 @@ async function joinGame(id) {
       const gcOwner = await gameChat.owner();
       if(gcOwner.toLowerCase() === userAddr.toLowerCase()) {
         const freshG2 = await hub.games(id);
-        const regTx = await gameChat.registerGame(id, freshG2.creator, freshG2.player2, {gasLimit:200000});
+        const regTx = await gameChat.registerGame(id, freshG2.creator, freshG2.player2, {gasLimit:200000, type:0});
         await regTx.wait();
         console.log('GameChat registerGame success (called as owner)');
       } else {
-        console.warn('GameChat: not owner — registerGame must be called by hub or owner. Chat disabled until registered.');
-        // Disable chat send button and show helpful message
+        console.warn('GameChat: not owner — registerGame must be called by hub or owner.');
         const chatBoxEl = document.getElementById('gameChatBox');
-        if(chatBoxEl) chatBoxEl.innerHTML = '<div style="color:var(--dim);text-align:center;padding:8px;font-size:10px">⚠️ Chat requires owner to register game via Admin panel.<br>Go to Admin → Game Chat → Register Game.</div>';
-        document.getElementById('gameChatSendBtn').disabled = true;
+        if(chatBoxEl) chatBoxEl.innerHTML = '<div style="color:var(--dim);text-align:center;padding:8px;font-size:10px">⚠️ Chat requires owner to register game via Admin panel.</div>';
       }
     } catch(chatErr){ console.warn('GameChat registerGame failed:', chatErr.message); }
+
+    // Auto-load the game board so the joiner sees the board immediately
+    await loadOpenGames();
+    await loadMyGames();
+    setTimeout(() => { loadGame(id); if(isMobile()) mobSwitch('board'); }, 800);
 
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
@@ -3094,13 +3128,18 @@ async function declareWin(gameId) {
   } catch(e) {
     const reason = decodeErr(e);
     console.error('declareWin error:', e);
-    // FIX BUG-03 (B3): retry once after 3s if first attempt fails (timing issue)
-    toast('⚠️ First claim attempt failed — retrying in 3s…','in');
-    // After retry success:
+    // If already settled on-chain just clean up silently
+    if(reason.toLowerCase().includes('game not active') || reason.toLowerCase().includes('already')) {
+      document.getElementById('gameInfoBar').innerHTML =
+        `<span style="color:var(--gold)">🏁 Game already settled.</span>`;
       currentGameId = null; lastState = null;
       gameCache.delete(gid);
       document.getElementById('boardContainer').style.display = 'none';
       updateBal(); loadStats(); loadOpenGames(); loadMyGames();
+      return;
+    }
+    // Retry once after 3s (common timing race on Core)
+    toast('⚠️ Claim attempt 1 failed — retrying in 3s…','in');
     await new Promise(r => setTimeout(r, 3000));
     try {
       const tx2 = await hub.declareWinner(gid, userAddr, {gasLimit:600000});
@@ -3108,12 +3147,15 @@ async function declareWin(gameId) {
       document.getElementById('gameInfoBar').innerHTML =
         `<span style="color:var(--green)">🏆 You won! Winnings claimed.</span>`;
       toast('💰 Winnings claimed!','ok');
+      currentGameId = null; lastState = null;
+      gameCache.delete(gid);
+      document.getElementById('boardContainer').style.display = 'none';
       updateBal(); loadStats(); loadOpenGames(); loadMyGames();
     } catch(e2) {
       const r2 = decodeErr(e2);
       document.getElementById('gameInfoBar').innerHTML =
         `<span style="color:var(--green)">🏆 You won!</span>
-         <span style="color:var(--dim);font-size:10px"> · Claim failed: ${r2} — use CHALLENGE button</span>`;
+         <span style="color:var(--dim);font-size:10px"> · Auto-claim failed: ${r2} — press ⚡ CHALLENGE or wait for the opponent's challenge window to expire</span>`;
       toast('⚠️ Claim failed after retry: '+r2,'er');
       document.getElementById('challengeBtn').disabled = false;
       loadOpenGames(); loadMyGames();
@@ -5263,24 +5305,27 @@ document.addEventListener('keypress', e=>{
 
 console.log(`
 ╔═══════════════════════════════════════╗
-║   CROSSREALM v4 — FULLY SYNCED       ║
+║   CROSSREALM v5 — LAUNCH READY       ║
 ╠═══════════════════════════════════════╣
+║  Chain:    Core Mainnet (1116/0x45c) ║
 ║  Hub:      ${C.HUB.slice(0,12)}…  ║
 ║  Token:    ${C.REALM.slice(0,12)}…  ║
 ║  Staking:  ${C.STAKING.slice(0,12)}…  ║
 ║  Gateway:  ${C.GATEWAY.slice(0,12)}…  ║
-║  Bridge:   ${C.BRIDGE.slice(0,12)}…  ║
-║  Social:   ${C.SOCIAL.slice(0,12)}…  ║
+║  Rewards:  ${C.REWARDS.slice(0,12)}…  ║
 ╠═══════════════════════════════════════╣
 ║  ✅ Chess (P2P + AI)                  ║
 ║  ✅ Checkers 10×10 (P2P + AI)        ║
+║  ✅ Board: no scroll, fills viewport  ║
+║  ✅ Mobile: 3-tab layout              ║
+║  ✅ Settlement auto-claim + retry     ║
+║  ✅ joinGame → auto board load        ║
 ║  ✅ Game Chat (on-chain)              ║
 ║  ✅ Social Rooms (create/join/msg)    ║
 ║  ✅ Discovery + Visibility Staking    ║
 ║  ✅ Buy REALM (TokenGateway)          ║
 ║  ✅ APY Staking                       ║
-║  ✅ Cross-Chain Bridge                ║
-║  ✅ Rewards & Referrals               ║
+║  ⛔ Bridge DISABLED (bridgeMint bug)  ║
 ║  🚧 8-Ball & Penalties (Phase 2)     ║
 ║  🚧 Tournaments (Phase 2)            ║
 ║  🚧 Marketplace (Phase 2)            ║
@@ -5315,6 +5360,9 @@ async function loadDAOData() {
     g('daoInitialized').innerHTML = initialized
       ? '<span style="color:var(--green)">✅ Live — community controls protocol</span>'
       : '<span style="color:var(--gold)">⚠️ Init phase — owner still controls directly</span>';
+    // Show/hide pending banner
+    const daoB = document.getElementById('daoPendingBanner');
+    if(daoB) daoB.style.display = initialized ? 'none' : '';
     g('daoTotalLocked').textContent = fmt(totalLocked) + ' REALM';
     g('daoQuorum').textContent      = fmt(quorum) + ' REALM';
     g('daoProposalCount').textContent = count.toNumber();
