@@ -6,7 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#05050f">
 <title>CrossRealm — On-Chain Gaming</title>
-<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js">
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script>
 // ── Vault Manager ──────────────────────────────────────────────────────────
 async function loadVaultStats() {
   const VAULT_ABI = [
@@ -388,7 +389,6 @@ async function adminBridgeRecover() {
     toast('✅ Tokens recovered to dev wallet','ok'); loadBridgeStatus();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
-
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1648,8 +1648,8 @@ label input[type=checkbox]{width:auto;margin:0}
         <div><span class="fl">Amount (REALM)</span><input type="number" id="vestAmt" placeholder="e.g. 1000000"></div>
       </div>
       <div class="g2">
-        <div><span class="fl">Cliff (months from now)</span><input type="number" id="vestCliff" placeholder="12" value="12" min="1"></div>
-        <div><span class="fl">End (months from now)</span><input type="number" id="vestEnd" placeholder="48" value="48" min="13"></div>
+        <div><span class="fl">Cliff (months from now)</span><input type="number" id="vestCliffMo" placeholder="12" value="12" min="1"></div>
+        <div><span class="fl">End (months from now)</span><input type="number" id="vestEndMo" placeholder="48" value="48" min="13"></div>
       </div>
       <button class="btn btn-green" onclick="adminCreateVestingSchedule()" style="margin-top:4px">Create Schedule</button>
       <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
@@ -2583,6 +2583,9 @@ async function joinGame(id) {
         document.getElementById('gameChatSendBtn').disabled = true;
       }
     } catch(chatErr){ console.warn('GameChat registerGame failed:', chatErr.message); }
+
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
 
 async function loadGame(id) {
   if(!hub||loadingGame) return;
@@ -5011,8 +5014,8 @@ async function adminCreateVestingSchedule() {
   if(!isOwner) return toast('Owner only','er');
   const addr  = document.getElementById('vestAddr').value.trim();
   const amt   = parseFloat(document.getElementById('vestAmt').value);
-  const cliff = parseInt(document.getElementById('vestCliff').value);
-  const end   = parseInt(document.getElementById('vestEnd').value);
+  const cliff = parseInt(document.getElementById('vestCliffMo').value);
+  const end   = parseInt(document.getElementById('vestEndMo').value);
   if(!ethers.utils.isAddress(addr)) return toast('Invalid address','er');
   if(!amt || amt <= 0) return toast('Enter amount','er');
   if(cliff >= end) return toast('End must be after cliff','er');
@@ -5557,8 +5560,8 @@ function vestQuickFill(addr) {
   const cliff = new Date(today); cliff.setFullYear(cliff.getFullYear()+1);
   const end   = new Date(today); end.setFullYear(end.getFullYear()+4);
   document.getElementById('vestStart').value = fmt(today);
-  document.getElementById('vestCliff').value = fmt(cliff);
-  document.getElementById('vestEnd').value   = fmt(end);
+  document.getElementById('vestCliffMo').value = fmt(cliff);
+  document.getElementById('vestEndMo').value   = fmt(end);
   toast('Filled schedule for '+addr.slice(0,10)+'…','in');
 }
 
@@ -5567,8 +5570,8 @@ async function createVestingSchedule() {
   const ben   = document.getElementById('vestBeneficiary').value.trim();
   const amt   = document.getElementById('vestAmount').value;
   const start = document.getElementById('vestStart').value;
-  const cliff = document.getElementById('vestCliff').value;
-  const end   = document.getElementById('vestEnd').value;
+  const cliff = document.getElementById('vestCliffMo').value;
+  const end   = document.getElementById('vestEndMo').value;
   if (!ben || !amt || !start || !cliff || !end) return toast('All fields required','er');
   try {
     const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, signer);
