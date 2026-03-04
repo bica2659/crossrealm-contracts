@@ -1284,14 +1284,27 @@ label input[type=checkbox]{width:auto;margin:0}
 
       <div id="daoAdminVesting" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
         <h4 style="font-size:11px;color:var(--gold);margin-bottom:10px">⚙️ Create Vesting Schedule (Owner Only)</h4>
-        <span class="fl">Beneficiary Address</span><input type="text" id="vestBeneficiary" placeholder="0x...">
-        <span class="fl">Amount (REALM)</span><input type="number" id="vestAmount" placeholder="e.g. 2000000">
+        <div class="ibox" style="font-size:9px;margin-bottom:10px;line-height:1.7">
+          Standard schedule: <strong>Start = today, Cliff = 1 year, End = 4 years</strong><br>
+          Each team member gets <strong>2,400,000 REALM</strong> (12M ÷ 5). Use quick-fill buttons below.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+          <button class="btn-ghost btn-sm" onclick="vestQuickFill('0x73a6eA93A7BF0FC9F8D3C997AEDD046A6ED79054')">Community<br><span style="font-size:8px;opacity:.6">0x73a6...</span></button>
+          <button class="btn-ghost btn-sm" onclick="vestQuickFill('0xbc307d5c26A62eED1d92aF9E8F8e39046274d2Eb')">Founder<br><span style="font-size:8px;opacity:.6">0xbc30...</span></button>
+          <button class="btn-ghost btn-sm" onclick="vestQuickFill('0x7ADB4852C70FB86d906deB082604Fc338C067135')">Tech Lead<br><span style="font-size:8px;opacity:.6">0x7ADB...</span></button>
+          <button class="btn-ghost btn-sm" onclick="vestQuickFill('0x35Cc377A9a0f1071111B7510f57268af66f74C3A')">Ops<br><span style="font-size:8px;opacity:.6">0x35Cc...</span></button>
+          <button class="btn-ghost btn-sm" onclick="vestQuickFill('0x317b606371720005978d141f0F6C58Bd0aAAc025')">Frontend<br><span style="font-size:8px;opacity:.6">0x317b...</span></button>
+        </div>
+        <span class="fl">Beneficiary Address</span><input type="text" id="vestBeneficiary" placeholder="0x... or use quick-fill above">
+        <span class="fl">Amount (REALM)</span><input type="number" id="vestAmount" placeholder="e.g. 2400000" value="2400000">
         <div class="g2">
           <div><span class="fl">Start Date</span><input type="date" id="vestStart"></div>
           <div><span class="fl">Cliff Date (1yr after start)</span><input type="date" id="vestCliff"></div>
         </div>
         <span class="fl">End Date (4yrs after start)</span><input type="date" id="vestEnd">
-        <button class="btn" onclick="createVestingSchedule()" style="margin-top:8px">Create Schedule</button>
+        <div id="vestSchedulePreview" style="font-size:9px;color:var(--dim);margin:6px 0"></div>
+        <button class="btn" onclick="createVestingSchedule()" style="margin-top:8px;width:100%">Create Vesting Schedule</button>
+        <div id="vestStatus" style="font-size:10px;margin-top:8px;display:none"></div>
       </div>
     </div>
 
@@ -2035,7 +2048,12 @@ async function createGame() {
       const stakeF = parseFloat(document.getElementById('stakeAmt').value)||10;
       if(stakeF<1) return toast('Minimum stake is 1 REALM','er');
       stake = ethers.utils.parseEther(stakeF.toString());
-      fee   = stake.mul(250).div(10000);
+      // Get exact fee from contract (accounts for season pass discounts)
+      const baseFee = stake.mul(250).div(10000);
+      try {
+        const rewardsView = new ethers.Contract(C.REWARDS, ['function effectiveFee(address,uint256) view returns (uint256)'], provider);
+        fee = await rewardsView.effectiveFee(userAddr, baseFee);
+      } catch(e) { fee = baseFee; }
       await approve(C.HUB, stake.add(fee));
     }
 
@@ -2076,8 +2094,17 @@ async function createGame() {
     }
 
     toast('⏳ Creating game…','in');
-    const tx = await hub.createGame(gType, stake, isPrivate, isAI, verifier, win, {gasLimit:900000, type:0});
-    const rc = await tx.wait();
+    let tx, rc;
+    try {
+      tx = await hub.createGame(gType, stake, isPrivate, isAI, verifier, win, {gasLimit:900000, type:0});
+    } catch(sendErr) {
+      const msg = sendErr?.reason || sendErr?.data?.message || sendErr?.message || String(sendErr);
+      console.error('createGame send error:', sendErr);
+      return toast('❌ Create failed: ' + msg, 'er');
+    }
+    try { rc = await tx.wait(); } catch(waitErr) {
+      return toast('❌ Tx reverted: ' + (waitErr?.reason || waitErr?.message), 'er');
+    }
     toast('✅ Game created!','ok');
     await loadOpenGames(); await loadMyGames();
     // FIX BUG-20: Use GameCreated event from receipt to get real game ID, not gameCount() which may be stale
@@ -4394,11 +4421,20 @@ async function checkOwner() {
     const owner = await gateway.owner();
     document.getElementById('adminWallet').textContent = userAddr.slice(0,12)+'…';
     document.getElementById('gwOwner').textContent     = owner.slice(0,12)+'…';
+    // isOwner: gateway owner (0x73a6 controls gateway/staking/vault)
     isOwner = userAddr.toLowerCase()===owner.toLowerCase();
-    document.getElementById('ownerOk').style.display   = isOwner?'block':'none';
-    document.getElementById('ownerNope').style.display = isOwner?'none':'block';
-    document.getElementById('adminNav').style.display  = isOwner?'':'none';
-    if(isOwner) document.getElementById('nav-admin').closest('.nav-sect').style.display='';
+    // isVestingOwner: VestingManager owned by 0x73a6 (deployer)
+    window.isVestingOwner = isOwner;
+    // isCoreSafeOp: for DAO/Hub/Rewards admin (Core Safe owns them — show panel if 0x73a6 signer)
+    // Since 0x73a6 is a Safe signer, show admin panel for them too
+    const DEPLOYER = '0x73a6ea93a7bf0fc9f8d3c997aedd046a6ed79054';
+    const isDeployer = userAddr.toLowerCase() === DEPLOYER;
+    const showAdmin = isOwner || isDeployer;
+    document.getElementById('ownerOk').style.display   = showAdmin?'block':'none';
+    document.getElementById('ownerNope').style.display = showAdmin?'none':'block';
+    document.getElementById('adminNav').style.display  = showAdmin?'':'none';
+    if(showAdmin) document.getElementById('nav-admin').closest('.nav-sect').style.display='';
+    if(showAdmin) isOwner = true; // treat deployer as admin for UI purposes
   } catch(e){}
 }
 
@@ -5856,6 +5892,24 @@ async function claimVesting() {
     toast('✅ Vested tokens claimed!','ok');
     loadVestingData();
   } catch(e) { toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+// ─── VESTING QUICK FILL ────────────────────────────────────────────────────
+function vestQuickFill(addr) {
+  document.getElementById('vestBeneficiary').value = addr;
+  document.getElementById('vestAmount').value = '2400000';
+  // Auto-fill dates: start=today, cliff=+1yr, end=+4yr
+  const today = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const fmt = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const cliff = new Date(today); cliff.setFullYear(cliff.getFullYear()+1);
+  const end   = new Date(today); end.setFullYear(end.getFullYear()+4);
+  document.getElementById('vestStart').value = fmt(today);
+  document.getElementById('vestCliff').value = fmt(cliff);
+  document.getElementById('vestEnd').value   = fmt(end);
+  const preview = document.getElementById('vestSchedulePreview');
+  if(preview) preview.textContent = '📅 Start: '+fmt(today)+' | Cliff: '+fmt(cliff)+' | End: '+fmt(end)+' | Amount: 2,400,000 REALM';
+  toast('Filled: '+addr.slice(0,10)+'…','in');
 }
 
 async function createVestingSchedule() {
