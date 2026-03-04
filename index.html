@@ -329,15 +329,71 @@ async function wireAuthorizePool() {
 }
 
 async function batchWireAll() {
-  document.getElementById('wireLog').innerHTML = '';
+  const log = document.getElementById('wireLog');
+  if(log) log.innerHTML = '';
   wireLog('🚀 Starting batch wiring…');
-  await wireSetRewardsHub();
-  await wireSetRewardsStaking();
+
+  // ── Step 1: Staking → setRewardsContract (owned by 0x73a6, call directly) ──
+  wireLog('Step 1/2: Staking→Rewards (direct, 0x73a6 wallet)');
   await wireSetStakingRewards();
-  await wireSetGameChatHub();
-  await wireAuthorizePool();
-  wireLog('✅ Batch complete — check results above');
-  toast('✅ Batch wiring done','ok');
+
+  // ── Step 2: Core Safe calls (Hub + Rewards owned by Core Safe multisig) ──
+  // These cannot be sent by a regular EOA. Generate the Safe TX Builder JSON.
+  wireLog('Step 2/2: Building Core Safe payload for Hub+Rewards wiring…');
+
+  try {
+    const iface = {
+      setRewardsContract: new ethers.utils.Interface(['function setRewardsContract(address _rc)']),
+      setGameHub:         new ethers.utils.Interface(['function setGameHub(address _hub)']),
+      setStakingContract: new ethers.utils.Interface(['function setStakingContract(address _staking)']),
+      setAuthorised:      new ethers.utils.Interface(['function setAuthorised(address _caller, bool _status)']),
+    };
+
+    const txs = [
+      // Hub.setRewardsContract(REWARDS)
+      { to: C.HUB,           contractMethod: null, data: iface.setRewardsContract.encodeFunctionData('setRewardsContract', [C.REWARDS]),          value: '0', label: 'Hub → setRewardsContract' },
+      // Rewards.setGameHub(HUB)
+      { to: C.REWARDS,       contractMethod: null, data: iface.setGameHub.encodeFunctionData('setGameHub', [C.HUB]),                               value: '0', label: 'Rewards → setGameHub' },
+      // Rewards.setStakingContract(STAKING)
+      { to: C.REWARDS,       contractMethod: null, data: iface.setStakingContract.encodeFunctionData('setStakingContract', [C.STAKING]),            value: '0', label: 'Rewards → setStakingContract' },
+      // GameplayPool.setAuthorised(HUB, true)
+      { to: C.GAMEPLAY_POOL, contractMethod: null, data: iface.setAuthorised.encodeFunctionData('setAuthorised', [C.HUB, true]),                   value: '0', label: 'GameplayPool → authorise Hub' },
+    ];
+
+    // Safe Transaction Builder JSON format
+    const safePayload = {
+      version: '1.0',
+      chainId: '1116',
+      createdAt: Date.now(),
+      meta: { name: 'CrossRealm Contract Wiring', description: 'Wire all contracts: Hub→Rewards, Rewards→Hub, Rewards→Staking, Pool→authorise Hub' },
+      transactions: txs.map(t => ({ to: t.to, value: t.value, data: t.data })),
+    };
+
+    const json = JSON.stringify(safePayload, null, 2);
+    const blob = new Blob([json], {type:'application/json'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'crossrealm_wiring_safe.json'; a.click();
+    URL.revokeObjectURL(url);
+
+    const safeUrl = `https://app.safe.global/apps/open?safe=core:${C.CORE_SAFE}&appUrl=https%3A%2F%2Fapps.gnosis-safe.io%2Ftx-builder`;
+
+    wireLog('');
+    wireLog('✅ Safe TX payload downloaded: <strong>crossrealm_wiring_safe.json</strong>');
+    wireLog('');
+    wireLog('📋 <strong>Next steps:</strong>');
+    wireLog('1. Open Safe: <a href="'+safeUrl+'" target="_blank" style="color:var(--gold)">core Safe TX Builder ↗</a>');
+    wireLog('2. Click "Upload" and select the downloaded JSON file');
+    wireLog('3. Review the 4 transactions:');
+    txs.forEach((t,i) => wireLog('   '+(i+1)+'. '+t.label+' → '+t.to.slice(0,12)+'…'));
+    wireLog('4. Submit and sign with 2/3 Safe signers');
+    wireLog('5. Come back and run 🔄 Health Check to confirm all ✅');
+
+    toast('📥 Safe TX payload downloaded — import into Core Safe TX Builder','ok');
+  } catch(e) {
+    wireLog('❌ Failed to build Safe payload: '+e.message);
+    toast('❌ '+e.message,'er');
+  }
 }
 
 // ── Bridge Emergency ────────────────────────────────────────────────────────
@@ -538,15 +594,84 @@ label input[type=checkbox]{width:auto;margin:0}
 .mob-tabs{display:none}
 .mob-panel{display:block} /* on desktop all panels are visible normally */
 
-.play-wrap{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 52px);overflow:hidden}
-.play-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px;height:100%;box-sizing:border-box}
+/* ── 3-COLUMN PLAY LAYOUT ─────────────────────────────────────────────── */
+.play-wrap{
+  display:grid;
+  grid-template-columns:280px 1fr 240px;
+  height:calc(100vh - 52px);
+  overflow:hidden;
+}
+.play-left{
+  border-right:1px solid var(--border);
+  overflow-y:auto;
+  padding:14px;
+  height:100%;
+  box-sizing:border-box;
+}
 .play-left::-webkit-scrollbar{width:3px}
 .play-left::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* Centre column: board area — overflow:auto lets it scroll only if absolutely tiny viewport */
 .play-right{
-  overflow:hidden;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;background:var(--bg);
-  padding:10px 12px;gap:6px;box-sizing:border-box;
+  overflow-y:auto;
+  overflow-x:hidden;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start; /* no centre-clip; use inner padding instead */
+  background:var(--bg);
+  padding:12px;
+  gap:6px;
+  box-sizing:border-box;
   height:100%;
+}
+/* Push content to vertical centre via auto margin on inner wrapper */
+.board-inner{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  flex:1;
+  width:100%;
+  justify-content:center; /* works because board-inner is flex:1 and fills height */
+}
+
+/* Right column: game chat */
+.play-chat{
+  border-left:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  height:100%;
+  box-sizing:border-box;
+  overflow:hidden;
+}
+.play-chat-head{
+  padding:12px 14px 10px;
+  border-bottom:1px solid var(--border);
+  font-size:9px;
+  letter-spacing:2px;
+  color:var(--dim);
+  text-transform:uppercase;
+  flex-shrink:0;
+  background:var(--bg2);
+}
+.play-chat-msgs{
+  flex:1;
+  overflow-y:auto;
+  padding:10px;
+  font-size:10px;
+  color:var(--dim);
+}
+.play-chat-msgs::-webkit-scrollbar{width:3px}
+.play-chat-msgs::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.play-chat-input{
+  flex-shrink:0;
+  padding:8px;
+  border-top:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  background:var(--bg2);
 }
 
 /* ── BOARD ── */
@@ -557,13 +682,14 @@ label input[type=checkbox]{width:auto;margin:0}
   overflow:hidden;flex-shrink:0;
   position:relative; /* for AI overlay */
   /*
-   Side = min(
-     viewport_width - sidebar(200) - play-left(300) - padding(48) = vw-548,
-     viewport_height - topbar(52) - infobar(50) - buttons(48) - gaps(12) - padding(20) = vh-182,
-     560px cap
-   )
+   3-column layout:
+     nav=200, play-left=280, play-right padding=24, play-chat=240
+     available width = 100vw - 200 - 280 - 240 - 24 = vw-744
+   height overhead:
+     topbar=52, board-inner padding/gap=12, infobar=44, btn-row=38, gap×2=12 → ~158
+   cap at 520px so it fits comfortably on 1024px+ screens
   */
-  --board-side: min(calc(100vw - 548px), calc(100vh - 182px), 560px);
+  --board-side: min(calc(100vw - 744px), calc(100vh - 210px), 520px);
   width:  var(--board-side);
   height: var(--board-side);
 }
@@ -606,7 +732,7 @@ label input[type=checkbox]{width:auto;margin:0}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
 .game-infobar{
-  width:100%;max-width:min(calc(100vw - 548px), 560px);text-align:center;padding:6px 12px;
+  width:100%;max-width:min(calc(100vw - 744px), 520px);text-align:center;padding:6px 12px;
   background:var(--bg3);border:1px solid var(--border);border-radius:5px;
   font-size:11px;color:var(--dim);flex-shrink:0;
 }
@@ -746,12 +872,20 @@ label input[type=checkbox]{width:auto;margin:0}
   .play-wrap{
     display:flex;flex-direction:column;
     height:100%;overflow:hidden;
+    grid-template-columns:unset;
   }
   .mob-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
   .mob-tab{flex:1;padding:10px 4px;text-align:center;font-size:10px;font-weight:700;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;letter-spacing:.5px;text-transform:uppercase}
   .mob-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
   .mob-panel{display:none;width:100%;flex:1;min-height:0;overflow-y:auto;}
   .mob-panel.active{display:flex;flex-direction:column;align-items:center;}
+  /* play-chat participates as a mob-panel on mobile */
+  .play-chat{
+    display:none;width:100%;flex:1;min-height:0;
+    border-left:none;border-top:1px solid var(--border);
+    height:auto;overflow:hidden;
+  }
+  .play-chat.active{display:flex;flex-direction:column;align-items:stretch;}
   .play-left{border-right:none;border-bottom:none;padding:10px;height:auto;overflow-y:auto;}
   /* Board panel on mobile */
   .play-right{
@@ -778,10 +912,7 @@ label input[type=checkbox]{width:auto;margin:0}
   .pstats{gap:4px}
   .vhead{padding:12px}
   .vtitle{font-size:20px}
-  /* Buttons row under board — tight spacing */
-  #boardBtnRow{
-    max-width:min(calc(100vw - 20px), 480px) !important;
-  }
+  #boardBtnRow{max-width:min(calc(100vw - 20px), 480px) !important;}
 }
 @media(max-width:380px){
   .nav-item{min-width:44px;padding:4px 6px;font-size:7px}
@@ -883,32 +1014,33 @@ label input[type=checkbox]{width:auto;margin:0}
         <h3>⚔️ My Active Games</h3>
         <div class="gscroll" id="myGames"><p style="color:var(--dim);font-size:10px;text-align:center;padding:16px">No active games</p></div>
       </div>
-      <div class="card" id="gameChatCard">
-        <h3>💬 Game Chat</h3>
-        <div id="gameChatBox" style="max-height:180px;overflow-y:auto;background:var(--bg3);border-radius:5px;padding:10px;margin-bottom:8px;font-size:10px;color:var(--dim);text-align:center">Load a game to chat</div>
-        <textarea id="gameChatInput" placeholder="Message... (500 chars max)" rows="2" style="margin-bottom:6px"></textarea>
-        <button class="btn btn-green" id="gameChatSendBtn" onclick="sendGameChat()" disabled>Send Message</button>
-      </div>
     </div>
     <div class="play-right mob-panel" id="mobPanelBoard">
-      <!-- Infobar above board so context is always visible -->
-      <div id="gameInfoBar" class="game-infobar">No game loaded — create or join a game</div>
-      <div id="boardContainer" class="board-wrap">
-        <div id="boardGrid" class="board-grid"></div>
-        <div id="aiThinking" class="ai-thinking">🤖 AI calculating move…</div>
-      </div>
-      <!-- Forfeit / Share / Challenge BELOW board -->
-      <div id="boardBtnRow" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;width:100%;max-width:min(calc(100vw - 548px),560px);flex-shrink:0">
-        <button class="btn btn-red" id="forfeitBtn" onclick="forfeit()" disabled>FORFEIT</button>
-        <button class="btn-ghost" id="shareBtn" onclick="shareGame()" disabled>🔗 SHARE</button>
-        <button class="btn-ghost" id="challengeBtn" onclick="challengeAbandonment()" disabled title="Claim win if opponent hasn't moved in time">⚡ CHALLENGE</button>
+      <div class="board-inner">
+        <!-- Infobar above board so context is always visible -->
+        <div id="gameInfoBar" class="game-infobar">No game loaded — create or join a game</div>
+        <div id="boardContainer" class="board-wrap">
+          <div id="boardGrid" class="board-grid"></div>
+          <div id="aiThinking" class="ai-thinking">🤖 AI calculating move…</div>
+        </div>
+        <!-- Forfeit / Share / Challenge BELOW board -->
+        <div id="boardBtnRow" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;width:100%;max-width:min(calc(100vw - 744px),520px);flex-shrink:0">
+          <button class="btn btn-red" id="forfeitBtn" onclick="forfeit()" disabled>FORFEIT</button>
+          <button class="btn-ghost" id="shareBtn" onclick="shareGame()" disabled>🔗 SHARE</button>
+          <button class="btn-ghost" id="challengeBtn" onclick="challengeAbandonment()" disabled title="Claim win if opponent hasn't moved in time">⚡ CHALLENGE</button>
+        </div>
       </div>
     </div>
-    <!-- Mobile-only chat panel (desktop uses the card inside play-left) -->
-    <div class="mob-panel" id="mobPanelChat" style="padding:10px;display:flex;flex-direction:column;gap:6px">
-      <div style="flex:1;overflow-y:auto;min-height:120px;background:var(--bg3);border-radius:5px;padding:10px;font-size:10px;color:var(--dim);text-align:center" id="gameChatBoxMob">Load a game to chat</div>
-      <textarea id="gameChatInputMob" placeholder="Message... (500 chars max)" rows="2" style="margin-bottom:0;flex-shrink:0"></textarea>
-      <button class="btn btn-green" id="gameChatSendBtnMob" onclick="sendGameChatMob()" disabled>Send Message</button>
+    <!-- ═══ GAME CHAT — right column on desktop, 3rd tab on mobile ═══ -->
+    <div class="play-chat" id="mobPanelChat">
+      <div class="play-chat-head">💬 Game Chat</div>
+      <div class="play-chat-msgs" id="gameChatBox">
+        <div style="text-align:center;padding:20px 10px;color:var(--dim);font-size:10px;line-height:1.7">Load a game to chat<br><span style="font-size:9px;opacity:.6">Messages are on-chain · cost 0 REALM</span></div>
+      </div>
+      <div class="play-chat-input">
+        <textarea id="gameChatInput" placeholder="Message… (500 chars max)" rows="2" style="resize:none;margin:0"></textarea>
+        <button class="btn btn-green" id="gameChatSendBtn" onclick="sendGameChat()" disabled>Send Message</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1562,45 +1694,49 @@ label input[type=checkbox]{width:auto;margin:0}
     <!-- ═══ WIRE CONTRACTS ═══ -->
     <div class="card">
       <h3>🔌 Wire Contracts</h3>
-      <p style="font-size:9px;color:var(--dim);margin-bottom:12px;line-height:1.7">
-        Set contract references so the system is fully connected. Run individually or batch all at once. Each call requires the appropriate owner (Safe for Hub/Rewards, 0x73a6 for Staking).
-      </p>
+      <div class="ibox" style="font-size:9px;line-height:1.9;margin-bottom:12px">
+        <strong style="color:var(--gold)">Ownership map — who can call what:</strong><br>
+        🔑 <strong>Core Safe</strong> (2/3 multisig) → Hub, Rewards_REALM, GameplayPool<br>
+        🔑 <strong>0x73a6 wallet</strong> (single sig) → REALMStaking<br><br>
+        Calls to Hub/Rewards/Pool from a regular EOA will <strong>revert with "not owner"</strong>.<br>
+        Use <strong>⚡ Generate Safe Payload</strong> below — it downloads a JSON you import into Core Safe TX Builder to send all 4 calls as one batched transaction.
+      </div>
 
-      <h4 style="font-size:10px;color:var(--gold);margin-bottom:8px">Individual Wiring</h4>
+      <h4 style="font-size:10px;color:var(--gold);margin-bottom:8px">Individual Wiring (direct — only for 0x73a6 owned contracts)</h4>
       <div style="display:grid;gap:6px;margin-bottom:14px">
         <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end">
-          <div><span class="fl">Hub → set Rewards contract</span><input type="text" id="wireHubRewards" value="0x0C5Da3622e42efE0C579ef758BC8f3144018Dfc1" style="font-size:9px"></div>
+          <div><span class="fl">Hub → set Rewards contract <span style="color:var(--red);font-size:8px">(Core Safe only)</span></span><input type="text" id="wireHubRewards" value="0x0C5Da3622e42efE0C579ef758BC8f3144018Dfc1" style="font-size:9px"></div>
           <button class="btn-ghost btn-sm" onclick="wireSetHubRewards()">Wire</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end">
-          <div><span class="fl">Rewards → set Hub</span><input type="text" id="wireRewardsHub" value="0xc69c7A7965Cab26fbac1991cC0faDD45a1C80F63" style="font-size:9px"></div>
+          <div><span class="fl">Rewards → set Hub <span style="color:var(--red);font-size:8px">(Core Safe only)</span></span><input type="text" id="wireRewardsHub" value="0xc69c7A7965Cab26fbac1991cC0faDD45a1C80F63" style="font-size:9px"></div>
           <button class="btn-ghost btn-sm" onclick="wireSetRewardsHub()">Wire</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end">
-          <div><span class="fl">Rewards → set Staking</span><input type="text" id="wireRewardsStaking" value="0x8374D50a9f48A4C0De4394f75e766cE3C741E698" style="font-size:9px"></div>
+          <div><span class="fl">Rewards → set Staking <span style="color:var(--red);font-size:8px">(Core Safe only)</span></span><input type="text" id="wireRewardsStaking" value="0x8374D50a9f48A4C0De4394f75e766cE3C741E698" style="font-size:9px"></div>
           <button class="btn-ghost btn-sm" onclick="wireSetRewardsStaking()">Wire</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end">
-          <div><span class="fl">Staking → set Rewards contract</span><input type="text" id="wireStakingRewards" value="0x0C5Da3622e42efE0C579ef758BC8f3144018Dfc1" style="font-size:9px"></div>
+          <div><span class="fl">Staking → set Rewards contract <span style="color:var(--green);font-size:8px">(0x73a6 wallet ✓)</span></span><input type="text" id="wireStakingRewards" value="0x0C5Da3622e42efE0C579ef758BC8f3144018Dfc1" style="font-size:9px"></div>
           <button class="btn-ghost btn-sm" onclick="wireSetStakingRewards()">Wire</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end">
-          <div><span class="fl">GameChat → set Hub</span><input type="text" id="wireGameChatHub" value="0xc69c7A7965Cab26fbac1991cC0faDD45a1C80F63" style="font-size:9px"></div>
+          <div><span class="fl">GameChat → set Hub <span style="color:var(--dim);font-size:8px">(check ownership)</span></span><input type="text" id="wireGameChatHub" value="0xc69c7A7965Cab26fbac1991cC0faDD45a1C80F63" style="font-size:9px"></div>
           <button class="btn-ghost btn-sm" onclick="wireSetGameChatHub()">Wire</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end">
-          <div><span class="fl">Hub → authorize GameplayPool</span><input type="text" id="wireHubPool" value="0x6CcFa834083E60fF7666209fB2b8A8c3bd79E120" style="font-size:9px"></div>
+          <div><span class="fl">Hub → authorize GameplayPool <span style="color:var(--red);font-size:8px">(Core Safe only)</span></span><input type="text" id="wireHubPool" value="0x6CcFa834083E60fF7666209fB2b8A8c3bd79E120" style="font-size:9px"></div>
           <button class="btn-ghost btn-sm" onclick="wireAuthorizePool()">Wire</button>
         </div>
       </div>
 
       <hr style="border:none;border-top:1px solid var(--border);margin:8px 0 14px">
-      <h4 style="font-size:10px;color:var(--gold);margin-bottom:8px">🚀 Batch Wire All (sequential)</h4>
-      <div class="ibox bl" style="font-size:9px;margin-bottom:10px">
-        Calls all wiring functions in sequence. If a tx requires the Core Safe, it will build the calldata and open the Safe TX Builder URL — sign from your multisig UI.
+      <h4 style="font-size:10px;color:var(--gold);margin-bottom:8px">⚡ Generate Core Safe Batch Payload</h4>
+      <div class="ibox gr" style="font-size:9px;margin-bottom:10px">
+        Downloads a JSON file containing all 4 Core Safe transactions pre-encoded. Import it into <strong>Safe TX Builder</strong> at app.safe.global → Apps → TX Builder → Upload file. Sign with 2/3 Safe signers to execute all at once.
       </div>
-      <button class="btn btn-green" onclick="batchWireAll()" style="width:100%">⚡ Wire All Contracts Now</button>
-      <div id="wireLog" style="font-size:9px;color:var(--dim);margin-top:10px;max-height:120px;overflow-y:auto;line-height:1.8"></div>
+      <button class="btn btn-green" onclick="batchWireAll()" style="width:100%">📥 Generate & Download Safe TX Payload</button>
+      <div id="wireLog" style="font-size:9px;color:var(--dim);margin-top:10px;max-height:160px;overflow-y:auto;line-height:1.8"></div>
     </div>
 
     <!-- ═══ BRIDGE EMERGENCY CONTROLS ═══ -->
@@ -2155,29 +2291,16 @@ function mobSwitch(tab) {
   if(!isMobile()) return;
   document.querySelectorAll('.mob-tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.mob-panel').forEach(p=>p.classList.remove('active'));
+  // play-chat is not a mob-panel class, handle separately
+  document.getElementById('mobPanelChat')?.classList.remove('active');
   document.getElementById('mobTab'+tab.charAt(0).toUpperCase()+tab.slice(1))?.classList.add('active');
   const panelMap = {game:'mobPanelGame', board:'mobPanelBoard', chat:'mobPanelChat'};
   document.getElementById(panelMap[tab])?.classList.add('active');
 }
 
-// Sync mobile chat box mirrors the desktop one
-function syncMobChat() {
-  const desk = document.getElementById('gameChatBox');
-  const mob  = document.getElementById('gameChatBoxMob');
-  if(desk && mob) mob.innerHTML = desk.innerHTML;
-  const btnDesk = document.getElementById('gameChatSendBtn');
-  const btnMob  = document.getElementById('gameChatSendBtnMob');
-  if(btnDesk && btnMob) btnMob.disabled = btnDesk.disabled;
-}
+// No mob-specific chat — desktop and mobile share the same #gameChatBox element
+function syncMobChat() { /* no-op: single chat panel now */ }
 
-async function sendGameChatMob() {
-  const inp = document.getElementById('gameChatInputMob');
-  if(!inp) return;
-  document.getElementById('gameChatInput').value = inp.value;
-  inp.value = '';
-  await sendGameChat();
-  syncMobChat();
-}
 
 // Chess piece Unicode map
 const PIECES = {K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
@@ -2382,7 +2505,7 @@ async function approve(spender, amount) {
   const al = await realm.allowance(userAddr, spender);
   if (al.lt(amount)) {
     toast('⏳ Approving REALM…','in');
-    const tx = await realm.approve(spender, ethers.constants.MaxUint256);
+    const tx = await realm.approve(spender, ethers.constants.MaxUint256, {gasLimit:80000, type:0});
     await tx.wait();
   }
 }
@@ -2811,7 +2934,7 @@ async function forfeit() {
     if(noPlayer2 && isCreator) {
       // No opponent joined yet — cancel for full refund
       toast('⏳ Cancelling game…','in');
-      tx = await hub.cancelUnjoinedGame(currentGameId, {gasLimit:400000});
+      tx = await hub.cancelUnjoinedGame(currentGameId, {gasLimit:400000,type:0});
       await tx.wait();
       toast('✅ Game cancelled — stake refunded','ok');
     } else {
@@ -2823,7 +2946,7 @@ async function forfeit() {
         return toast('❌ Opponent address is invalid — game may not be fully joined','er');
       }
       toast('⏳ Forfeiting — paying opponent…','in');
-      tx = await hub.declareWinner(currentGameId, opponent, {gasLimit:500000});
+      tx = await hub.declareWinner(currentGameId, opponent, {gasLimit:500000,type:0});
       await tx.wait();
       toast('✅ Forfeited — opponent paid','ok');
     }
@@ -3017,7 +3140,7 @@ async function submitChessMove(from, to) {
   // ── P2P game: submit on-chain ──────────────────────────────────────────
   toast('⏳ Submitting move…','in');
   try {
-    const tx = await hub.makeMove(currentGameId, moveStr, newFen, {gasLimit:800000});
+    const tx = await hub.makeMove(currentGameId, moveStr, newFen, {gasLimit:800000,type:0});
     await tx.wait();
     if(mated) {
       toast('♟️ Checkmate! Move confirmed — funds release after challenge window.','ok');
@@ -3111,7 +3234,7 @@ async function declareWin(gameId) {
     }
 
     toast('⏳ Claiming your winnings…','in');
-    const tx = await hub.declareWinner(gid, userAddr, {gasLimit:500000});
+    const tx = await hub.declareWinner(gid, userAddr, {gasLimit:500000,type:0});
     await tx.wait();
 
     const winAmount = parseFloat(ethers.utils.formatEther(g.stake.mul(2))).toFixed(2);
@@ -3142,7 +3265,7 @@ async function declareWin(gameId) {
     toast('⚠️ Claim attempt 1 failed — retrying in 3s…','in');
     await new Promise(r => setTimeout(r, 3000));
     try {
-      const tx2 = await hub.declareWinner(gid, userAddr, {gasLimit:600000});
+      const tx2 = await hub.declareWinner(gid, userAddr, {gasLimit:600000,type:0});
       await tx2.wait();
       document.getElementById('gameInfoBar').innerHTML =
         `<span style="color:var(--green)">🏆 You won! Winnings claimed.</span>`;
@@ -3176,7 +3299,7 @@ async function challengeAbandonment() {
       const EXPIRE_TIMEOUT = 86400; // 24 hours
       if(elapsed >= EXPIRE_TIMEOUT) {
         toast('⏳ Expiring abandoned game…','in');
-        const tx = await hub.expireGame(currentGameId, {gasLimit:400000});
+        const tx = await hub.expireGame(currentGameId, {gasLimit:400000,type:0});
         await tx.wait();
         toast('✅ Game expired — stake returned','ok');
       } else {
@@ -3201,7 +3324,7 @@ async function challengeAbandonment() {
       }
 
       toast('⏳ Claiming abandonment win…','in');
-      const tx = await hub.claimAbandonment(currentGameId, {gasLimit:500000});
+      const tx = await hub.claimAbandonment(currentGameId, {gasLimit:500000,type:0});
       await tx.wait();
       toast('🏆 Abandonment claimed!','ok');
 
@@ -3651,7 +3774,7 @@ async function submitCheckersMove(mv, fr, fc, tr, tc) {
 
   toast('⏳ Submitting…','in');
   try {
-    const tx = await hub.makeMove(currentGameId, moveStr, newState, {gasLimit:800000});
+    const tx = await hub.makeMove(currentGameId, moveStr, newState, {gasLimit:800000,type:0});
     await tx.wait();
     if(!whiteLeft || !blackLeft) {
       toast('🏆 Winning move confirmed! Funds release after challenge window.','ok');
@@ -3789,7 +3912,7 @@ async function sendGameChat() {
   if(!msg||!gameChat||!currentGameId) return;
   if(msg.length>500) return toast('Max 500 chars','er');
   try {
-    const tx = await gameChat.sendMessage(currentGameId, msg, {gasLimit:300000});
+    const tx = await gameChat.sendMessage(currentGameId, msg, {gasLimit:300000,type:0});
     inp.value=''; toast('⏳ Sending…','in');
     await tx.wait(); toast('✅ Sent!','ok'); loadGameChatMsgs();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
@@ -3882,7 +4005,7 @@ function openRoom(id, name, meta, el) {
                 return;
               }
               // Auto-join silently
-              social.joinRoom(id, {gasLimit:300000}).then(tx => tx.wait()).then(() => {
+              social.joinRoom(id, {gasLimit:300000,type:0}).then(tx => tx.wait()).then(() => {
                 loadMyRooms();
                 document.getElementById('socialChatInput').placeholder = 'Type a message…';
               }).catch(()=>{});
@@ -3904,7 +4027,7 @@ async function manualJoinRoom(roomId) {
     const prof = await social.profiles(userAddr);
     if(!prof.exists) return toast('Set a profile in Discovery tab first','er');
     toast('⏳ Joining room…','in');
-    const tx = await social.joinRoom(roomId, {gasLimit:300000});
+    const tx = await social.joinRoom(roomId, {gasLimit:300000,type:0});
     await tx.wait();
     toast('✅ Joined! You can now send messages.','ok');
     const jp = document.getElementById('joinRoomPrompt');
@@ -3986,7 +4109,7 @@ async function sendSocialMsg() {
       const prof = await social.profiles(userAddr);
       if(!prof.exists) return toast('Set a profile in the Discovery tab first, then come back','er');
       toast('⏳ Joining room…','in');
-      const joinTx = await social.joinRoom(currentSocialRoomId, {gasLimit:300000});
+      const joinTx = await social.joinRoom(currentSocialRoomId, {gasLimit:300000,type:0});
       await joinTx.wait();
       toast('✅ Joined! Sending message…','ok');
       loadMyRooms();
@@ -4002,7 +4125,7 @@ async function sendSocialMsg() {
       }
     }
 
-    const tx = await social.sendMessage(currentSocialRoomId, msg, {gasLimit:350000});
+    const tx = await social.sendMessage(currentSocialRoomId, msg, {gasLimit:350000,type:0});
     inp.value='';
     toast('⏳ Sending on-chain…','in');
     await tx.wait();
@@ -4030,7 +4153,7 @@ async function createRoom() {
     if(!prof.exists) return toast('Set a profile in Discovery tab first','er');
     // FIX BUG-12: createRoom does NOT require REALM approve — no token transfer in createRoom()
     toast('⏳ Creating room…','in');
-    const tx = await social.createRoom(name, isPublic, {gasLimit:400000});
+    const tx = await social.createRoom(name, isPublic, {gasLimit:400000,type:0});
     const rc  = await tx.wait();
     closeModal('createRoomModal');
     toast('✅ Room created!','ok');
@@ -4051,7 +4174,7 @@ async function joinRoom() {
     if(!prof.exists) return toast('Set a profile in Discovery tab first','er');
     // FIX BUG-12: joinRoom does NOT require REALM approve — no token transfer in joinRoom()
     toast('⏳ Joining room…','in');
-    const tx = await social.joinRoom(rid, {gasLimit:300000});
+    const tx = await social.joinRoom(rid, {gasLimit:300000,type:0});
     await tx.wait();
     closeModal('joinRoomModal');
     toast('✅ Joined room!','ok');
@@ -4145,7 +4268,7 @@ async function setProfile() {
   if(bio.length>200) return toast('Bio max 200 chars','er');
   try {
     toast('⏳ Saving profile…','in');
-    const tx = await social.setProfile(username, bio, {gasLimit:350000});
+    const tx = await social.setProfile(username, bio, {gasLimit:350000,type:0});
     await tx.wait();
     toast('✅ Profile saved!','ok');
     loadDiscovery();
@@ -4160,7 +4283,7 @@ async function stakeForVisibility() {
     const amtWei = ethers.utils.parseEther(amt);
     await approve(C.SOCIAL, amtWei);
     toast('⏳ Staking for visibility…','in');
-    const tx = await social.stakeForVisibility(amtWei, {gasLimit:350000});
+    const tx = await social.stakeForVisibility(amtWei, {gasLimit:350000,type:0});
     await tx.wait();
     toast('✅ Staked! Your rank will improve.','ok');
     loadDiscovery();
@@ -4173,7 +4296,7 @@ async function unstakeVisibility() {
     const p = await social.profiles(userAddr);
     if(p.stakedForVisibility.isZero()) return toast('Nothing staked','er');
     toast('⏳ Unstaking…','in');
-    const tx = await social.unstakeVisibility(p.stakedForVisibility, {gasLimit:300000});
+    const tx = await social.unstakeVisibility(p.stakedForVisibility, {gasLimit:300000,type:0});
     await tx.wait();
     toast('✅ Unstaked!','ok'); loadDiscovery();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
@@ -4198,7 +4321,7 @@ async function sendChallenge() {
     await approve(C.HUB, stakeWei.add(fee));
     const verifier = gType==='chess' ? C.CHESS_V : C.CHECKERS_V;
     toast('⏳ Creating challenge…','in');
-    const tx = await hub.createGame(gType, stakeWei, false, false, verifier, 180, {gasLimit:900000});
+    const tx = await hub.createGame(gType, stakeWei, false, false, verifier, 180, {gasLimit:900000,type:0});
     await tx.wait();
     toast('✅ Challenge created! Share the game link.','ok');
     loadOpenGames(); loadMyGames();
@@ -4248,7 +4371,7 @@ async function buyRealm() {
   try {
     const coreWei = ethers.utils.parseEther(val.toString());
     toast('⏳ Buying REALM…','in');
-    const tx = await gateway.swapCoreForREALM({value:coreWei, gasLimit:200000});
+    const tx = await gateway.swapCoreForREALM({value:coreWei, gasLimit:200000, type:0});
     await tx.wait();
     toast('✅ REALM purchased!','ok');
     updateBal(); loadGateway();
@@ -4337,7 +4460,7 @@ async function doStake() {
     const wei = ethers.utils.parseEther(amt);
     await approve(C.STAKING, wei);
     toast('⏳ Staking…','in');
-    const tx = await stakingC.stake(wei, stakeLock, {gasLimit:350000});
+    const tx = await stakingC.stake(wei, stakeLock, {gasLimit:350000,type:0});
     await tx.wait();
     toast('✅ Staked!','ok'); loadStakingData(); updateBal();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
@@ -4369,7 +4492,7 @@ async function doUnstake() {
     }
 
     toast('⏳ Withdrawing…','in');
-    const tx = await stakingC.unstake(withdrawAmt, {gasLimit:350000});
+    const tx = await stakingC.unstake(withdrawAmt, {gasLimit:350000,type:0});
     await tx.wait();
     toast('✅ Withdrawn!','ok');
     loadStakingData(); updateBal();
@@ -4380,7 +4503,7 @@ async function doClaimStake() {
   if(!stakingC) return toast('Connect wallet first','er');
   try {
     toast('⏳ Claiming…','in');
-    const tx = await stakingC.claimRewards({gasLimit:300000});
+    const tx = await stakingC.claimRewards({gasLimit:300000,type:0});
     await tx.wait();
     toast('✅ Rewards claimed!','ok'); loadStakingData(); updateBal();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
@@ -4454,7 +4577,7 @@ async function doBridge() {
     const [fee] = await bridge.estimateFee(bridgeChainId, recip, amtWei);
     const feePlus = fee.mul(120).div(100);
     toast(`⏳ Bridging to ${bridgeChainName}…`,'in');
-    const tx = await bridge.bridgeTokens(bridgeChainId, recip, amtWei, {value:feePlus, gasLimit:500000});
+    const tx = await bridge.bridgeTokens(bridgeChainId, recip, amtWei, {value:feePlus, gasLimit:500000, type:0});
     await tx.wait();
     toast(`✅ Bridge initiated! REALM arriving on ${bridgeChainName}.`,'ok');
     updateBal(); loadBridgeData();
@@ -4470,7 +4593,7 @@ async function doBridgeNFT() {
     const [fee] = await bridge.estimateFee(bridgeChainId, userAddr, 0);
     const feePlus = fee.mul(120).div(100);
     toast('⏳ Bridging NFT…','in');
-    const tx = await bridge.bridgeNFT(bridgeChainId, col, tokenId, userAddr, {value:feePlus, gasLimit:500000});
+    const tx = await bridge.bridgeNFT(bridgeChainId, col, tokenId, userAddr, {value:feePlus, gasLimit:500000, type:0});
     await tx.wait();
     toast('✅ NFT bridged!','ok');
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
@@ -4482,14 +4605,14 @@ async function executeBridge(id) {
     const [fee] = await bridge.estimateFee(pt.dstChainId, pt.recipient, pt.amount);
     const feePlus = fee.mul(120).div(100);
     toast('⏳ Executing…','in');
-    const tx = await bridge.executePendingTransfer(id, {value:feePlus, gasLimit:500000});
+    const tx = await bridge.executePendingTransfer(id, {value:feePlus, gasLimit:500000, type:0});
     await tx.wait(); toast('✅ Executed!','ok'); loadBridgeData();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
 
 async function cancelBridge(id) {
   try {
-    const tx = await bridge.cancelPendingTransfer(id, {gasLimit:200000});
+    const tx = await bridge.cancelPendingTransfer(id, {gasLimit:200000,type:0});
     toast('⏳ Cancelling…','in');
     await tx.wait(); toast('✅ Cancelled','ok'); loadBridgeData(); updateBal();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
@@ -4538,7 +4661,7 @@ async function claimRewards() {
   if(!rewards) return toast('Connect wallet first','er');
   try {
     toast('⏳ Claiming all rewards…','in');
-    const tx = await rewards.claimAll({gasLimit:500000});
+    const tx = await rewards.claimAll({gasLimit:500000,type:0});
     await tx.wait();
     toast('✅ All rewards claimed!','ok'); updateBal(); loadStats();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
@@ -4646,7 +4769,7 @@ async function adminSetRate() {
   try {
     const rWei = ethers.utils.parseEther(r);
     toast('⏳ Updating rate…','in');
-    const tx = await gateway.setRate(rWei, {gasLimit:150000});
+    const tx = await gateway.setRate(rWei, {gasLimit:150000,type:0});
     await tx.wait();
     toast('✅ Rate updated!','ok'); loadAdminData(); loadGateway();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
@@ -4661,20 +4784,20 @@ async function adminEnableTrading() {
     const contracts = [C.HUB,C.REWARDS,C.STAKING,C.GATEWAY,C.BRIDGE,C.SOCIAL,C.GAMECHAT,C.CRNFT,C.PROPERTY_NFT,C.TOURNAMENT,C.MARKETPLACE,C.GAMEPLAY_POOL,C.DAO,C.VESTING];
     for(const addr of contracts) {
       try {
-        const tx = await realmFull.setWhitelisted(addr, true, {gasLimit:100000});
+        const tx = await realmFull.setWhitelisted(addr, true, {gasLimit:100000,type:0});
         await tx.wait();
       } catch(e) { console.warn('Whitelist failed for', addr, e.message); }
     }
     toast('⏳ Enabling trading…','in');
-    const tx = await realmFull.enableTrading({gasLimit:100000});
+    const tx = await realmFull.enableTrading({gasLimit:100000,type:0});
     await tx.wait();
     toast('✅ Trading enabled! All REALM transfers now work.','ok');
     loadAdminData();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
 
-async function adminPause()   { if(!isOwner) return toast('Only owner','er'); try { await (await gateway.pause({gasLimit:100000})).wait(); toast('✅ Paused','ok'); loadAdminData(); } catch(e){ toast('❌ '+e.message,'er'); } }
-async function adminUnpause() { if(!isOwner) return toast('Only owner','er'); try { await (await gateway.unpause({gasLimit:100000})).wait(); toast('✅ Unpaused','ok'); loadAdminData(); } catch(e){ toast('❌ '+e.message,'er'); } }
+async function adminPause()   { if(!isOwner) return toast('Only owner','er'); try { await (await gateway.pause({gasLimit:100000,type:0})).wait(); toast('✅ Paused','ok'); loadAdminData(); } catch(e){ toast('❌ '+e.message,'er'); } }
+async function adminUnpause() { if(!isOwner) return toast('Only owner','er'); try { await (await gateway.unpause({gasLimit:100000,type:0})).wait(); toast('✅ Unpaused','ok'); loadAdminData(); } catch(e){ toast('❌ '+e.message,'er'); } }
 
 async function adminWithdraw() {
   if(!isOwner) return toast('Only owner','er');
@@ -4684,7 +4807,7 @@ async function adminWithdraw() {
   if(!to||!ethers.utils.isAddress(to)) return toast('Invalid address','er');
   try {
     toast('⏳ Withdrawing…','in');
-    const tx = await gateway.withdrawReserve(to, ethers.utils.parseEther(amt), {gasLimit:200000});
+    const tx = await gateway.withdrawReserve(to, ethers.utils.parseEther(amt), {gasLimit:200000,type:0});
     await tx.wait(); toast('✅ Withdrawn!','ok'); loadAdminData();
   } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
 }
@@ -4849,7 +4972,7 @@ async function fixRewardsLink() {
   if(!isOwner) return toast('Owner only','er');
   try {
     toast('⏳ Linking Rewards_REALM → REALMStaking…','in');
-    const tx = await stakingC.setRewardsContract(C.REWARDS, {gasLimit:100000});
+    const tx = await stakingC.setRewardsContract(C.REWARDS, {gasLimit:100000,type:0});
     await tx.wait();
     toast('✅ Done! 14% of game fees will now flow into the staking pool.','ok');
     checkContractHealth();
@@ -4862,7 +4985,7 @@ async function fixGameplayPoolAuth() {
   try {
     toast('⏳ Authorising Hub on GameplayPool…','in');
     const gpC = new ethers.Contract(C.GAMEPLAY_POOL, GAMEPLAY_POOL_ABI, signer);
-    const tx = await gpC.setAuthorised(C.HUB, true, {gasLimit:100000});
+    const tx = await gpC.setAuthorised(C.HUB, true, {gasLimit:100000,type:0});
     await tx.wait();
     toast('✅ Hub authorised! Winners now receive 5 REALM bonus per win.','ok');
     checkContractHealth();
@@ -5003,7 +5126,7 @@ async function resolveDispute(valid) {
   try {
     const hubD = new ethers.Contract(C.HUB, HUB_DISPUTE_ABI, signer);
     toast('⏳ Resolving dispute #'+id+'…','in');
-    const tx = await hubD.resolveDisputeManually(id, valid, {gasLimit:300000});
+    const tx = await hubD.resolveDisputeManually(id, valid, {gasLimit:300000,type:0});
     await tx.wait();
     toast('✅ Dispute #'+id+' resolved — move marked '+(valid?'VALID':'INVALID'),'ok');
     loadDisputeQueue();
@@ -5016,7 +5139,7 @@ async function expireDispute() {
   try {
     const hubD = new ethers.Contract(C.HUB, HUB_DISPUTE_ABI, signer);
     toast('⏳ Expiring dispute #'+id+' (must be 48h+ old)…','in');
-    const tx = await hubD.expireUnresolvedDispute(id, {gasLimit:300000});
+    const tx = await hubD.expireUnresolvedDispute(id, {gasLimit:300000,type:0});
     await tx.wait();
     toast('✅ Dispute #'+id+' expired — move auto-marked VALID','ok');
     loadDisputeQueue();
@@ -5029,7 +5152,7 @@ async function adminRegisterGameChat() {
   try {
     const g = await hub.games(gid);
     if(g.player2 === ethers.constants.AddressZero) return toast('Player 2 has not joined yet','er');
-    const tx = await gameChat.registerGame(gid, g.creator, g.player2, {gasLimit:200000});
+    const tx = await gameChat.registerGame(gid, g.creator, g.player2, {gasLimit:200000,type:0});
     await tx.wait();
     toast(`✅ Game #${gid} registered for chat`, 'ok');
   } catch(e) { toast('❌ ' + (e.reason||e.message), 'er'); }
@@ -5094,7 +5217,7 @@ Tokens must already be in the VestingManager contract.`)) return;
   try {
     const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, signer);
     toast('⏳ Creating schedule…','in');
-    const tx = await vestC.createVestingSchedule(addr, wei, now, cliffT, endT, {gasLimit:300000});
+    const tx = await vestC.createVestingSchedule(addr, wei, now, cliffT, endT, {gasLimit:300000,type:0});
     await tx.wait();
     toast('✅ Schedule created for '+addr.slice(0,12)+'…','ok');
     adminLoadVestingData();
@@ -5109,7 +5232,7 @@ async function revokeVesting() {
   try {
     const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, signer);
     toast('⏳ Revoking schedule…','in');
-    const tx = await vestC.revoke(addr, {gasLimit:200000});
+    const tx = await vestC.revoke(addr, {gasLimit:200000,type:0});
     await tx.wait();
     toast('✅ Schedule revoked. Unvested REALM returned to owner.','ok');
     adminLoadVestingData();
@@ -5142,7 +5265,7 @@ async function adminSeedStaking() {
     // If this reverts with "Only rewards", the owner must first call staking.setRewardsContract(owner)
     // temporarily, or use the Rewards contract's admin function. Try direct first.
     try {
-      const tx = await stakingC.fundRewards(wei, {gasLimit:200000});
+      const tx = await stakingC.fundRewards(wei, {gasLimit:200000,type:0});
       await tx.wait();
       toast('✅ ' + parseFloat(amt).toLocaleString() + ' REALM declared! All stakers can claim now.','ok');
     } catch(fundErr) {
@@ -5247,7 +5370,7 @@ async function triggerAutoUpdate() {
     const newRateWei = ethers.utils.parseEther(suggestedRate.toFixed(18));
     if (!confirm(`Update Gateway to ${suggestedRate.toFixed(4)} REALM/CORE (${DISCOUNT_PERCENT}% below DEX)?`)) return;
     toast('⏳ Updating Gateway rate…','in');
-    const tx = await gateway.setRate(newRateWei, {gasLimit:150000});
+    const tx = await gateway.setRate(newRateWei, {gasLimit:150000,type:0});
     await tx.wait();
     toast('✅ Gateway rate updated!','ok');
     refreshDexAndGateway(); loadGateway();
@@ -5262,7 +5385,7 @@ async function manualSetRate() {
     const newRateWei = ethers.utils.parseEther(parseFloat(input).toString());
     if (!confirm(`Force Gateway rate to ${input} REALM/CORE?`)) return;
     toast('⏳ Setting rate…','in');
-    const tx = await gateway.setRate(newRateWei, {gasLimit:150000});
+    const tx = await gateway.setRate(newRateWei, {gasLimit:150000,type:0});
     await tx.wait();
     toast('✅ Rate set to '+input+' REALM/CORE!','ok');
     refreshDexAndGateway(); loadGateway();
@@ -5450,7 +5573,7 @@ async function daoLockREALM() {
     const wei = ethers.utils.parseEther(parseFloat(amt).toString());
     await approve(C.DAO, wei);
     toast('⏳ Locking REALM…','in');
-    const tx = await daoContract(true).lockREALM(wei, until, {gasLimit:200000});
+    const tx = await daoContract(true).lockREALM(wei, until, {gasLimit:200000,type:0});
     await tx.wait();
     toast('✅ Locked! You now have voting power.','ok');
     loadDAOData();
@@ -5463,7 +5586,7 @@ async function daoUnlockREALM() {
     const locked = await daoContract(false).lockedBalance(userAddr);
     if (locked.isZero()) return toast('Nothing locked','er');
     toast('⏳ Unlocking…','in');
-    const tx = await daoContract(true).unlockREALM(locked, {gasLimit:150000});
+    const tx = await daoContract(true).unlockREALM(locked, {gasLimit:150000,type:0});
     await tx.wait();
     toast('✅ REALM unlocked!','ok');
     loadDAOData();
@@ -5475,7 +5598,7 @@ async function castVote(id, support) {
   const labels = {1:'For ✅',2:'Against ❌',3:'Abstain'};
   try {
     toast('⏳ Casting vote: '+labels[support]+'…','in');
-    const tx = await daoContract(true).castVote(id, support, {gasLimit:150000});
+    const tx = await daoContract(true).castVote(id, support, {gasLimit:150000,type:0});
     await tx.wait();
     toast('✅ Vote cast!','ok');
     loadDAOData();
@@ -5486,7 +5609,7 @@ async function queueProposal(id) {
   if (!signer) return toast('Connect wallet','er');
   try {
     toast('⏳ Queuing…','in');
-    const tx = await daoContract(true).queue(id, {gasLimit:150000});
+    const tx = await daoContract(true).queue(id, {gasLimit:150000,type:0});
     await tx.wait();
     toast('✅ Queued! 2-day timelock started.','ok');
     loadDAOData();
@@ -5497,7 +5620,7 @@ async function executeProposal(id) {
   if (!signer) return toast('Connect wallet','er');
   try {
     toast('⏳ Executing proposal…','in');
-    const tx = await daoContract(true).execute(id, {gasLimit:400000});
+    const tx = await daoContract(true).execute(id, {gasLimit:400000,type:0});
     await tx.wait();
     toast('✅ Executed!','ok');
     loadDAOData();
@@ -5530,7 +5653,7 @@ async function submitProposal() {
     const tx = await daoContract(true).propose(
       type, title, desc, target, '0x',
       ethers.utils.parseEther(parseFloat(value||0).toString()),
-      recip, {gasLimit:500000}
+      recip, {gasLimit:500000,type:0}
     );
     await tx.wait();
     toast('✅ Proposal submitted! Voting starts now.','ok');
@@ -5544,7 +5667,7 @@ async function daoFinalize() {
   if (!confirm('This permanently hands control to the community. You will no longer be able to set contract addresses directly. This cannot be undone. Continue?')) return;
   try {
     toast('⏳ Finalizing governance…','in');
-    const tx = await daoContract(true).finalizeInitialization({gasLimit:100000});
+    const tx = await daoContract(true).finalizeInitialization({gasLimit:100000,type:0});
     await tx.wait();
     toast('✅ DAO is now fully live. Community governs the protocol.','ok');
     loadDAOData();
@@ -5593,7 +5716,7 @@ async function claimVesting() {
   try {
     const vestC = new ethers.Contract(C.VESTING, VESTING_ABI, signer);
     toast('⏳ Claiming vested REALM…','in');
-    const tx = await vestC.release({gasLimit:200000});
+    const tx = await vestC.release({gasLimit:200000,type:0});
     await tx.wait();
     toast('✅ Vested tokens claimed!','ok');
     loadVestingData();
@@ -5645,7 +5768,7 @@ async function createVestingSchedule() {
     const wei   = ethers.utils.parseEther(parseFloat(amt).toString());
     const ts    = d => Math.floor(new Date(d).getTime()/1000);
     toast('⏳ Creating schedule…','in');
-    const tx = await vestC.createVestingSchedule(ben, wei, ts(start), ts(cliff), ts(end), {gasLimit:200000});
+    const tx = await vestC.createVestingSchedule(ben, wei, ts(start), ts(cliff), ts(end), {gasLimit:200000,type:0});
     await tx.wait();
     toast('✅ Vesting schedule created for '+ben.slice(0,10)+'…','ok');
     loadVestingData();
