@@ -3136,8 +3136,8 @@ async function submitChessMove(from, to) {
 
   // ── AI game: moves are LOCAL only ─────────────────────────────────────
   if(isAIGame) {
-    if(mated)  { toast('♟️ Checkmate — you win!','ok'); endAIGame(currentGameId); return; }
-    if(drawn)  { toast('Draw!','in'); return; }
+    if(mated) { toast('♟️ Checkmate — you win! 🏆','ok'); endAIGame(currentGameId); return; }
+    if(drawn) { toast('🤝 Game drawn!','in'); endAIGame(currentGameId); return; }
     toast('Move made!','in');
     isMyTurn = false;
     setTimeout(doChessAI, 800);
@@ -3197,15 +3197,21 @@ function startChallengeTimer(secs) {
 }
 
 async function endAIGame(gameId) {
-  // OptimisticGameHub has no declareWinner function.
-  // AI games are local — stats update happens via the challenge window flow.
-  // Just clean up local state and refresh game lists.
-  toast('🏆 AI game complete!','ok');
-  gameCache.delete(gameId);
-  currentGameId=null; lastState=null;
-  document.getElementById('boardContainer').style.display='none';
-  document.getElementById('gameInfoBar').innerHTML='AI game complete!';
-  await delay(1500);
+  // Disable all interaction immediately
+  isMyTurn = false;
+  document.getElementById('forfeitBtn').disabled    = true;
+  document.getElementById('shareBtn').disabled      = true;
+  document.getElementById('challengeBtn').disabled  = true;
+  // Keep board visible so player can see final position
+  // Clear after 4 seconds
+  setTimeout(() => {
+    if(currentGameId === gameId) { // only clear if still showing this game
+      gameCache.delete(gameId);
+      currentGameId = null; lastState = null;
+      document.getElementById('boardContainer').style.display = 'none';
+      document.getElementById('gameInfoBar').textContent = 'AI game complete — create a new one!';
+    }
+  }, 4000);
   loadOpenGames(); loadMyGames();
   setTimeout(loadStats, 2000);
 }
@@ -3362,19 +3368,32 @@ async function doChessAI() {
   try {
     await delay(900);
     const best = bestChessMove(gameEngine, 2);
-    if(!best) { isMyTurn=true; return; }
+    if(!best) {
+      // AI has no legal moves — stalemate or already mated
+      if(gameEngine.in_checkmate()) {
+        toast('♟️ AI is checkmated — you win! 🏆','ok');
+      } else {
+        toast('🤝 Stalemate — draw!','in');
+      }
+      endAIGame(currentGameId);
+      return;
+    }
     gameEngine.move(best);
     renderChessBoard();
+    // Check all terminal states after AI moves
     if(gameEngine.in_checkmate()) {
       toast('🤖 AI wins by checkmate!','er');
       endAIGame(currentGameId); return;
     }
+    if(gameEngine.in_stalemate() || gameEngine.in_draw()) {
+      toast('🤝 Draw!','in');
+      endAIGame(currentGameId); return;
+    }
     toast('🤖 AI: '+best.from+'→'+best.to,'in');
     isMyTurn = true;
-    // Update info bar
     document.getElementById('gameInfoBar').innerHTML =
-      `Game #${currentGameId} · CHESS · 🤖 AI Practice<br><span class="turn-you">🟢 YOUR TURN</span>`;
-    saveGameState(); // cache updated state
+      `Local AI · CHESS<br><span class="turn-you">🟢 YOUR TURN</span>`;
+    saveGameState();
   } catch(e){ if(gameEngine) try{gameEngine.undo();}catch(e2){} }
   finally { aiRunning=false; document.getElementById('aiThinking').style.display='none'; }
 }
