@@ -3197,22 +3197,29 @@ function startChallengeTimer(secs) {
 }
 
 async function endAIGame(gameId) {
-  // Disable all interaction immediately
+  // Disable all interaction immediately — game is over
   isMyTurn = false;
-  document.getElementById('forfeitBtn').disabled    = true;
-  document.getElementById('shareBtn').disabled      = true;
-  document.getElementById('challengeBtn').disabled  = true;
-  // Keep board visible so player can see final position
-  // Clear after 4 seconds
-  setTimeout(() => {
-    if(currentGameId === gameId) { // only clear if still showing this game
-      gameCache.delete(gameId);
-      currentGameId = null; lastState = null;
-      document.getElementById('boardContainer').style.display = 'none';
-      document.getElementById('gameInfoBar').textContent = 'AI game complete — create a new one!';
-    }
-  }, 4000);
-  loadOpenGames(); loadMyGames();
+  document.getElementById('shareBtn').disabled     = false; // keep share enabled for screenshot
+  document.getElementById('challengeBtn').disabled = true;
+  // Turn FORFEIT into CLOSE — user manually dismisses when ready
+  const forfeitBtn = document.getElementById('forfeitBtn');
+  forfeitBtn.disabled   = false;
+  forfeitBtn.textContent = 'CLOSE GAME';
+  forfeitBtn.style.background = 'linear-gradient(135deg,#3d7fff,#2255cc)';
+  forfeitBtn.onclick = () => {
+    gameCache.delete(gameId);
+    currentGameId = null; lastState = null;
+    document.getElementById('boardContainer').style.display = 'none';
+    document.getElementById('gameInfoBar').textContent = 'Create or join a game';
+    // Reset forfeit button back to default
+    forfeitBtn.textContent = 'FORFEIT';
+    forfeitBtn.style.background = '';
+    forfeitBtn.onclick = forfeit;
+    forfeitBtn.disabled = true;
+    document.getElementById('shareBtn').disabled = true;
+    loadOpenGames(); loadMyGames();
+  };
+  loadMyGames();
   setTimeout(loadStats, 2000);
 }
 
