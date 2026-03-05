@@ -2911,15 +2911,11 @@ async function forfeit() {
   // AI games (local, negative ID or isAIGame flag) — end locally, no contract call
   if(isAIGame || (currentGameId && currentGameId < 0)) {
     if(!confirm('End this AI game?')) return;
-    gameCache.delete(currentGameId);
-    currentGameId = null; lastState = null;
-    document.getElementById('boardContainer').style.display = 'none';
-    document.getElementById('gameInfoBar').textContent = 'AI game ended';
-    document.getElementById('forfeitBtn').disabled = true;
-    document.getElementById('shareBtn').disabled = true;
-    document.getElementById('challengeBtn').disabled = true;
-    toast('AI game ended','ok');
-    loadMyGames();
+    const gid = currentGameId;
+    endAIGame(gid);
+    // Override the infobar since user chose to forfeit (not won/draw)
+    document.getElementById('gameInfoBar').innerHTML =
+      `<span style="color:var(--dim)">AI game ended</span>`;
     return;
   }
 
