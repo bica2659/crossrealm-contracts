@@ -4124,6 +4124,7 @@ async function sendRoomInvite() {
 }
 
 
+async function loadSocialMsgs() {
   if(!social||!currentSocialRoomId) return;
   const area = document.getElementById('messagesArea');
   try {
