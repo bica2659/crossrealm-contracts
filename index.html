@@ -1070,6 +1070,7 @@ label input[type=checkbox]{width:auto;margin:0}
           <div class="chat-rmeta" id="chatRoomMeta">Public room · Connect wallet to chat</div>
         </div>
         <div class="spacer"></div>
+        <button class="btn-ghost btn-sm" id="inviteBtn" style="display:none;margin-left:6px" onclick="openInviteModal()">✉️ Invite</button>
         <button class="btn-ghost btn-sm" onclick="loadSocialMsgs()" style="margin-left:8px">↻</button>
       </div>
       <div class="msgs-area" id="messagesArea">
@@ -1245,7 +1246,7 @@ label input[type=checkbox]{width:auto;margin:0}
           <h3>🔗 Fee Distribution</h3>
           <div class="ibox">
             <strong style="color:var(--gold)">Staking reward streams:</strong><br>
-            <strong style="color:var(--green)">Stream 1:</strong> 30M REALM reserve — protocol-emitted at 84,000 REALM/month · ~9yr runway<br>
+            <strong style="color:var(--green)">Stream 1:</strong> 30M REALM reserve — protocol-emitted at 84,000 REALM/month · ~30yr runway<br>
             <strong style="color:var(--green)">Stream 2:</strong> 14% of every 2.5% game fee — automatic, grows with platform volume<br><br>
             <strong>2.5% game fee breakdown:</strong><br>
             10% → Cashback · 5% → Referral · 8% → Creator bonus (private) · <strong>14% → Staking pool</strong> · 3% → PropertyNFT
@@ -1988,7 +1989,20 @@ label input[type=checkbox]{width:auto;margin:0}
   </div>
 </div>
 
-<div class="overlay" id="joinRoomModal">
+<div class="overlay" id="inviteModal">
+  <div class="modal">
+    <div class="modal-title">✉️ Invite to Room</div>
+    <p style="color:var(--dim);font-size:11px;margin-bottom:14px;line-height:1.7">Invite a wallet address to this private room. They will be able to join and send messages.</p>
+    <span class="fl">Wallet Address</span>
+    <input type="text" id="inviteAddress" placeholder="0x…">
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal('inviteModal')">Cancel</button>
+      <button class="btn" onclick="sendRoomInvite()">Send Invite</button>
+    </div>
+  </div>
+</div>
+
+
   <div class="modal">
     <div class="modal-title">🚪 Join Public Room</div>
     <p style="color:var(--dim);font-size:11px;margin-bottom:14px;line-height:1.7">Enter a Room ID to join. You need a profile (set in Discovery tab) to join rooms. First message costs 1 REALM per-room per-user.</p>
@@ -4019,8 +4033,15 @@ function openRoom(id, name, meta, el) {
   document.getElementById('chatRoomName').textContent  = name;
   document.getElementById('chatRoomMeta').textContent  = meta;
   loadSocialMsgs();
-  // Auto-join public room silently so user can message without extra steps
+  // Show invite button only for private rooms where user is creator
+  const inviteBtn = document.getElementById('inviteBtn');
+  if(inviteBtn) inviteBtn.style.display = 'none'; // hide by default, reveal below if applicable
   if(isConnected && social) {
+    social.rooms(id).then(r => {
+      if(inviteBtn && !r.isPublic && r.creator.toLowerCase() === userAddr.toLowerCase()) {
+        inviteBtn.style.display = '';
+      }
+    }).catch(()=>{});
     social.isMemberOf(id, userAddr).then(isMember => {
       if(!isMember) {
         // Check if public room — if so, join silently
@@ -4081,7 +4102,28 @@ function showJoinPrompt(roomId, roomName, isPublic) {
   area.appendChild(prompt);
 }
 
-async function loadSocialMsgs() {
+function openInviteModal() {
+  if(!isConnected) return toast('Connect wallet first','er');
+  if(!currentSocialRoomId) return toast('No room selected','er');
+  document.getElementById('inviteAddress').value = '';
+  openModal('inviteModal');
+}
+
+async function sendRoomInvite() {
+  if(!social) return toast('Connect wallet first','er');
+  const addr = document.getElementById('inviteAddress').value.trim();
+  if(!addr || !ethers.utils.isAddress(addr)) return toast('Enter a valid wallet address','er');
+  if(addr.toLowerCase() === userAddr.toLowerCase()) return toast('Cannot invite yourself','er');
+  try {
+    toast('⏳ Sending invite…','in');
+    const tx = await social.inviteToRoom(currentSocialRoomId, addr, {gasLimit:200000,type:0});
+    await tx.wait();
+    toast('✅ Invited '+addr.slice(0,10)+'… to room','ok');
+    closeModal('inviteModal');
+  } catch(e){ toast('❌ '+(e.reason||e.message),'er'); }
+}
+
+
   if(!social||!currentSocialRoomId) return;
   const area = document.getElementById('messagesArea');
   try {
